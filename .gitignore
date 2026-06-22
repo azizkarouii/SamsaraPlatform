@@ -1,0 +1,42 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Logs
+*.log
+*.err
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE - IntelliJ
+.idea/
+*.iml
+*.iws
+
+# IDE - Eclipse
+.project
+.classpath
+.settings/
+.factorypath
+
+# IDE - NetBeans
+nbproject/
+nb-configuration.xml
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
