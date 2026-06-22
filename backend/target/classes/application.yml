@@ -1,0 +1,25 @@
+server:
+  port: 3001
+  servlet:
+    context-path: /api
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/Samsara
+    username: postgres
+    password: system
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+application:
+  jwt:
+    secret: samsara-secret-key-change-in-production
+    expiration: 86400000
