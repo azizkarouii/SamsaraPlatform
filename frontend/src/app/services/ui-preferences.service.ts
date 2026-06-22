@@ -4,7 +4,7 @@ import { inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
 export type ThemeMode = 'light' | 'dark';
-export type AppLanguage = 'fr' | 'en';
+export type AppLanguage = 'fr' | 'en' | 'ar';
 
 @Injectable({
   providedIn: 'root'
@@ -35,7 +35,8 @@ export class UiPreferencesService {
   }
 
   toggleLanguage(): void {
-    this.setLanguage(this.languageSubject.value === 'fr' ? 'en' : 'fr');
+    const next: Record<AppLanguage, AppLanguage> = { fr: 'en', en: 'ar', ar: 'fr' };
+    this.setLanguage(next[this.languageSubject.value]);
   }
 
   setLanguage(language: AppLanguage): void {
@@ -67,6 +68,8 @@ export class UiPreferencesService {
   }
 
   private applyLanguage(language: AppLanguage): void {
-    this.documentRef.documentElement.lang = language;
+    const root = this.documentRef.documentElement;
+    root.lang = language;
+    root.dir = language === 'ar' ? 'rtl' : 'ltr';
   }
 }

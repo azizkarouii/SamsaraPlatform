@@ -1,6 +1,50 @@
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
+:root {
+  --bg-main: #f5f5f5;
+  --bg-card: #ffffff;
+  --bg-toolbar: #ffffff;
+  --bg-sidenav: #fafafa;
+  --text-primary: rgba(0,0,0,0.87);
+  --border-color: rgba(0,0,0,0.08);
+}
+
+html.dark-theme {
+  --bg-main: #303030;
+  --bg-card: #424242;
+  --bg-toolbar: #212121;
+  --bg-sidenav: #2c2c2c;
+  --text-primary: #ffffff;
+  --border-color: rgba(255,255,255,0.12);
+
+  color-scheme: dark;
+
+  body {
+    background: #303030;
+    color: #ffffff;
+  }
+
+  .mat-toolbar, .mat-mdc-toolbar {
+    background: var(--bg-toolbar) !important;
+    color: #ffffff !important;
+  }
+
+  .mat-sidenav, .mat-drawer {
+    background: var(--bg-sidenav) !important;
+    color: #ffffff !important;
+  }
+
+  .mat-mdc-card {
+    background: var(--bg-card) !important;
+    color: #ffffff !important;
+  }
+
+  .mat-mdc-list-item, .mdc-list-item__content {
+    color: #ffffff !important;
+  }
+}
+
 .text-center { text-align: center; }
 .mt-1 { margin-top: 0.5rem; }
 .mt-2 { margin-top: 1rem; }
