@@ -55,5 +55,11 @@ public class User {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        if (role == null) role = UserRole.SAMSAR;
+    }
+
+    @PostLoad
+    protected void onLoad() {
+        if (role == null) role = UserRole.SAMSAR;
     }
 }
