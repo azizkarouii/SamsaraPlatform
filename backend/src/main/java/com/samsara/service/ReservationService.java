@@ -1,9 +1,10 @@
 package com.samsara.service;
 
 import com.samsara.dto.ReservationDto;
-import com.samsara.entity.Notification;
+import com.samsara.entity.Property;
 import com.samsara.entity.Reservation;
 import com.samsara.entity.RevenueHistory;
+import com.samsara.entity.User;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class ReservationService {
     private final RevenueHistoryRepository revenueHistoryRepository;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public List<Reservation> findAll() {
         return reservationRepository.findAll();
@@ -57,7 +59,13 @@ public class ReservationService {
 
         reservation = reservationRepository.save(reservation);
 
-        createNotification(reservation, "created");
+        Property property = propertyRepository.findById(dto.getPropertyId()).orElse(null);
+        if (property != null) {
+            User actor = userRepository.findById(samsarId).orElse(null);
+            if (actor != null) {
+                notificationService.notifyReservationCreated(reservation, property, actor);
+            }
+        }
 
         return reservation;
     }
@@ -65,6 +73,7 @@ public class ReservationService {
     @Transactional
     public Reservation updateStatus(Long id, String status) {
         Reservation reservation = findById(id);
+        String oldStatus = reservation.getStatus();
         reservation.setStatus(status);
         reservation = reservationRepository.save(reservation);
 
@@ -78,7 +87,19 @@ public class ReservationService {
             revenueHistoryRepository.save(revenue);
         }
 
-        createNotification(reservation, status);
+        if (!oldStatus.equals(status)) {
+            Property property = propertyRepository.findById(reservation.getPropertyId()).orElse(null);
+            if (property != null) {
+                User actor = userRepository.findById(reservation.getSamsarId()).orElse(null);
+                if (actor != null) {
+                    if ("confirmed".equals(status)) {
+                        notificationService.notifyReservationConfirmed(reservation, property, actor);
+                    } else if ("cancelled".equals(status)) {
+                        notificationService.notifyReservationCancelled(reservation, property, actor);
+                    }
+                }
+            }
+        }
 
         return reservation;
     }
@@ -103,25 +124,13 @@ public class ReservationService {
     public void delete(Long id) {
         Reservation reservation = findById(id);
         reservationRepository.delete(reservation);
-    }
 
-    private void createNotification(Reservation reservation, String action) {
-        String title = "Reservation " + action;
-        String message = "Reservation for " + reservation.getClientName()
-                + " on property " + reservation.getPropertyId()
-                + " from " + reservation.getStartDate()
-                + " to " + reservation.getEndDate()
-                + " has been " + action;
-
-        Notification notification = Notification.builder()
-                .userId(reservation.getSamsarId())
-                .reservationId(reservation.getId())
-                .propertyId(reservation.getPropertyId())
-                .type("reservation")
-                .title(title)
-                .message(message)
-                .build();
-
-        notificationRepository.save(notification);
+        Property property = propertyRepository.findById(reservation.getPropertyId()).orElse(null);
+        if (property != null) {
+            User actor = userRepository.findById(reservation.getSamsarId()).orElse(null);
+            if (actor != null) {
+                notificationService.notifyReservationDeleted(reservation, property, actor);
+            }
+        }
     }
 }
