@@ -27,6 +27,11 @@ public class User {
 
     private String phone;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private UserRole role = UserRole.SAMSAR;
+
     @Column(name = "photo_url")
     private String photoUrl;
 

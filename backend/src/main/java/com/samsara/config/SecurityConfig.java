@@ -27,8 +27,16 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/register", "/auth/login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/properties/mine").authenticated()
                 .requestMatchers(HttpMethod.GET, "/properties", "/properties/*").permitAll()
+                .requestMatchers("/properties/mine").authenticated()
+                .requestMatchers(HttpMethod.POST, "/properties").hasRole("PROPRIETAIRE")
+                .requestMatchers(HttpMethod.PUT, "/properties/*").hasRole("PROPRIETAIRE")
+                .requestMatchers(HttpMethod.DELETE, "/properties/*").hasRole("PROPRIETAIRE")
+                .requestMatchers(HttpMethod.POST, "/property-samsars").hasRole("PROPRIETAIRE")
+                .requestMatchers("/notifications/**").authenticated()
+                .requestMatchers("/reservations/**").authenticated()
+                .requestMatchers("/property-samsars/**").authenticated()
+                .requestMatchers("/property-availability/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

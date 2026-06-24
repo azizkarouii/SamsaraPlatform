@@ -23,10 +23,15 @@ public class JwtService {
     }
 
     public String generateToken(Long userId, String email) {
+        return generateToken(userId, email, "SAMSAR");
+    }
+
+    public String generateToken(Long userId, String email, String role) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(email)
                 .claim("userId", userId)
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiration))
                 .signWith(key)
@@ -53,5 +58,10 @@ public class JwtService {
     public Long getUserIdFromToken(String token) {
         Claims claims = parseToken(token);
         return claims.get("userId", Long.class);
+    }
+
+    public String getRoleFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims.get("role", String.class);
     }
 }

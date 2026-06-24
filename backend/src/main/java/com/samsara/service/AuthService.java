@@ -28,11 +28,12 @@ public class AuthService {
                 .email(dto.getEmail())
                 .password(passwordEncoder.encode(dto.getPassword()))
                 .phone(dto.getPhone())
+                .role(dto.getRole())
                 .build();
 
         user = userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
 
         return AuthResponse.builder()
                 .accessToken(token)
@@ -48,7 +49,7 @@ public class AuthService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
 
         return AuthResponse.builder()
                 .accessToken(token)
@@ -69,6 +70,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .photoUrl(user.getPhotoUrl())
+                .role(user.getRole().name())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

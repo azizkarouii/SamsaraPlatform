@@ -12,6 +12,7 @@ import { ReservationFormComponent } from './pages/reservations/reservation-form/
 import { ReservationDetailComponent } from './pages/reservations/reservation-detail/reservation-detail.component';
 import { NotificationsComponent } from './pages/notifications/notifications.component';
 import { ProfileComponent } from './pages/profile/profile.component';
+import { SharedHousesComponent } from './pages/shared-houses/shared-houses.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -31,6 +32,7 @@ export const routes: Routes = [
       { path: 'reservations/add', component: ReservationFormComponent },
       { path: 'reservations/:id', component: ReservationDetailComponent },
       { path: 'reservations/:id/edit', component: ReservationFormComponent },
+      { path: 'shared-houses', component: SharedHousesComponent },
       { path: 'notifications', component: NotificationsComponent },
       { path: 'profile', component: ProfileComponent },
       { path: '', redirectTo: '/dashboard', pathMatch: 'full' },

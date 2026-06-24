@@ -3,11 +3,14 @@ export interface LoginDto {
   password: string;
 }
 
+export type UserRole = 'PROPRIETAIRE' | 'SAMSAR';
+
 export interface RegisterDto {
   name: string;
   email: string;
   password: string;
   phone?: string;
+  role: UserRole;
 }
 
 export interface AuthResponse {
@@ -21,5 +24,6 @@ export interface User {
   email: string;
   phone?: string;
   photoUrl?: string;
+  role: UserRole;
   createdAt: string;
 }

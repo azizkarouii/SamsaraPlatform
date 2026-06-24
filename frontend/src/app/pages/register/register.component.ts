@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -25,6 +26,7 @@ import { AuthService } from '../../services/auth.service';
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    MatButtonToggleModule,
   ],
   template: `
     <div class="register-container">
@@ -76,6 +78,19 @@ import { AuthService } from '../../services/auth.service';
               <input matInput formControlName="phone" placeholder="Enter your phone number" />
               <mat-icon matSuffix>phone</mat-icon>
             </mat-form-field>
+
+            <label class="role-label">Account type</label>
+            <mat-button-toggle-group formControlName="role" class="role-toggle full-width" aria-label="Account role">
+              <mat-button-toggle value="PROPRIETAIRE">
+                <mat-icon>home</mat-icon>
+                Propriétaire
+              </mat-button-toggle>
+              <mat-button-toggle value="SAMSAR">
+                <mat-icon>support_agent</mat-icon>
+                Samsar
+              </mat-button-toggle>
+            </mat-button-toggle-group>
+            <mat-error *ngIf="registerForm.get('role')?.hasError('required') && registerForm.get('role')?.touched" class="field-error">Select your account type</mat-error>
 
             <button mat-raised-button color="primary" class="full-width" type="submit" [disabled]="registerForm.invalid || loading">
               <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
@@ -145,6 +160,27 @@ import { AuthService } from '../../services/auth.service';
       width: 100%;
       margin-bottom: 1.1rem;
     }
+    .role-label {
+      display: block;
+      font-size: 0.875rem;
+      color: rgba(31, 41, 55, 0.78);
+      margin-bottom: 0.35rem;
+      font-weight: 500;
+    }
+    .role-toggle {
+      margin-bottom: 0.25rem;
+    }
+    :host ::ng-deep .role-toggle .mat-button-toggle {
+      flex: 1;
+    }
+    :host ::ng-deep .role-toggle .mat-button-toggle .mat-icon {
+      margin-right: 4px;
+    }
+    .field-error {
+      font-size: 0.75rem;
+      color: #f44336;
+      margin: 0 0 1rem 0;
+    }
     :host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
       background: rgba(248, 250, 252, 0.92);
     }
@@ -200,6 +236,7 @@ export class RegisterComponent {
     password: ['', [Validators.required, Validators.minLength(6)]],
     confirmPassword: ['', [Validators.required]],
     phone: [''],
+    role: ['PROPRIETAIRE', [Validators.required]],
   }, { validators: this.passwordMatchValidator });
 
   constructor(
@@ -219,9 +256,9 @@ export class RegisterComponent {
     if (this.registerForm.invalid) return;
 
     this.loading = true;
-    const { name, email, password, phone } = this.registerForm.value;
+    const { name, email, password, phone, role } = this.registerForm.value;
 
-    this.authService.register({ name: name!, email: email!, password: password!, phone: phone || undefined }).subscribe({
+    this.authService.register({ name: name!, email: email!, password: password!, phone: phone || undefined, role: role! as 'PROPRIETAIRE' | 'SAMSAR' }).subscribe({
       next: () => {
         this.snackBar.open('Registration successful!', 'Close', { duration: 3000 });
         this.router.navigate(['/dashboard']);

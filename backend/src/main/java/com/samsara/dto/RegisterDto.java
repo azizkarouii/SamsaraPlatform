@@ -1,7 +1,9 @@
 package com.samsara.dto;
 
+import com.samsara.entity.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -19,4 +21,7 @@ public class RegisterDto {
     private String password;
 
     private String phone;
+
+    @NotNull
+    private UserRole role;
 }

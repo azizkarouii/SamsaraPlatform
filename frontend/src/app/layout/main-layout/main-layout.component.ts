@@ -57,7 +57,7 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
             <mat-icon matListItemIcon>dashboard</mat-icon>
             <span matListItemTitle>{{ t('dashboard') }}</span>
           </a>
-          <a mat-list-item routerLink="/properties" routerLinkActive="active-link" (click)="onNavClick()">
+          <a *ngIf="user?.role === 'PROPRIETAIRE'" mat-list-item routerLink="/properties" routerLinkActive="active-link" (click)="onNavClick()">
             <mat-icon matListItemIcon>home</mat-icon>
             <span matListItemTitle>{{ t('properties') }}</span>
           </a>
@@ -98,6 +98,9 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
           <button mat-icon-button (click)="toggleTheme()" [matTooltip]="t(themeMode === 'dark' ? 'light_mode' : 'dark_mode')">
             <mat-icon>{{ themeMode === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
           </button>
+
+          <span class="role-chip" *ngIf="user?.role === 'PROPRIETAIRE'">Propriétaire</span>
+          <span class="role-chip" *ngIf="user?.role === 'SAMSAR'">Samsar</span>
 
           <button mat-icon-button [matMenuTriggerFor]="userMenu">
             <mat-icon>account_circle</mat-icon>
@@ -168,6 +171,17 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     }
     mat-nav-list a span {
       color: var(--text-primary);
+    }
+    .role-chip {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 10px;
+      border-radius: 12px;
+      margin-right: 0.5rem;
+      background: rgba(63, 81, 181, 0.12);
+      color: #3f51b5;
     }
   `]
 })

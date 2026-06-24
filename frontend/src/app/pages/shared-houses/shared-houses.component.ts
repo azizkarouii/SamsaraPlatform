@@ -11,10 +11,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../services/auth.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
 import { PropertySamsar } from '../../models/property-samsar.model';
 import { PropertyService } from '../../services/property.service';
 import { Property } from '../../models/property.model';
+import { User } from '../../models/auth.model';
 
 @Component({
   selector: 'app-shared-houses',
@@ -38,11 +40,11 @@ import { Property } from '../../models/property.model';
       <div class="page-head">
         <div>
           <p class="eyebrow">Shared management</p>
-          <h1>My shared houses</h1>
+          <h1>{{ user?.role === 'PROPRIETAIRE' ? 'Shared properties management' : 'My shared houses' }}</h1>
         </div>
       </div>
 
-      <mat-card class="invite-card">
+      <mat-card class="invite-card" *ngIf="user?.role === 'PROPRIETAIRE'">
         <mat-card-header>
           <mat-card-title>Invite a samsar</mat-card-title>
           <mat-card-subtitle>Link a house, then notify a samsar by email and phone.</mat-card-subtitle>
@@ -204,6 +206,7 @@ export class SharedHousesComponent implements OnInit {
   ownedProperties: Property[] = [];
   loading = true;
   submitting = false;
+  user: User | null = null;
   inviteForm = this.fb.group({
     propertyId: [null as number | null, Validators.required],
     email: ['', [Validators.required, Validators.email]],
@@ -212,6 +215,7 @@ export class SharedHousesComponent implements OnInit {
   });
 
   constructor(
+    private authService: AuthService,
     private propertySamsarService: PropertySamsarService,
     private propertyService: PropertyService,
     private fb: FormBuilder,
@@ -219,7 +223,10 @@ export class SharedHousesComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadOwnedProperties();
+    this.user = this.authService.getCurrentUser();
+    if (this.user?.role === 'PROPRIETAIRE') {
+      this.loadOwnedProperties();
+    }
     this.loadMine();
   }
 
