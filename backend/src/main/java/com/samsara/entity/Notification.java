@@ -18,7 +18,7 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "reservation_id")
+    @Column(name = "reservation_id", nullable = true)
     private Long reservationId;
 
     @Column(name = "property_id", nullable = false)
