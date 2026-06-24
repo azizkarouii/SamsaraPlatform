@@ -17,6 +17,8 @@ import { PropertySamsar } from '../../models/property-samsar.model';
 import { PropertyService } from '../../services/property.service';
 import { Property } from '../../models/property.model';
 import { User } from '../../models/auth.model';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
+import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
 
 @Component({
   selector: 'app-shared-houses',
@@ -39,20 +41,20 @@ import { User } from '../../models/auth.model';
     <div class="shared-container">
       <div class="page-head">
         <div>
-          <p class="eyebrow">Shared management</p>
-          <h1>{{ user?.role === 'PROPRIETAIRE' ? 'Manage shared access' : 'My shared houses' }}</h1>
+          <p class="eyebrow">{{ t('shared_management') }}</p>
+          <h1>{{ user?.role === 'PROPRIETAIRE' ? t('manage_shared_access') : t('my_shared_houses') }}</h1>
         </div>
       </div>
 
       <mat-card class="invite-card" *ngIf="user?.role === 'PROPRIETAIRE'">
         <mat-card-header>
-          <mat-card-title>Invite a samsar</mat-card-title>
-          <mat-card-subtitle>Link a house, then notify a samsar by email and phone.</mat-card-subtitle>
+          <mat-card-title>{{ t('invite_samsar') }}</mat-card-title>
+          <mat-card-subtitle>{{ t('invite_samsar_sub') }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <form class="invite-form" [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
             <mat-form-field appearance="outline">
-              <mat-label>Property</mat-label>
+              <mat-label>{{ t('my_houses') }}</mat-label>
               <mat-select formControlName="propertyId">
                 <mat-option *ngFor="let property of ownedProperties" [value]="property.id">
                   {{ property.title }}
@@ -61,17 +63,18 @@ import { User } from '../../models/auth.model';
             </mat-form-field>
 
             <mat-form-field appearance="outline">
-              <mat-label>Samsar email</mat-label>
+              <mat-label>{{ t('samsar_email') }}</mat-label>
               <input matInput type="email" formControlName="email" placeholder="samsar@example.com" />
             </mat-form-field>
 
             <mat-form-field appearance="outline">
-              <mat-label>Samsar phone (+216)</mat-label>
+              <mat-label>{{ t('samsar_phone') }}</mat-label>
+              <span matTextPrefix>+216&nbsp;</span>
               <input matInput formControlName="phone" placeholder="12345678" />
             </mat-form-field>
 
             <mat-form-field appearance="outline">
-              <mat-label>Allowed increase</mat-label>
+              <mat-label>{{ t('allowed_increase') }}</mat-label>
               <mat-select formControlName="priceIncreaseTnd">
                 <mat-option [value]="10">10 TND</mat-option>
                 <mat-option [value]="20">20 TND</mat-option>
@@ -82,7 +85,7 @@ import { User } from '../../models/auth.model';
             <div class="invite-actions">
               <button mat-raised-button color="primary" type="submit" [disabled]="inviteForm.invalid || submitting">
                 <mat-icon>person_add</mat-icon>
-                Invite samsar
+                {{ t('send_invite') }}
               </button>
             </div>
           </form>
@@ -97,8 +100,8 @@ import { User } from '../../models/auth.model';
         <div class="grid" *ngIf="relations.length; else emptyStateSamsar">
           <mat-card class="house-card" *ngFor="let relation of relations">
             <mat-card-header>
-              <mat-card-title>{{ relation.property?.title || 'Untitled property' }}</mat-card-title>
-              <mat-card-subtitle>{{ relation.property?.address || 'No address' }}</mat-card-subtitle>
+              <mat-card-title>{{ relation.property?.title || t('unsaved') }}</mat-card-title>
+              <mat-card-subtitle>{{ relation.property?.address || '-' }}</mat-card-subtitle>
             </mat-card-header>
 
             <mat-card-content>
@@ -116,11 +119,11 @@ import { User } from '../../models/auth.model';
             <mat-card-actions>
               <button mat-stroked-button color="primary" [routerLink]="['/public/properties', relation.propertyId]">
                 <mat-icon>open_in_new</mat-icon>
-                Open public page
+                {{ t('view') }}
               </button>
               <button mat-stroked-button color="warn" (click)="remove(relation)">
                 <mat-icon>close</mat-icon>
-                Remove
+                {{ t('delete') }}
               </button>
             </mat-card-actions>
           </mat-card>
@@ -131,8 +134,8 @@ import { User } from '../../models/auth.model';
         <mat-card class="empty-card">
           <mat-card-content>
             <mat-icon>home_work</mat-icon>
-            <h2>No shared properties yet</h2>
-            <p>When an owner adds you to a property, it will appear here.</p>
+            <h2>{{ t('no_shared_properties') }}</h2>
+            <p>{{ t('no_shared_desc_samsar') }}</p>
           </mat-card-content>
         </mat-card>
       </ng-template>
@@ -207,6 +210,7 @@ export class SharedHousesComponent implements OnInit {
   loading = true;
   submitting = false;
   user: User | null = null;
+  language: AppLanguage = 'fr';
   inviteForm = this.fb.group({
     propertyId: [null as number | null, Validators.required],
     email: ['', [Validators.required, Validators.email]],
@@ -220,7 +224,10 @@ export class SharedHousesComponent implements OnInit {
     private propertyService: PropertyService,
     private fb: FormBuilder,
     private snackBar: MatSnackBar,
-  ) {}
+    private uiPrefs: UiPreferencesService,
+  ) {
+    this.language = this.uiPrefs.getLanguage() as AppLanguage;
+  }
 
   ngOnInit(): void {
     this.user = this.authService.getCurrentUser();
@@ -250,18 +257,22 @@ export class SharedHousesComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snackBar.open('Failed to load shared houses', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('no_shared_properties'), this.t('close'), { duration: 3000 });
       },
     });
+  }
+
+  t(key: string): string {
+    return TRANSLATIONS[key]?.[this.language] ?? key;
   }
 
   remove(relation: PropertySamsar): void {
     this.propertySamsarService.remove(relation.propertyId, relation.samsarId).subscribe({
       next: () => {
-        this.snackBar.open('Shared link removed', 'Close', { duration: 2500 });
+        this.snackBar.open('Accès retiré', this.t('close'), { duration: 2500 });
         this.relations = this.relations.filter(item => item !== relation);
       },
-      error: () => this.snackBar.open('Failed to remove shared link', 'Close', { duration: 3000 }),
+      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
     });
   }
 
@@ -280,13 +291,13 @@ export class SharedHousesComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.submitting = false;
-        this.snackBar.open('Samsar invited and notified', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('invite_success'), this.t('close'), { duration: 3000 });
         this.loadMine();
       },
       error: (error) => {
         this.submitting = false;
-        const message = error.error?.message || 'Failed to invite samsar';
-        this.snackBar.open(message, 'Close', { duration: 4000 });
+        const message = error.error?.message || 'Erreur';
+        this.snackBar.open(message, this.t('close'), { duration: 4000 });
       },
     });
   }

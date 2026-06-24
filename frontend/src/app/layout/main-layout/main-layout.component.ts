@@ -15,20 +15,7 @@ import { NotificationService } from '../../services/notification.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
 import { Subscription, interval } from 'rxjs';
-
-const TRANSLATIONS: Record<string, Record<string, string>> = {
-  dashboard: { fr: 'Tableau de bord', en: 'Dashboard', ar: 'لوحة القيادة' },
-  properties: { fr: 'Propriétés', en: 'Properties', ar: 'العقارات' },
-  my_houses: { fr: 'Mes maisons', en: 'My houses', ar: 'منازلي' },
-  reservations: { fr: 'Réservations', en: 'Reservations', ar: 'الحجوزات' },
-  shared_houses: { fr: 'Maisons partagées', en: 'Shared houses', ar: 'منازل مشتركة' },
-  notifications: { fr: 'Notifications', en: 'Notifications', ar: 'الإشعارات' },
-  profile: { fr: 'Profil', en: 'Profile', ar: 'الملف الشخصي' },
-  logout: { fr: 'Déconnexion', en: 'Logout', ar: 'تسجيل الخروج' },
-  language: { fr: 'Langue', en: 'Language', ar: 'اللغة' },
-  dark_mode: { fr: 'Mode sombre', en: 'Dark mode', ar: 'الوضع المظلم' },
-  light_mode: { fr: 'Mode clair', en: 'Light mode', ar: 'الوضع الفاتح' },
-};
+import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
 
 @Component({
   selector: 'app-main-layout',
@@ -236,7 +223,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   @ViewChild(MatSidenav) drawer!: MatSidenav;
   user: User | null = null;
   unreadCount = 0;
-  language: 'fr' | 'en' | 'ar' = 'fr';
+  language: AppLanguage = 'fr';
   themeMode: 'light' | 'dark' = 'light';
   private subscriptions: Subscription[] = [];
 
