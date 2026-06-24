@@ -40,7 +40,7 @@ import { User } from '../../models/auth.model';
       <div class="page-head">
         <div>
           <p class="eyebrow">Shared management</p>
-          <h1>{{ user?.role === 'PROPRIETAIRE' ? 'Shared properties management' : 'My shared houses' }}</h1>
+          <h1>{{ user?.role === 'PROPRIETAIRE' ? 'Manage shared access' : 'My shared houses' }}</h1>
         </div>
       </div>
 
@@ -89,12 +89,12 @@ import { User } from '../../models/auth.model';
         </mat-card-content>
       </mat-card>
 
-      <div *ngIf="loading; else content" class="loading-state">
+      <div *ngIf="user?.role === 'SAMSAR' && loading" class="loading-state">
         <mat-spinner diameter="42"></mat-spinner>
       </div>
 
-      <ng-template #content>
-        <div class="grid" *ngIf="relations.length; else emptyState">
+      <div *ngIf="user?.role === 'SAMSAR'">
+        <div class="grid" *ngIf="relations.length; else emptyStateSamsar">
           <mat-card class="house-card" *ngFor="let relation of relations">
             <mat-card-header>
               <mat-card-title>{{ relation.property?.title || 'Untitled property' }}</mat-card-title>
@@ -125,9 +125,9 @@ import { User } from '../../models/auth.model';
             </mat-card-actions>
           </mat-card>
         </div>
-      </ng-template>
+      </div>
 
-      <ng-template #emptyState>
+      <ng-template #emptyStateSamsar>
         <mat-card class="empty-card">
           <mat-card-content>
             <mat-icon>home_work</mat-icon>

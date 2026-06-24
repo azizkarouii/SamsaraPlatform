@@ -19,6 +19,7 @@ import { Subscription, interval } from 'rxjs';
 const TRANSLATIONS: Record<string, Record<string, string>> = {
   dashboard: { fr: 'Tableau de bord', en: 'Dashboard', ar: 'لوحة القيادة' },
   properties: { fr: 'Propriétés', en: 'Properties', ar: 'العقارات' },
+  my_houses: { fr: 'Mes maisons', en: 'My houses', ar: 'منازلي' },
   reservations: { fr: 'Réservations', en: 'Reservations', ar: 'الحجوزات' },
   shared_houses: { fr: 'Maisons partagées', en: 'Shared houses', ar: 'منازل مشتركة' },
   notifications: { fr: 'Notifications', en: 'Notifications', ar: 'الإشعارات' },
@@ -59,15 +60,15 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
           </a>
           <a *ngIf="user?.role === 'PROPRIETAIRE'" mat-list-item routerLink="/properties" routerLinkActive="active-link" (click)="onNavClick()">
             <mat-icon matListItemIcon>home</mat-icon>
-            <span matListItemTitle>{{ t('properties') }}</span>
+            <span matListItemTitle>{{ t('my_houses') }}</span>
+          </a>
+          <a *ngIf="user?.role === 'SAMSAR'" mat-list-item routerLink="/shared-houses" routerLinkActive="active-link" (click)="onNavClick()">
+            <mat-icon matListItemIcon>holiday_village</mat-icon>
+            <span matListItemTitle>{{ t('shared_houses') }}</span>
           </a>
           <a mat-list-item routerLink="/reservations" routerLinkActive="active-link" (click)="onNavClick()">
             <mat-icon matListItemIcon>book_online</mat-icon>
             <span matListItemTitle>{{ t('reservations') }}</span>
-          </a>
-          <a mat-list-item routerLink="/shared-houses" routerLinkActive="active-link" (click)="onNavClick()">
-            <mat-icon matListItemIcon>holiday_village</mat-icon>
-            <span matListItemTitle>{{ t('shared_houses') }}</span>
           </a>
           <a mat-list-item routerLink="/notifications" routerLinkActive="active-link" (click)="onNavClick()">
             <mat-icon matListItemIcon [matBadge]="unreadCount" matBadgeColor="warn" [matBadgeHidden]="unreadCount === 0">notifications</mat-icon>
@@ -78,6 +79,17 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
             <span matListItemTitle>{{ t('profile') }}</span>
           </a>
         </mat-nav-list>
+
+        <div class="sidenav-footer" *ngIf="user">
+          <mat-divider></mat-divider>
+          <div class="user-info">
+            <mat-icon class="user-avatar">account_circle</mat-icon>
+            <div class="user-details">
+              <span class="user-name">{{ user.name }}</span>
+              <span class="user-type">{{ user.role === 'PROPRIETAIRE' ? 'Propriétaire' : 'Samsar' }}</span>
+            </div>
+          </div>
+        </div>
       </mat-sidenav>
 
       <mat-sidenav-content>
@@ -131,6 +143,8 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     .sidenav {
       width: 250px;
       background: var(--bg-sidenav);
+      display: flex;
+      flex-direction: column;
     }
     .sidenav-header {
       background: #3f51b5;
@@ -182,6 +196,39 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
       margin-right: 0.5rem;
       background: rgba(63, 81, 181, 0.12);
       color: #3f51b5;
+    }
+    .sidenav-footer {
+      margin-top: auto;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 1rem;
+    }
+    .user-avatar {
+      font-size: 2rem;
+      width: 2rem;
+      height: 2rem;
+      color: rgba(0,0,0,0.45);
+    }
+    .user-details {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .user-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.3;
+      color: var(--text-primary);
+    }
+    .user-type {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.6;
+      color: var(--text-primary);
     }
   `]
 })
