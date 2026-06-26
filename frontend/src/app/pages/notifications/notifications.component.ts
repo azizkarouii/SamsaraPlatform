@@ -73,7 +73,15 @@ import { Notification } from '../../models/notification.model';
   styles: [`
     .notifications-container {
       padding: 1.5rem;
-      max-width: 800px;
+      max-width: 1000px;
+    }
+    .notification-item {
+      white-space: normal !important;
+    }
+    .notification-item [matListItemLine] {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
     }
     .header {
       display: flex;
@@ -156,6 +164,7 @@ export class NotificationsComponent implements OnInit {
       this.notificationService.markAsRead(notif.id).subscribe({
         next: () => {
           notif.isRead = true;
+          this.notificationService.unreadCountChange$.next();
         },
       });
     }
@@ -165,6 +174,7 @@ export class NotificationsComponent implements OnInit {
     this.notificationService.markAllAsRead().subscribe({
       next: () => {
         this.notifications.forEach(n => n.isRead = true);
+        this.notificationService.unreadCountChange$.next();
         this.snackBar.open('All notifications marked as read', 'Close', { duration: 2000 });
       },
     });
@@ -174,6 +184,7 @@ export class NotificationsComponent implements OnInit {
     this.notificationService.remove(id).subscribe({
       next: () => {
         this.notifications = this.notifications.filter(n => n.id !== id);
+        this.notificationService.unreadCountChange$.next();
         this.snackBar.open('Notification deleted', 'Close', { duration: 2000 });
       },
     });

@@ -82,7 +82,6 @@ public class NotificationService {
         if (!ownerId.equals(samsarId)) {
             save(ownerId, reservation, property.getId(), title, message, type);
         }
-        save(samsarId, reservation, property.getId(), title, message, type);
     }
 
     private void save(Long userId, Reservation reservation, Long propertyId, String title, String message, String type) {

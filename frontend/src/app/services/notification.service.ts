@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Notification } from '../models/notification.model';
 
@@ -9,6 +9,7 @@ import { Notification } from '../models/notification.model';
 })
 export class NotificationService {
   private apiUrl = `${environment.apiUrl}/notifications`;
+  unreadCountChange$ = new Subject<void>();
 
   constructor(private http: HttpClient) {}
 

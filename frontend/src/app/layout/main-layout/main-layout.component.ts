@@ -246,6 +246,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.subscriptions.push(
       interval(30000).subscribe(() => this.loadUnreadCount())
     );
+    this.subscriptions.push(
+      this.notificationService.unreadCountChange$.subscribe(() => this.loadUnreadCount())
+    );
   }
 
   ngOnDestroy(): void {
