@@ -38,6 +38,10 @@ export class ReservationService {
     return this.http.get<Reservation[]>(`${this.apiUrl}/mine`);
   }
 
+  findByOwner(): Observable<Reservation[]> {
+    return this.http.get<Reservation[]>(`${this.apiUrl}/by-owner`);
+  }
+
   findOne(id: number): Observable<Reservation> {
     return this.http.get<Reservation>(`${this.apiUrl}/${id}`);
   }

@@ -40,6 +40,10 @@ public class ReservationService {
         return reservationRepository.findByPropertyId(propertyId);
     }
 
+    public List<Reservation> findByPropertyCreator(Long ownerId) {
+        return reservationRepository.findByPropertyCreatedBy(ownerId);
+    }
+
     @Transactional
     public Reservation create(ReservationDto dto, Long samsarId) {
         Reservation reservation = Reservation.builder()

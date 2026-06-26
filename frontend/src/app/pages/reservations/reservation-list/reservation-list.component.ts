@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../../services/auth.service';
 import { ReservationService } from '../../../services/reservation.service';
 import { Reservation } from '../../../models/reservation.model';
 
@@ -189,7 +190,10 @@ export class ReservationListComponent implements OnInit {
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
-  constructor(private reservationService: ReservationService) {}
+  constructor(
+    private authService: AuthService,
+    private reservationService: ReservationService
+  ) {}
 
   ngOnInit(): void {
     this.loadReservations();
@@ -205,7 +209,12 @@ export class ReservationListComponent implements OnInit {
   }
 
   private loadReservations(): void {
-    this.reservationService.findAll().subscribe({
+    const user = this.authService.getCurrentUser();
+    const obs = user?.role === 'SAMSAR'
+      ? this.reservationService.findMine()
+      : this.reservationService.findByOwner();
+
+    obs.subscribe({
       next: (reservations) => {
         this.allReservations = reservations;
         this.applyFilter();

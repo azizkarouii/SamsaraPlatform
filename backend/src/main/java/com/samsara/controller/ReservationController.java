@@ -34,6 +34,12 @@ public class ReservationController {
         return ResponseEntity.ok(reservationService.findBySamsar(userId));
     }
 
+    @GetMapping("/by-owner")
+    public ResponseEntity<List<Reservation>> findByOwner(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.findByPropertyCreator(userId));
+    }
+
     @GetMapping("/property/{propertyId}")
     public ResponseEntity<List<Reservation>> findByProperty(@PathVariable Long propertyId) {
         return ResponseEntity.ok(reservationService.findByProperty(propertyId));

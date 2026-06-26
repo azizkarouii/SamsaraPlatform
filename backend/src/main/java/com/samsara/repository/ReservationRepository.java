@@ -15,4 +15,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     @Query("SELECT r FROM Reservation r JOIN FETCH r.property JOIN FETCH r.samsar WHERE r.propertyId = :propertyId")
     List<Reservation> findByPropertyId(@Param("propertyId") Long propertyId);
+
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.property JOIN FETCH r.samsar WHERE r.property.createdBy = :ownerId")
+    List<Reservation> findByPropertyCreatedBy(@Param("ownerId") Long ownerId);
 }
