@@ -25,20 +25,29 @@ public class PropertySamsarService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
+    @Transactional(readOnly = true)
     public List<PropertySamsar> findAll() {
         return propertySamsarRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<PropertySamsar> findBySamsar(Long samsarId) {
         return propertySamsarRepository.findBySamsarId(samsarId);
     }
 
+    @Transactional(readOnly = true)
     public List<PropertySamsar> findByProperty(Long propertyId) {
         return propertySamsarRepository.findByPropertyId(propertyId);
     }
 
+    @Transactional(readOnly = true)
     public List<PropertySamsar> findBySamsarUser(Long samsarId) {
         return propertySamsarRepository.findBySamsarId(samsarId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PropertySamsar> findByOwner(Long ownerId) {
+        return propertySamsarRepository.findByPropertyCreatedBy(ownerId);
     }
 
     @Transactional
@@ -95,5 +104,10 @@ public class PropertySamsarService {
     public void remove(Long propertyId, Long samsarId) {
         propertySamsarRepository.findByPropertyIdAndSamsarId(propertyId, samsarId)
                 .ifPresent(propertySamsarRepository::delete);
+    }
+
+    @Transactional
+    public void removeSamsarFromAllOwnerProperties(Long samsarId, Long ownerId) {
+        propertySamsarRepository.deleteBySamsarIdAndPropertyCreatedBy(samsarId, ownerId);
     }
 }

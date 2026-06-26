@@ -16,6 +16,14 @@ export class PropertySamsarService {
     return this.http.get<PropertySamsar[]>(`${this.apiUrl}/mine`);
   }
 
+  findByOwner(): Observable<PropertySamsar[]> {
+    return this.http.get<PropertySamsar[]>(`${this.apiUrl}/by-owner`);
+  }
+
+  findByProperty(propertyId: number): Observable<PropertySamsar[]> {
+    return this.http.get<PropertySamsar[]>(`${this.apiUrl}/property/${propertyId}`);
+  }
+
   invite(dto: PropertySamsarInviteDto): Observable<PropertySamsar> {
     return this.http.post<PropertySamsar>(this.apiUrl, dto);
   }
@@ -26,5 +34,9 @@ export class PropertySamsarService {
 
   remove(propertyId: number, samsarId: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${propertyId}/${samsarId}`);
+  }
+
+  removeSamsarFromAll(samsarId: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/by-owner/samsar/${samsarId}`);
   }
 }

@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
+import { loginGuard } from './guards/login.guard';
 import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { MainLayoutComponent } from './layout/main-layout/main-layout.component';
@@ -15,8 +16,8 @@ import { ProfileComponent } from './pages/profile/profile.component';
 import { SharedHousesComponent } from './pages/shared-houses/shared-houses.component';
 
 export const routes: Routes = [
-  { path: 'login', component: LoginComponent },
-  { path: 'register', component: RegisterComponent },
+  { path: 'login', component: LoginComponent, canActivate: [loginGuard] },
+  { path: 'register', component: RegisterComponent, canActivate: [loginGuard] },
   { path: 'public/properties/:id', component: PropertyDetailComponent, data: { publicView: true } },
   {
     path: '',

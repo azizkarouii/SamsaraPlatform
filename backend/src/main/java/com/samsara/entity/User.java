@@ -1,5 +1,6 @@
 package com.samsara.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -37,18 +38,23 @@ public class User {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "creator")
     private List<Property> properties;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "samsar")
     private List<Reservation> reservations;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "user")
     private List<RevenueHistory> revenueHistories;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "user")
     private List<Notification> notifications;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "samsar")
     private List<PropertySamsar> propertySamsars;
 

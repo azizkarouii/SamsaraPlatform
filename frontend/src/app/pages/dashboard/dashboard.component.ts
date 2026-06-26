@@ -5,8 +5,10 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../services/auth.service';
 import { PropertyService } from '../../services/property.service';
 import { ReservationService } from '../../services/reservation.service';
+import { PropertySamsarService } from '../../services/property-samsar.service';
 import { Property } from '../../models/property.model';
 import { Reservation } from '../../models/reservation.model';
 
@@ -166,8 +168,10 @@ export class DashboardComponent implements OnInit {
   }
 
   constructor(
+    private authService: AuthService,
     private propertyService: PropertyService,
-    private reservationService: ReservationService
+    private reservationService: ReservationService,
+    private propertySamsarService: PropertySamsarService,
   ) {}
 
   ngOnInit(): void {
@@ -178,13 +182,25 @@ export class DashboardComponent implements OnInit {
     this.loading = true;
     this.pendingLoads = 2;
 
-    this.propertyService.findMine().subscribe({
-      next: (props) => {
-        this.properties = props;
-        this.markLoaded();
-      },
-      error: () => this.markLoaded(),
-    });
+    const user = this.authService.getCurrentUser();
+
+    if (user?.role === 'SAMSAR') {
+      this.propertySamsarService.findMine().subscribe({
+        next: (rels) => {
+          this.properties = rels.map(r => r.property).filter((p): p is Property => !!p);
+          this.markLoaded();
+        },
+        error: () => this.markLoaded(),
+      });
+    } else {
+      this.propertyService.findMine().subscribe({
+        next: (props) => {
+          this.properties = props;
+          this.markLoaded();
+        },
+        error: () => this.markLoaded(),
+      });
+    }
 
     this.reservationService.findMine().subscribe({
       next: (res) => {

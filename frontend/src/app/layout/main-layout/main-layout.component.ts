@@ -166,6 +166,10 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     .active-link mat-icon {
       color: #3f51b5;
     }
+    mat-nav-list {
+      flex: 1;
+      overflow-y: auto;
+    }
     mat-nav-list a {
       margin: 2px 8px;
       border-radius: 4px;

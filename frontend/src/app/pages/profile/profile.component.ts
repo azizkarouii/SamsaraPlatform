@@ -12,6 +12,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
 import { PropertyService } from '../../services/property.service';
+import { PropertySamsarService } from '../../services/property-samsar.service';
 import { ReservationService } from '../../services/reservation.service';
 import { User } from '../../models/auth.model';
 
@@ -194,6 +195,7 @@ export class ProfileComponent implements OnInit {
     private fb: FormBuilder,
     private authService: AuthService,
     private propertyService: PropertyService,
+    private propertySamsarService: PropertySamsarService,
     private reservationService: ReservationService,
     private router: Router,
     private snackBar: MatSnackBar
@@ -215,13 +217,25 @@ export class ProfileComponent implements OnInit {
     this.loading = true;
     this.pendingLoads = 2;
 
-    this.propertyService.findMine().subscribe({
-      next: (props) => {
-        this.propertyCount = props.length;
-        this.markLoaded();
-      },
-      error: () => this.markLoaded(),
-    });
+    const user = this.authService.getCurrentUser();
+
+    if (user?.role === 'SAMSAR') {
+      this.propertySamsarService.findMine().subscribe({
+        next: (rels) => {
+          this.propertyCount = rels.length;
+          this.markLoaded();
+        },
+        error: () => this.markLoaded(),
+      });
+    } else {
+      this.propertyService.findMine().subscribe({
+        next: (props) => {
+          this.propertyCount = props.length;
+          this.markLoaded();
+        },
+        error: () => this.markLoaded(),
+      });
+    }
 
     this.reservationService.findMine().subscribe({
       next: (res) => {

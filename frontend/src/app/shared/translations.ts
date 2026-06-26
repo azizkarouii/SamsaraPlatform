@@ -50,6 +50,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   no_shared_properties: { fr: 'Aucune propriété partagée', en: 'No shared properties yet', ar: 'لا توجد عقارات مشتركة بعد' },
   no_shared_desc_samsar: { fr: 'Quand un propriétaire vous ajoute à une propriété, elle apparaîtra ici.', en: 'When an owner adds you to a property, it will appear here.', ar: 'عندما يضيفك مالك إلى عقار، سيظهر هنا.' },
   unsaved: { fr: 'Non enregistré', en: 'Unsaved', ar: 'غير محفوظ' },
+  invited_samsars: { fr: 'Samsars invités', en: 'Invited samsars', ar: 'السماسرة المدعوون' },
 
   // Dashboard
   total_properties: { fr: 'Total maisons', en: 'Total Properties', ar: 'إجمالي العقارات' },

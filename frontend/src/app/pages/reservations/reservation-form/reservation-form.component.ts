@@ -12,7 +12,9 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../../services/auth.service';
 import { PropertyService } from '../../../services/property.service';
+import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { ReservationService, CreateReservationDto } from '../../../services/reservation.service';
 import { Property } from '../../../models/property.model';
 import { Reservation } from '../../../models/reservation.model';
@@ -206,8 +208,10 @@ export class ReservationFormComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
+    private authService: AuthService,
     private reservationService: ReservationService,
     private propertyService: PropertyService,
+    private propertySamsarService: PropertySamsarService,
     private router: Router,
     private route: ActivatedRoute,
     private snackBar: MatSnackBar
@@ -225,11 +229,20 @@ export class ReservationFormComponent implements OnInit {
   }
 
   private loadProperties(): void {
-    this.propertyService.findAll().subscribe({
-      next: (props) => {
-        this.properties = props;
-      },
-    });
+    const user = this.authService.getCurrentUser();
+    if (user?.role === 'SAMSAR') {
+      this.propertySamsarService.findMine().subscribe({
+        next: (rels) => {
+          this.properties = rels.map(r => r.property).filter((p): p is Property => !!p);
+        },
+      });
+    } else {
+      this.propertyService.findMine().subscribe({
+        next: (props) => {
+          this.properties = props;
+        },
+      });
+    }
   }
 
   private loadReservation(id: number): void {

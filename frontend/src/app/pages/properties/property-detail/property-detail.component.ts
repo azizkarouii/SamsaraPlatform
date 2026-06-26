@@ -9,8 +9,12 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatListModule } from '@angular/material/list';
+import { AuthService } from '../../../services/auth.service';
 import { PropertyService } from '../../../services/property.service';
+import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { Property } from '../../../models/property.model';
+import { PropertySamsar } from '../../../models/property-samsar.model';
 import { Clipboard } from '@angular/cdk/clipboard';
 
 @Component({
@@ -27,11 +31,12 @@ import { Clipboard } from '@angular/cdk/clipboard';
     MatSnackBarModule,
     MatDialogModule,
     MatProgressSpinnerModule,
+    MatListModule,
   ],
   template: `
     <div class="detail-container" *ngIf="!loading; else loadingSpinner">
       <div class="header">
-        <button mat-stroked-button [routerLink]="publicView ? '/login' : '/properties'">
+        <button mat-stroked-button [routerLink]="publicView ? '/shared-houses' : '/properties'">
           <mat-icon>arrow_back</mat-icon> Back to List
         </button>
         <div class="header-actions" *ngIf="!publicView">
@@ -131,6 +136,27 @@ import { Clipboard } from '@angular/cdk/clipboard';
                 Open public link
               </a>
             </div>
+
+            <div *ngIf="!publicView && samsars.length" class="samsar-section">
+              <h3>Associated Samsars</h3>
+              <mat-divider></mat-divider>
+              <mat-list>
+                <mat-list-item *ngFor="let s of samsars">
+                  <mat-icon matListItemIcon>person</mat-icon>
+                  <span matListItemTitle>{{ s.samsar?.name || '#' + s.samsarId }}</span>
+                  <span matListItemLine>{{ s.samsar?.email || '' }}</span>
+                  <div matListItemMeta class="samsar-actions">
+                    <span class="pill">+{{ s.priceIncreaseTnd || 0 }} TND</span>
+                    <button mat-icon-button (click)="editSamsarPrice(s)" matTooltip="Modifier la marge">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="removeSamsar(s)" matTooltip="Retirer">
+                      <mat-icon>remove_circle</mat-icon>
+                    </button>
+                  </div>
+                </mat-list-item>
+              </mat-list>
+            </div>
           </mat-card-content>
         </mat-card>
       </div>
@@ -213,6 +239,20 @@ import { Clipboard } from '@angular/cdk/clipboard';
       flex-wrap: wrap;
       margin-top: 1rem;
     }
+    .samsar-section {
+      margin-top: 1.5rem;
+    }
+    .pill {
+      background: #e0e0e0;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+    .samsar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
     .loading-container {
       display: flex;
       justify-content: center;
@@ -225,11 +265,14 @@ export class PropertyDetailComponent implements OnInit {
   loading = true;
   publicView = false;
   publicLink = '';
+  samsars: PropertySamsar[] = [];
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
+    private authService: AuthService,
     private propertyService: PropertyService,
+    private propertySamsarService: PropertySamsarService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private clipboard: Clipboard
@@ -249,12 +292,54 @@ export class PropertyDetailComponent implements OnInit {
         this.property = property;
         this.publicLink = `${window.location.origin}/public/properties/${property.id}`;
         this.loading = false;
+        this.loadSamsars(id);
       },
       error: () => {
         this.loading = false;
         this.snackBar.open('Failed to load property', 'Close', { duration: 3000 });
         this.router.navigate(['/properties']);
       },
+    });
+  }
+
+  private loadSamsars(propertyId: number): void {
+    const user = this.authService.getCurrentUser();
+    if (user?.role === 'PROPRIETAIRE') {
+      this.propertySamsarService.findByProperty(propertyId).subscribe({
+        next: (rels) => {
+          this.samsars = rels;
+        },
+      });
+    }
+  }
+
+  editSamsarPrice(s: PropertySamsar): void {
+    const current = s.priceIncreaseTnd || 10;
+    const result = prompt('Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', String(current));
+    if (!result) return;
+    const val = parseInt(result, 10);
+    if (![10, 20, 30].includes(val)) {
+      this.snackBar.open('Valeur invalide (10, 20 ou 30 uniquement)', 'Fermer', { duration: 3000 });
+      return;
+    }
+    this.propertySamsarService.updatePriceIncrease(s.propertyId, s.samsarId, val).subscribe({
+      next: () => {
+        this.snackBar.open('Marge mise à jour', 'Fermer', { duration: 2500 });
+        this.loadSamsars(this.property!.id);
+      },
+      error: () => this.snackBar.open('Erreur', 'Fermer', { duration: 3000 }),
+    });
+  }
+
+  removeSamsar(s: PropertySamsar): void {
+    const name = s.samsar?.name || '#' + s.samsarId;
+    if (!confirm(`Retirer ${name} de cette propriété ?`)) return;
+    this.propertySamsarService.remove(s.propertyId, s.samsarId).subscribe({
+      next: () => {
+        this.snackBar.open(`${name} retiré`, 'Fermer', { duration: 2500 });
+        this.samsars = this.samsars.filter(item => item !== s);
+      },
+      error: () => this.snackBar.open('Erreur', 'Fermer', { duration: 3000 }),
     });
   }
 

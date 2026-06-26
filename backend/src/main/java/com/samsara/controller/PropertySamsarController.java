@@ -39,6 +39,12 @@ public class PropertySamsarController {
         return ResponseEntity.ok(propertySamsarService.findBySamsarUser(userId));
     }
 
+    @GetMapping("/by-owner")
+    public ResponseEntity<List<PropertySamsar>> findByOwner(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(propertySamsarService.findByOwner(userId));
+    }
+
     @PostMapping
     public ResponseEntity<PropertySamsar> invite(@RequestBody PropertySamsarInviteDto dto,
                                                  Authentication authentication) {
@@ -58,6 +64,13 @@ public class PropertySamsarController {
     @DeleteMapping("/{propertyId}/{samsarId}")
     public ResponseEntity<Void> remove(@PathVariable Long propertyId, @PathVariable Long samsarId) {
         propertySamsarService.remove(propertyId, samsarId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/by-owner/samsar/{samsarId}")
+    public ResponseEntity<Void> removeSamsarFromAll(@PathVariable Long samsarId, Authentication authentication) {
+        Long ownerId = (Long) authentication.getPrincipal();
+        propertySamsarService.removeSamsarFromAllOwnerProperties(samsarId, ownerId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -10,7 +10,23 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - Règle métier de hausse de prix limitée à 10, 20 ou 30 TND.
 - Affichage monétaire en TND et préfixe téléphone +216 côté interface.
 - Page publique de détail propriété accessible via un lien partageable.
-- Toggle langue FR/EN et mode sombre dans le shell principal.
+- Toggle langue FR/EN/AR et mode sombre dans le shell principal.
+- Support de la langue arabe avec direction RTL (`dir="rtl"`).
+- Rôles explicites `PROPRIETAIRE` / `SAMSAR` au register, navigation et JWT.
+- Barre latérale adaptée au rôle : Propriétaire → "Mes maisons", Samsar → "Maisons partagées".
+- Dialogue de partage avec email/téléphone/majoration depuis la liste des propriétés.
+- Notifications complètes pour création, confirmation, annulation et suppression de réservation.
+- Correction : les données propriété sont maintenant chargées dans la vue Samsar (résolution lazy loading).
+- Nouveau : le propriétaire voit dans "Maisons partagées" la liste des samsars invités (regroupés par propriété).
+- Correction : les infos utilisateur sont tout en bas de la barre latérale.
+- Backend expose le nom/email/téléphone du samsar dans la réponse PropertySamsar.
+- Dashboard et Profile : les compteurs de propriétés affichent les propriétés partagées pour les SAMSAR (via `PropertySamsarService`).
+- Réservation : la liste déroulante des propriétés n'affiche que les propriétés du propriétaire connecté (PROPRIETAIRE) ou les propriétés partagées (SAMSAR).
+- Détail propriété : le propriétaire voit la liste des samsars associés avec possibilité de modifier la marge (+X TND) ou de retirer un samsar (individuellement ou de toutes ses propriétés).
+- Endpoint backend `DELETE /property-samsars/by-owner/samsar/{samsarId}` pour retirer un samsar de toutes les propriétés d'un propriétaire.
+- Modification de la marge d'augmentation de prix (10/20/30 TND) après l'invitation via un bouton crayon dans la liste.
+- Guard de redirection : un utilisateur déjà connecté (`token` présent) est redirigé de `/login` vers `/dashboard` (ne peut pas accéder à la page de connexion).
+- Endpoint backend `findByProperty` pour lister les samsars d'une propriété donnée.
 
 ## 1. Présentation Générale
 

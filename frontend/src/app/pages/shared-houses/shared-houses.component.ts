@@ -11,6 +11,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../services/auth.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
 import { PropertySamsar } from '../../models/property-samsar.model';
@@ -19,6 +21,12 @@ import { Property } from '../../models/property.model';
 import { User } from '../../models/auth.model';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
+
+interface GroupedSamsars {
+  propertyTitle: string;
+  propertyId: number;
+  samsars: PropertySamsar[];
+}
 
 @Component({
   selector: 'app-shared-houses',
@@ -36,6 +44,8 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     MatSelectModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    MatDividerModule,
+    MatTooltipModule,
   ],
   template: `
     <div class="shared-container">
@@ -46,6 +56,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
         </div>
       </div>
 
+      <!-- Invite card: only for PROPRIETAIRE -->
       <mat-card class="invite-card" *ngIf="user?.role === 'PROPRIETAIRE'">
         <mat-card-header>
           <mat-card-title>{{ t('invite_samsar') }}</mat-card-title>
@@ -92,6 +103,39 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
         </mat-card-content>
       </mat-card>
 
+      <!-- Owner view: invited samsars grouped by property -->
+      <div *ngIf="user?.role === 'PROPRIETAIRE' && groupedSamsars.length">
+        <h2 class="section-title">{{ t('invited_samsars') }}</h2>
+        <mat-card class="group-card" *ngFor="let group of groupedSamsars">
+          <mat-card-header>
+            <mat-card-title>{{ group.propertyTitle }}</mat-card-title>
+            <mat-card-subtitle>{{ group.samsars.length }} samsar(s)</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="samsar-row" *ngFor="let rel of group.samsars">
+              <div class="samsar-info">
+                <mat-icon>person</mat-icon>
+                <span>{{ rel.samsar?.name || '#' + rel.samsarId }}</span>
+                <span class="samsar-contact">{{ rel.samsar?.email || '' }}</span>
+              </div>
+              <div class="samsar-meta">
+                <button mat-icon-button (click)="editPriceIncrease(rel)" matTooltip="Modifier la marge">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <span class="pill">+{{ rel.priceIncreaseTnd || 0 }} TND</span>
+                <button mat-icon-button color="primary" (click)="remove(rel)" matTooltip="{{ t('delete') }}">
+                  <mat-icon>remove_circle</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="removeFromAll(rel)" matTooltip="Retirer de toutes les propriétés">
+                  <mat-icon>delete_forever</mat-icon>
+                </button>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      <!-- Samsar view -->
       <div *ngIf="user?.role === 'SAMSAR' && loading" class="loading-state">
         <mat-spinner diameter="42"></mat-spinner>
       </div>
@@ -157,6 +201,11 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       font-size: 0.75rem;
       opacity: 0.7;
     }
+    .section-title {
+      margin: 0.5rem 0 0;
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
     .invite-card {
       border-radius: 20px;
     }
@@ -176,7 +225,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 1rem;
     }
-    .house-card {
+    .house-card, .group-card {
       border-radius: 20px;
     }
     .meta-row {
@@ -202,10 +251,43 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     .empty-card {
       border-radius: 20px;
     }
+    .samsar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.08));
+    }
+    .samsar-row:last-child {
+      border-bottom: none;
+    }
+    .samsar-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .samsar-info mat-icon {
+      font-size: 1.2rem;
+      width: 1.2rem;
+      height: 1.2rem;
+      opacity: 0.6;
+    }
+    .samsar-contact {
+      font-size: 0.8rem;
+      opacity: 0.6;
+      margin-left: 0.3rem;
+    }
+    .samsar-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
   `]
 })
 export class SharedHousesComponent implements OnInit {
   relations: PropertySamsar[] = [];
+  invitedSamsars: PropertySamsar[] = [];
+  groupedSamsars: GroupedSamsars[] = [];
   ownedProperties: Property[] = [];
   loading = true;
   submitting = false;
@@ -233,6 +315,7 @@ export class SharedHousesComponent implements OnInit {
     this.user = this.authService.getCurrentUser();
     if (this.user?.role === 'PROPRIETAIRE') {
       this.loadOwnedProperties();
+      this.loadInvitedSamsars();
     }
     this.loadMine();
   }
@@ -246,6 +329,31 @@ export class SharedHousesComponent implements OnInit {
         }
       },
     });
+  }
+
+  private loadInvitedSamsars(): void {
+    this.propertySamsarService.findByOwner().subscribe({
+      next: (relations) => {
+        this.invitedSamsars = relations;
+        this.groupedSamsars = this.groupByProperty(relations);
+      },
+    });
+  }
+
+  private groupByProperty(relations: PropertySamsar[]): GroupedSamsars[] {
+    const map = new Map<number, GroupedSamsars>();
+    for (const rel of relations) {
+      const pid = rel.propertyId;
+      if (!map.has(pid)) {
+        map.set(pid, {
+          propertyId: pid,
+          propertyTitle: rel.property?.title || '#' + pid,
+          samsars: [],
+        });
+      }
+      map.get(pid)!.samsars.push(rel);
+    }
+    return Array.from(map.values());
   }
 
   private loadMine(): void {
@@ -271,6 +379,39 @@ export class SharedHousesComponent implements OnInit {
       next: () => {
         this.snackBar.open('Accès retiré', this.t('close'), { duration: 2500 });
         this.relations = this.relations.filter(item => item !== relation);
+        this.invitedSamsars = this.invitedSamsars.filter(item => item !== relation);
+        this.groupedSamsars = this.groupByProperty(this.invitedSamsars);
+      },
+      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
+    });
+  }
+
+  removeFromAll(relation: PropertySamsar): void {
+    const name = relation.samsar?.name || '#' + relation.samsarId;
+    if (!confirm(`Retirer ${name} de toutes vos propriétés ?`)) return;
+    this.propertySamsarService.removeSamsarFromAll(relation.samsarId).subscribe({
+      next: () => {
+        this.snackBar.open(`${name} retiré de toutes les propriétés`, this.t('close'), { duration: 2500 });
+        this.loadInvitedSamsars();
+        this.loadMine();
+      },
+      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
+    });
+  }
+
+  editPriceIncrease(relation: PropertySamsar): void {
+    const current = relation.priceIncreaseTnd || 10;
+    const result = prompt('Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', String(current));
+    if (!result) return;
+    const val = parseInt(result, 10);
+    if (![10, 20, 30].includes(val)) {
+      this.snackBar.open('Valeur invalide (10, 20 ou 30 uniquement)', this.t('close'), { duration: 3000 });
+      return;
+    }
+    this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, val).subscribe({
+      next: () => {
+        this.snackBar.open('Marge mise à jour', this.t('close'), { duration: 2500 });
+        this.loadInvitedSamsars();
       },
       error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
     });
@@ -293,6 +434,7 @@ export class SharedHousesComponent implements OnInit {
         this.submitting = false;
         this.snackBar.open(this.t('invite_success'), this.t('close'), { duration: 3000 });
         this.loadMine();
+        this.loadInvitedSamsars();
       },
       error: (error) => {
         this.submitting = false;

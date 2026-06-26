@@ -1,6 +1,6 @@
 package com.samsara.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,6 +29,6 @@ public class PropertySamsar {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "samsar_id", insertable = false, updatable = false)
-    @JsonIgnore
+    @JsonIgnoreProperties({"password", "enabled", "authorities", "accountNonExpired", "accountNonLocked", "credentialsNonExpired", "username"})
     private User samsar;
 }
