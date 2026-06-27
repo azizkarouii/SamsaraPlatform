@@ -112,6 +112,22 @@ import { Reservation } from '../../../models/reservation.model';
               <span class="date-label">Created: {{ reservation.createdAt | date:'medium' }}</span>
               <span class="date-label">Updated: {{ reservation.updatedAt | date:'medium' }}</span>
             </div>
+
+            <div class="status-actions" *ngIf="reservation.status !== 'cancelled'">
+              <h3>Actions</h3>
+              <mat-divider></mat-divider>
+              <div class="status-buttons">
+                <button mat-raised-button color="primary" *ngIf="reservation.status === 'pending'" (click)="changeStatus('confirmed')">
+                  <mat-icon>check_circle</mat-icon> Confirm
+                </button>
+                <button mat-raised-button color="primary" *ngIf="reservation.status === 'confirmed'" (click)="changeStatus('in_progress')">
+                  <mat-icon>play_circle</mat-icon> Start (In Progress)
+                </button>
+                <button mat-raised-button color="warn" *ngIf="reservation.status !== 'in_progress' && reservation.status !== 'cancelled'" (click)="changeStatus('cancelled')">
+                  <mat-icon>cancel</mat-icon> Cancel
+                </button>
+              </div>
+            </div>
           </mat-card-content>
         </mat-card>
       </div>
@@ -181,6 +197,15 @@ import { Reservation } from '../../../models/reservation.model';
       font-size: 0.8rem;
       color: rgba(0,0,0,0.5);
     }
+    .status-actions {
+      margin-top: 1.5rem;
+    }
+    .status-buttons {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
     .loading-container {
       display: flex;
       justify-content: center;
@@ -235,10 +260,24 @@ export class ReservationDetailComponent implements OnInit {
     }
   }
 
+  changeStatus(status: string): void {
+    this.reservationService.updateStatus(this.reservation!.id, status).subscribe({
+      next: (updated) => {
+        this.reservation = updated;
+        this.snackBar.open(`Status changed to ${status}`, 'Close', { duration: 2500 });
+      },
+      error: (err) => {
+        const msg = err.error?.message || 'Failed to update status';
+        this.snackBar.open(msg, 'Close', { duration: 3000 });
+      },
+    });
+  }
+
   getStatusColor(status: string): string {
     switch (status.toLowerCase()) {
       case 'confirmed': return 'primary';
       case 'pending': return 'accent';
+      case 'in_progress': return 'primary';
       case 'cancelled': return 'warn';
       default: return '';
     }

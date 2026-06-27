@@ -1,6 +1,6 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, ActivatedRoute } from '@angular/router';
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
@@ -183,20 +183,26 @@ export class ReservationListComponent implements OnInit {
 
   tabs = [
     { label: 'All', value: 'all' },
-    { label: 'Pending', value: 'Pending' },
-    { label: 'Confirmed', value: 'Confirmed' },
+    { label: 'Pending', value: 'pending' },
+    { label: 'In Progress', value: 'in_progress' },
+    { label: 'Confirmed', value: 'confirmed' },
   ];
 
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   constructor(
+    private route: ActivatedRoute,
     private authService: AuthService,
     private reservationService: ReservationService
   ) {}
 
   ngOnInit(): void {
     this.loadReservations();
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab && this.tabs.some(t => t.value === tab)) {
+      this.activeTab = tab;
+    }
   }
 
   ngAfterViewInit(): void {
@@ -249,6 +255,7 @@ export class ReservationListComponent implements OnInit {
     switch (status.toLowerCase()) {
       case 'confirmed': return 'primary';
       case 'pending': return 'accent';
+      case 'in_progress': return 'primary';
       case 'cancelled': return 'warn';
       default: return '';
     }

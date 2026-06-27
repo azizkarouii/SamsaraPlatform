@@ -81,17 +81,33 @@ public class ReservationService {
         reservation.setStatus(status);
         reservation = reservationRepository.save(reservation);
 
-        if ("confirmed".equals(status)) {
-            RevenueHistory revenue = RevenueHistory.builder()
-                    .userId(reservation.getSamsarId())
-                    .reservationId(reservation.getId())
-                    .amount(reservation.getTotalAmount())
-                    .type("reservation")
-                    .build();
-            revenueHistoryRepository.save(revenue);
-        }
-
         if (!oldStatus.equals(status)) {
+            if ("confirmed".equals(status)) {
+                double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
+                if (advance > 0) {
+                    RevenueHistory revenue = RevenueHistory.builder()
+                            .userId(reservation.getSamsarId())
+                            .reservationId(reservation.getId())
+                            .amount(advance)
+                            .type("advance")
+                            .build();
+                    revenueHistoryRepository.save(revenue);
+                }
+            } else if ("in_progress".equals(status)) {
+                double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
+                double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
+                double remaining = total - advance;
+                if (remaining > 0) {
+                    RevenueHistory revenue = RevenueHistory.builder()
+                            .userId(reservation.getSamsarId())
+                            .reservationId(reservation.getId())
+                            .amount(remaining)
+                            .type("completion")
+                            .build();
+                    revenueHistoryRepository.save(revenue);
+                }
+            }
+
             Property property = propertyRepository.findById(reservation.getPropertyId()).orElse(null);
             if (property != null) {
                 User actor = userRepository.findById(reservation.getSamsarId()).orElse(null);

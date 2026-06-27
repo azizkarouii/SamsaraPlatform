@@ -69,11 +69,50 @@ import { Reservation } from '../../models/reservation.model';
             <mat-icon class="stat-icon">pending_actions</mat-icon>
             <div class="stat-info">
               <span class="stat-value">{{ pendingReservations }}</span>
-              <span class="stat-label">Pending Reservations</span>
+              <span class="stat-label">Pending</span>
             </div>
           </mat-card-content>
           <mat-card-actions>
-            <button mat-button color="primary" routerLink="/reservations">View All</button>
+            <button mat-button color="primary" routerLink="/reservations" [queryParams]="{tab: 'pending'}">View</button>
+          </mat-card-actions>
+        </mat-card>
+
+        <mat-card class="stat-card confirmed-card">
+          <mat-card-content>
+            <mat-icon class="stat-icon">check_circle</mat-icon>
+            <div class="stat-info">
+              <span class="stat-value">{{ confirmedReservations }}</span>
+              <span class="stat-label">Confirmed</span>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button color="primary" routerLink="/reservations" [queryParams]="{tab: 'confirmed'}">View</button>
+          </mat-card-actions>
+        </mat-card>
+
+        <mat-card class="stat-card progress-card">
+          <mat-card-content>
+            <mat-icon class="stat-icon">play_circle</mat-icon>
+            <div class="stat-info">
+              <span class="stat-value">{{ inProgressReservations }}</span>
+              <span class="stat-label">In Progress</span>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button color="primary" routerLink="/reservations" [queryParams]="{tab: 'in_progress'}">View</button>
+          </mat-card-actions>
+        </mat-card>
+
+        <mat-card class="stat-card cancelled-card">
+          <mat-card-content>
+            <mat-icon class="stat-icon">cancel</mat-icon>
+            <div class="stat-info">
+              <span class="stat-value">{{ cancelledReservations }}</span>
+              <span class="stat-label">Cancelled</span>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button color="primary" routerLink="/reservations" [queryParams]="{tab: 'cancelled'}">View</button>
           </mat-card-actions>
         </mat-card>
       </div>
@@ -87,6 +126,40 @@ import { Reservation } from '../../models/reservation.model';
           <button mat-raised-button color="accent" routerLink="/reservations/add">
             <mat-icon>add</mat-icon> New Reservation
           </button>
+        </div>
+      </div>
+
+      <div class="chart-section" *ngIf="!loading && reservations.length">
+        <h2>Reservation Status Distribution</h2>
+        <div class="bar-chart">
+          <div class="bar-item">
+            <span class="bar-label">Pending</span>
+            <div class="bar-track">
+              <div class="bar-fill pending-fill" [style.width.%]="(pendingReservations / reservations.length) * 100"></div>
+            </div>
+            <span class="bar-value">{{ pendingReservations }}</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-label">Confirmed</span>
+            <div class="bar-track">
+              <div class="bar-fill confirmed-fill" [style.width.%]="(confirmedReservations / reservations.length) * 100"></div>
+            </div>
+            <span class="bar-value">{{ confirmedReservations }}</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-label">In Progress</span>
+            <div class="bar-track">
+              <div class="bar-fill progress-fill" [style.width.%]="(inProgressReservations / reservations.length) * 100"></div>
+            </div>
+            <span class="bar-value">{{ inProgressReservations }}</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-label">Cancelled</span>
+            <div class="bar-track">
+              <div class="bar-fill cancelled-fill" [style.width.%]="(cancelledReservations / reservations.length) * 100"></div>
+            </div>
+            <span class="bar-value">{{ cancelledReservations }}</span>
+          </div>
         </div>
       </div>
 
@@ -107,7 +180,7 @@ import { Reservation } from '../../models/reservation.model';
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1rem;
       margin-bottom: 2rem;
     }
@@ -138,6 +211,9 @@ import { Reservation } from '../../models/reservation.model';
     .reservations-card .stat-icon { color: #ff4081; }
     .revenue-card .stat-icon { color: #4caf50; }
     .pending-card .stat-icon { color: #ff9800; }
+    .confirmed-card .stat-icon { color: #2196f3; }
+    .progress-card .stat-icon { color: #4caf50; }
+    .cancelled-card .stat-icon { color: #f44336; }
     .quick-actions h2 {
       margin-bottom: 1rem;
       font-weight: 500;
@@ -150,6 +226,49 @@ import { Reservation } from '../../models/reservation.model';
       display: flex;
       justify-content: center;
       padding: 3rem;
+    }
+    .chart-section {
+      margin-top: 2rem;
+    }
+    .chart-section h2 {
+      margin-bottom: 1rem;
+      font-weight: 500;
+    }
+    .bar-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .bar-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .bar-label {
+      width: 100px;
+      font-size: 0.85rem;
+      color: rgba(0,0,0,0.7);
+    }
+    .bar-track {
+      flex: 1;
+      height: 24px;
+      background: rgba(0,0,0,0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 12px;
+      transition: width 0.5s ease;
+    }
+    .pending-fill { background: #ff9800; }
+    .confirmed-fill { background: #2196f3; }
+    .progress-fill { background: #4caf50; }
+    .cancelled-fill { background: #f44336; }
+    .bar-value {
+      width: 30px;
+      text-align: right;
+      font-weight: 500;
     }
   `]
 })
@@ -164,7 +283,19 @@ export class DashboardComponent implements OnInit {
   }
 
   get pendingReservations(): number {
-    return this.reservations.filter(r => r.status === 'pending' || r.status === 'Pending').length;
+    return this.reservations.filter(r => r.status === 'pending').length;
+  }
+
+  get confirmedReservations(): number {
+    return this.reservations.filter(r => r.status === 'confirmed').length;
+  }
+
+  get inProgressReservations(): number {
+    return this.reservations.filter(r => r.status === 'in_progress').length;
+  }
+
+  get cancelledReservations(): number {
+    return this.reservations.filter(r => r.status === 'cancelled').length;
   }
 
   constructor(
@@ -202,7 +333,11 @@ export class DashboardComponent implements OnInit {
       });
     }
 
-    this.reservationService.findMine().subscribe({
+    const resObs = user?.role === 'SAMSAR'
+      ? this.reservationService.findMine()
+      : this.reservationService.findByOwner();
+
+    resObs.subscribe({
       next: (res) => {
         this.reservations = res;
         this.markLoaded();
