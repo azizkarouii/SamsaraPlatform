@@ -316,8 +316,9 @@ export class SharedHousesComponent implements OnInit {
     if (this.user?.role === 'PROPRIETAIRE') {
       this.loadOwnedProperties();
       this.loadInvitedSamsars();
+    } else {
+      this.loadMine();
     }
-    this.loadMine();
   }
 
   private loadOwnedProperties(): void {
@@ -387,6 +388,7 @@ export class SharedHousesComponent implements OnInit {
   }
 
   removeFromAll(relation: PropertySamsar): void {
+    if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const name = relation.samsar?.name || '#' + relation.samsarId;
     if (!confirm(`Retirer ${name} de toutes vos propriétés ?`)) return;
     this.propertySamsarService.removeSamsarFromAll(relation.samsarId).subscribe({

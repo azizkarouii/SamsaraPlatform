@@ -314,6 +314,7 @@ export class PropertyDetailComponent implements OnInit {
   }
 
   editSamsarPrice(s: PropertySamsar): void {
+    if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const current = s.priceIncreaseTnd || 10;
     const result = prompt('Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', String(current));
     if (!result) return;
@@ -332,6 +333,7 @@ export class PropertyDetailComponent implements OnInit {
   }
 
   removeSamsar(s: PropertySamsar): void {
+    if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const name = s.samsar?.name || '#' + s.samsarId;
     if (!confirm(`Retirer ${name} de cette propriété ?`)) return;
     this.propertySamsarService.remove(s.propertyId, s.samsarId).subscribe({

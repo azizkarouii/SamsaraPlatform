@@ -237,7 +237,10 @@ export class ProfileComponent implements OnInit {
       });
     }
 
-    this.reservationService.findMine().subscribe({
+    const resObs = user?.role === 'SAMSAR'
+      ? this.reservationService.findMine()
+      : this.reservationService.findByOwner();
+    resObs.subscribe({
       next: (res) => {
         this.reservationCount = res.length;
         this.totalRevenue = res.reduce((sum, r) => sum + r.totalAmount, 0);

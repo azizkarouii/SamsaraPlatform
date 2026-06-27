@@ -81,12 +81,12 @@ import { Reservation } from '../../../models/reservation.model';
 
               <ng-container matColumnDef="startDate">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Start Date</th>
-                <td mat-cell *matCellDef="let res">{{ res.startDate | date:'shortDate' }}</td>
+                <td mat-cell *matCellDef="let res">{{ res.startDate | date:'dd/M/yyyy' }}</td>
               </ng-container>
 
               <ng-container matColumnDef="endDate">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>End Date</th>
-                <td mat-cell *matCellDef="let res">{{ res.endDate | date:'shortDate' }}</td>
+                <td mat-cell *matCellDef="let res">{{ res.endDate | date:'dd/M/yyyy' }}</td>
               </ng-container>
 
               <ng-container matColumnDef="status">
@@ -184,8 +184,8 @@ export class ReservationListComponent implements OnInit {
   tabs = [
     { label: 'All', value: 'all' },
     { label: 'Pending', value: 'pending' },
-    { label: 'In Progress', value: 'in_progress' },
     { label: 'Confirmed', value: 'confirmed' },
+    { label: 'In Progress', value: 'in_progress' },
   ];
 
   @ViewChild(MatSort) sort!: MatSort;

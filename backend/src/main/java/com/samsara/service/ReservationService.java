@@ -8,8 +8,11 @@ import com.samsara.entity.User;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -23,25 +26,42 @@ public class ReservationService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
+    @Transactional(readOnly = true)
     public List<Reservation> findAll() {
+        autoUpdateStatuses();
         return reservationRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public Reservation findById(Long id) {
+        autoUpdateStatuses();
         return reservationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Reservation not found"));
     }
 
     public List<Reservation> findBySamsar(Long samsarId) {
+        autoUpdateStatuses();
         return reservationRepository.findBySamsarId(samsarId);
     }
 
     public List<Reservation> findByProperty(Long propertyId) {
+        autoUpdateStatuses();
         return reservationRepository.findByPropertyId(propertyId);
     }
 
     public List<Reservation> findByPropertyCreator(Long ownerId) {
+        autoUpdateStatuses();
         return reservationRepository.findByPropertyCreatedBy(ownerId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void autoUpdateStatuses() {
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        List<Reservation> toUpdate = reservationRepository.findConfirmedAndDateReached(today);
+        for (Reservation r : toUpdate) {
+            r.setStatus("in_progress");
+            reservationRepository.save(r);
+        }
     }
 
     @Transactional

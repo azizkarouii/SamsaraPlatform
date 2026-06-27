@@ -9,6 +9,8 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   shared_houses: { fr: 'Maisons partagées', en: 'Shared houses', ar: 'منازل مشتركة' },
   notifications: { fr: 'Notifications', en: 'Notifications', ar: 'الإشعارات' },
   profile: { fr: 'Profil', en: 'Profile', ar: 'الملف الشخصي' },
+  app_title: { fr: 'Samsara', en: 'Samsara', ar: 'Samsara' },
+  collapse: { fr: 'Réduire', en: 'Collapse', ar: 'طي' },
   logout: { fr: 'Déconnexion', en: 'Logout', ar: 'تسجيل الخروج' },
   language: { fr: 'Langue', en: 'Language', ar: 'اللغة' },
   dark_mode: { fr: 'Mode sombre', en: 'Dark mode', ar: 'الوضع المظلم' },

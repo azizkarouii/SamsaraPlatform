@@ -23,4 +23,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     @Query("SELECT r FROM Reservation r JOIN FETCH r.property JOIN FETCH r.samsar WHERE r.property.createdBy = :ownerId")
     List<Reservation> findByPropertyCreatedBy(@Param("ownerId") Long ownerId);
+
+    @Query("SELECT r FROM Reservation r WHERE r.status = 'confirmed' AND r.startDate <= :today")
+    List<Reservation> findConfirmedAndDateReached(@Param("today") String today);
 }
