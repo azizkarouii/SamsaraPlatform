@@ -101,6 +101,22 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   delete: { fr: 'Supprimer', en: 'Delete', ar: 'حذف' },
   close: { fr: 'Fermer', en: 'Close', ar: 'إغلاق' },
   save: { fr: 'Enregistrer', en: 'Save', ar: 'حفظ' },
+  edit_property: { fr: 'Modifier', en: 'Edit', ar: 'تعديل' },
+  delete_property: { fr: 'Supprimer', en: 'Delete', ar: 'حذف' },
+  view_property: { fr: 'Voir la propriété', en: 'View property', ar: 'عرض العقار' },
+  invalid_margin: { fr: 'Valeur invalide (10, 20 ou 30 uniquement)', en: 'Invalid value (10, 20 or 30 only)', ar: 'قيمة غير صالحة (10 أو 20 أو 30 فقط)' },
+  update_margin: { fr: 'Marge mise à jour', en: 'Margin updated', ar: 'تم تحديث الهامش' },
+  error_generic: { fr: 'Erreur', en: 'Error', ar: 'خطأ' },
+  public_link_copied: { fr: 'Lien public copié', en: 'Public link copied', ar: 'تم نسخ الرابط العام' },
+  property_deleted: { fr: 'Maison supprimée avec succès', en: 'Property deleted successfully', ar: 'تم حذف العقار بنجاح' },
+  property_delete_confirm: { fr: 'Voulez-vous vraiment supprimer cette maison ?', en: 'Are you sure you want to delete this property?', ar: 'هل تريد حقًا حذف هذا العقار؟' },
+  property_load_error: { fr: 'Impossible de charger la maison', en: 'Failed to load property', ar: 'فشل تحميل العقار' },
+  access_removed: { fr: 'Accès retiré', en: 'Access removed', ar: 'تمت إزالة الوصول' },
+  remove_from_all_confirm: { fr: 'Retirer {{name}} de toutes vos propriétés ?', en: 'Remove {{name}} from all your properties?', ar: 'هل تريد إزالة {{name}} من جميع عقاراتك؟' },
+  remove_from_all_success: { fr: '{{name}} retiré de toutes les propriétés', en: '{{name}} removed from all properties', ar: 'تمت إزالة {{name}} من جميع العقارات' },
+  remove_confirm: { fr: 'Retirer {{name}} de cette propriété ?', en: 'Remove {{name}} from this property?', ar: 'هل تريد إزالة {{name}} من هذا العقار؟' },
+  margin_prompt: { fr: 'Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', en: 'New increase margin (10, 20 or 30 TND):', ar: 'هامش الزيادة الجديد (10 أو 20 أو 30 دينار):' },
+  property_delete_error: { fr: 'Impossible de supprimer la maison', en: 'Failed to delete property', ar: 'فشل حذف العقار' },
 };
 
 export function t(key: string, language: AppLanguage): string {

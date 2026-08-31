@@ -378,44 +378,46 @@ export class SharedHousesComponent implements OnInit {
   remove(relation: PropertySamsar): void {
     this.propertySamsarService.remove(relation.propertyId, relation.samsarId).subscribe({
       next: () => {
-        this.snackBar.open('Accès retiré', this.t('close'), { duration: 2500 });
+        this.snackBar.open(this.t('access_removed'), this.t('close'), { duration: 2500 });
         this.relations = this.relations.filter(item => item !== relation);
         this.invitedSamsars = this.invitedSamsars.filter(item => item !== relation);
         this.groupedSamsars = this.groupByProperty(this.invitedSamsars);
       },
-      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
+      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
     });
   }
 
   removeFromAll(relation: PropertySamsar): void {
     if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const name = relation.samsar?.name || '#' + relation.samsarId;
-    if (!confirm(`Retirer ${name} de toutes vos propriétés ?`)) return;
+    const message = this.t('remove_from_all_confirm').replace('{{name}}', name);
+    if (!confirm(message)) return;
     this.propertySamsarService.removeSamsarFromAll(relation.samsarId).subscribe({
       next: () => {
-        this.snackBar.open(`${name} retiré de toutes les propriétés`, this.t('close'), { duration: 2500 });
+        const success = this.t('remove_from_all_success').replace('{{name}}', name);
+        this.snackBar.open(success, this.t('close'), { duration: 2500 });
         this.loadInvitedSamsars();
         this.loadMine();
       },
-      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
+      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
     });
   }
 
   editPriceIncrease(relation: PropertySamsar): void {
     const current = relation.priceIncreaseTnd || 10;
-    const result = prompt('Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', String(current));
+    const result = prompt(this.t('margin_prompt'), String(current));
     if (!result) return;
     const val = parseInt(result, 10);
     if (![10, 20, 30].includes(val)) {
-      this.snackBar.open('Valeur invalide (10, 20 ou 30 uniquement)', this.t('close'), { duration: 3000 });
+      this.snackBar.open(this.t('invalid_margin'), this.t('close'), { duration: 3000 });
       return;
     }
     this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, val).subscribe({
       next: () => {
-        this.snackBar.open('Marge mise à jour', this.t('close'), { duration: 2500 });
+        this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
         this.loadInvitedSamsars();
       },
-      error: () => this.snackBar.open('Erreur', this.t('close'), { duration: 3000 }),
+      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
     });
   }
 

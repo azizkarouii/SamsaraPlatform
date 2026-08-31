@@ -48,14 +48,14 @@ import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
     <div class="detail-container" *ngIf="!loading; else loadingSpinner">
       <div class="header">
         <button mat-stroked-button [routerLink]="publicView ? '/shared-houses' : '/properties'">
-          <mat-icon>arrow_back</mat-icon> Back to List
+          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
         <div class="header-actions" *ngIf="!publicView">
           <button mat-raised-button color="accent" [routerLink]="['/properties', property?.id, 'edit']">
-            <mat-icon>edit</mat-icon> Edit
+            <mat-icon>edit</mat-icon> {{ t('edit_property') }}
           </button>
           <button mat-raised-button color="warn" (click)="deleteProperty()">
-            <mat-icon>delete</mat-icon> Delete
+            <mat-icon>delete</mat-icon> {{ t('delete_property') }}
           </button>
         </div>
       </div>
@@ -433,7 +433,7 @@ export class PropertyDetailComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snackBar.open('Failed to load property', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('property_load_error'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/properties']);
       },
     });
@@ -536,45 +536,45 @@ export class PropertyDetailComponent implements OnInit {
   editSamsarPrice(s: PropertySamsar): void {
     if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const current = s.priceIncreaseTnd || 10;
-    const result = prompt('Nouvelle marge d\'augmentation (10, 20 ou 30 TND) :', String(current));
+    const result = prompt(this.t('margin_prompt'), String(current));
     if (!result) return;
     const val = parseInt(result, 10);
     if (![10, 20, 30].includes(val)) {
-      this.snackBar.open('Valeur invalide (10, 20 ou 30 uniquement)', 'Fermer', { duration: 3000 });
+      this.snackBar.open(this.t('invalid_margin'), this.t('close'), { duration: 3000 });
       return;
     }
     this.propertySamsarService.updatePriceIncrease(s.propertyId, s.samsarId, val).subscribe({
       next: () => {
-        this.snackBar.open('Marge mise à jour', 'Fermer', { duration: 2500 });
+        this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
         this.loadSamsars(this.property!.id);
       },
-      error: () => this.snackBar.open('Erreur', 'Fermer', { duration: 3000 }),
+      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
     });
   }
 
   removeSamsar(s: PropertySamsar): void {
     if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const name = s.samsar?.name || '#' + s.samsarId;
-    if (!confirm(`Retirer ${name} de cette propriété ?`)) return;
+    if (!confirm(this.t('remove_confirm').replace('{{name}}', name))) return;
     this.propertySamsarService.remove(s.propertyId, s.samsarId).subscribe({
       next: () => {
-        this.snackBar.open(`${name} retiré`, 'Fermer', { duration: 2500 });
+        this.snackBar.open(`${name} ${this.t('access_removed').toLowerCase()}`, this.t('close'), { duration: 2500 });
         this.samsars = this.samsars.filter(item => item !== s);
       },
-      error: () => this.snackBar.open('Erreur', 'Fermer', { duration: 3000 }),
+      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
     });
   }
 
   deleteProperty(): void {
-    if (confirm('Are you sure you want to delete this property?')) {
+    if (confirm(this.t('property_delete_confirm'))) {
       this.propertyService.remove(this.property!.id).subscribe({
         next: () => {
-          this.snackBar.open('Property deleted successfully', 'Close', { duration: 3000 });
+          this.snackBar.open(this.t('property_deleted'), this.t('close'), { duration: 3000 });
           this.router.navigate(['/properties']);
         },
         error: (err) => {
-          const msg = err.error?.message || 'Failed to delete property';
-          this.snackBar.open(msg, 'Close', { duration: 5000 });
+          const msg = err.error?.message || this.t('property_delete_error');
+          this.snackBar.open(msg, this.t('close'), { duration: 5000 });
         },
       });
     }
@@ -585,7 +585,7 @@ export class PropertyDetailComponent implements OnInit {
       return;
     }
     this.clipboard.copy(this.publicLink);
-    this.snackBar.open('Public link copied', 'Close', { duration: 2500 });
+    this.snackBar.open(this.t('public_link_copied'), this.t('close'), { duration: 2500 });
   }
 
   formatPhone(phone?: string): string {
