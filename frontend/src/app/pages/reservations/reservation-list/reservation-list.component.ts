@@ -185,7 +185,7 @@ export class ReservationListComponent implements OnInit {
     { label: 'All', value: 'all' },
     { label: 'Pending', value: 'pending' },
     { label: 'Confirmed', value: 'confirmed' },
-    { label: 'In Progress', value: 'in_progress' },
+    { label: 'In Progress', value: 'in-progress' },
   ];
 
   @ViewChild(MatSort) sort!: MatSort;
@@ -243,19 +243,26 @@ export class ReservationListComponent implements OnInit {
   }
 
   private applyFilter(): void {
-    if (this.activeTab === 'all') {
+    const normalizedTab = this.activeTab === 'in_progress' ? 'in-progress' : this.activeTab;
+    if (normalizedTab === 'all') {
       this.dataSource.data = this.allReservations;
     } else {
-      this.dataSource.data = this.allReservations.filter(r => r.status === this.activeTab);
+      this.dataSource.data = this.allReservations.filter(r => {
+        const status = (r.status ?? '').trim().toLowerCase();
+        return status === normalizedTab || status === 'in_progress' || status === 'in progress';
+      });
     }
     this.dataSource.filter = this.searchValue.toLowerCase().trim();
   }
 
   getStatusColor(status: string): string {
-    switch (status.toLowerCase()) {
+    const normalized = (status ?? '').trim().toLowerCase();
+    switch (normalized) {
       case 'confirmed': return 'primary';
       case 'pending': return 'accent';
-      case 'in_progress': return 'primary';
+      case 'in-progress':
+      case 'in_progress':
+      case 'in progress': return 'primary';
       case 'cancelled': return 'warn';
       default: return '';
     }

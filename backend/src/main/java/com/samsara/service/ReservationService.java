@@ -54,12 +54,21 @@ public class ReservationService {
         return reservationRepository.findByPropertyCreatedBy(ownerId);
     }
 
+    private String normalizeStatus(String status) {
+        if (status == null) return "pending";
+        String normalized = status.trim().toLowerCase();
+        if ("in_progress".equals(normalized) || "in progress".equals(normalized) || "in-progress".equals(normalized)) {
+            return "in-progress";
+        }
+        return normalized;
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void autoUpdateStatuses() {
         String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
         List<Reservation> toUpdate = reservationRepository.findConfirmedAndDateReached(today);
         for (Reservation r : toUpdate) {
-            r.setStatus("in_progress");
+            r.setStatus(normalizeStatus("in-progress"));
             reservationRepository.save(r);
         }
     }
@@ -97,12 +106,13 @@ public class ReservationService {
     @Transactional
     public Reservation updateStatus(Long id, String status) {
         Reservation reservation = findById(id);
-        String oldStatus = reservation.getStatus();
-        reservation.setStatus(status);
+        String normalizedStatus = normalizeStatus(status);
+        String oldStatus = normalizeStatus(reservation.getStatus());
+        reservation.setStatus(normalizedStatus);
         reservation = reservationRepository.save(reservation);
 
-        if (!oldStatus.equals(status)) {
-            if ("confirmed".equals(status)) {
+        if (!oldStatus.equals(normalizedStatus)) {
+            if ("confirmed".equals(normalizedStatus)) {
                 double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
                 if (advance > 0) {
                     RevenueHistory revenue = RevenueHistory.builder()
@@ -113,7 +123,7 @@ public class ReservationService {
                             .build();
                     revenueHistoryRepository.save(revenue);
                 }
-            } else if ("in_progress".equals(status)) {
+            } else if ("in-progress".equals(normalizedStatus)) {
                 double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
                 double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
                 double remaining = total - advance;
@@ -132,9 +142,9 @@ public class ReservationService {
             if (property != null) {
                 User actor = userRepository.findById(reservation.getSamsarId()).orElse(null);
                 if (actor != null) {
-                    if ("confirmed".equals(status)) {
+                    if ("confirmed".equals(normalizedStatus)) {
                         notificationService.notifyReservationConfirmed(reservation, property, actor);
-                    } else if ("cancelled".equals(status)) {
+                    } else if ("cancelled".equals(normalizedStatus)) {
                         notificationService.notifyReservationCancelled(reservation, property, actor);
                     }
                 }

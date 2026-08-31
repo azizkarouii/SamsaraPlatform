@@ -14,7 +14,10 @@ import { AuthService } from '../../services/auth.service';
 import { PropertyService } from '../../services/property.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
 import { ReservationService } from '../../services/reservation.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
+import { AppLanguage, TRANSLATIONS } from '../../shared/translations';
+import { isActiveReservationStatus } from '../../models/reservation.model';
 
 @Component({
   selector: 'app-profile',
@@ -33,12 +36,12 @@ import { User } from '../../models/auth.model';
   ],
   template: `
     <div class="profile-container" *ngIf="!loading; else loadingSpinner">
-      <h1>Profile</h1>
+      <h1>{{ t('profile') }}</h1>
 
       <div class="profile-grid">
         <mat-card class="profile-card">
           <mat-card-header>
-            <mat-card-title>Account Information</mat-card-title>
+            <mat-card-title>{{ t('account_information') }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <div class="profile-avatar">
@@ -51,20 +54,20 @@ import { User } from '../../models/auth.model';
 
         <mat-card class="stats-card">
           <mat-card-header>
-            <mat-card-title>Statistics</mat-card-title>
+            <mat-card-title>{{ t('statistics') }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <div class="stat-row">
               <mat-icon>home</mat-icon>
-              <span>{{ propertyCount }} Properties</span>
+              <span>{{ propertyCount }} {{ t('properties_count') }}</span>
             </div>
             <div class="stat-row">
               <mat-icon>book_online</mat-icon>
-              <span>{{ reservationCount }} Reservations</span>
+              <span>{{ reservationCount }} {{ t('reservations_count') }}</span>
             </div>
             <div class="stat-row">
               <mat-icon>payments</mat-icon>
-              <span>{{ totalRevenue | currency:'TND':'symbol':'1.0-0' }} Revenue</span>
+              <span>{{ totalRevenue | currency:'TND':'symbol':'1.0-0' }} {{ t('revenue_suffix') }}</span>
             </div>
           </mat-card-content>
         </mat-card>
@@ -72,25 +75,25 @@ import { User } from '../../models/auth.model';
 
       <mat-card class="edit-card">
         <mat-card-header>
-          <mat-card-title>Edit Profile</mat-card-title>
+          <mat-card-title>{{ t('edit_profile') }}</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <form [formGroup]="profileForm" (ngSubmit)="onUpdateProfile()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Name</mat-label>
+              <mat-label>{{ t('name_label') }}</mat-label>
               <input matInput formControlName="name" />
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Email</mat-label>
+              <mat-label>{{ t('email_label') }}</mat-label>
               <input matInput type="email" formControlName="email" />
             </mat-form-field>
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Phone (+216)</mat-label>
+              <mat-label>{{ t('phone_label') }}</mat-label>
               <input matInput formControlName="phone" placeholder="+216 12345678" />
             </mat-form-field>
             <button mat-raised-button color="primary" type="submit" [disabled]="saving">
               <mat-spinner *ngIf="saving" diameter="20" class="spinner"></mat-spinner>
-              <span *ngIf="!saving">Save Changes</span>
+              <span *ngIf="!saving">{{ t('save_changes') }}</span>
             </button>
           </form>
         </mat-card-content>
@@ -98,7 +101,7 @@ import { User } from '../../models/auth.model';
 
       <div class="actions">
         <button mat-raised-button color="warn" (click)="logout()">
-          <mat-icon>logout</mat-icon> Logout
+          <mat-icon>logout</mat-icon> {{ t('logout') }}
         </button>
       </div>
     </div>
@@ -183,6 +186,7 @@ export class ProfileComponent implements OnInit {
   totalRevenue = 0;
   loading = true;
   saving = false;
+  language: AppLanguage = 'fr';
   private pendingLoads = 0;
 
   profileForm = this.fb.group({
@@ -198,10 +202,15 @@ export class ProfileComponent implements OnInit {
     private propertySamsarService: PropertySamsarService,
     private reservationService: ReservationService,
     private router: Router,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
   ) {}
 
   ngOnInit(): void {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe(language => {
+      this.language = language;
+    });
     this.user = this.authService.getCurrentUser();
     if (this.user) {
       this.profileForm.patchValue({
@@ -243,7 +252,9 @@ export class ProfileComponent implements OnInit {
     resObs.subscribe({
       next: (res) => {
         this.reservationCount = res.length;
-        this.totalRevenue = res.reduce((sum, r) => sum + r.totalAmount, 0);
+        this.totalRevenue = res
+          .filter(r => isActiveReservationStatus(r.status))
+          .reduce((sum, r) => sum + r.totalAmount, 0);
         this.markLoaded();
       },
       error: () => this.markLoaded(),
@@ -257,18 +268,22 @@ export class ProfileComponent implements OnInit {
     }
   }
 
+  t(key: string): string {
+    return TRANSLATIONS[key]?.[this.language] ?? key;
+  }
+
   onUpdateProfile(): void {
     this.saving = true;
     this.authService.getProfile().subscribe({
       next: (user) => {
         this.user = user;
         localStorage.setItem('user', JSON.stringify(user));
-        this.snackBar.open('Profile updated', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('profile_updated'), this.t('close'), { duration: 3000 });
         this.saving = false;
       },
       error: (err) => {
         this.saving = false;
-        this.snackBar.open(err.error?.message || 'Failed to update profile', 'Close', { duration: 3000 });
+        this.snackBar.open(err.error?.message || this.t('failed_to_update_profile'), this.t('close'), { duration: 3000 });
       },
     });
   }

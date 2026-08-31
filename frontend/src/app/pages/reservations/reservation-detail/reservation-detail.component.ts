@@ -120,10 +120,10 @@ import { Reservation } from '../../../models/reservation.model';
                 <button mat-raised-button color="primary" *ngIf="reservation.status === 'pending'" (click)="changeStatus('confirmed')">
                   <mat-icon>check_circle</mat-icon> Confirm
                 </button>
-                <button mat-raised-button color="primary" *ngIf="reservation.status === 'confirmed'" (click)="changeStatus('in_progress')">
+                <button mat-raised-button color="primary" *ngIf="reservation.status === 'confirmed'" (click)="changeStatus('in-progress')">
                   <mat-icon>play_circle</mat-icon> Start (In Progress)
                 </button>
-                <button mat-raised-button color="warn" *ngIf="reservation.status !== 'in_progress' && reservation.status !== 'cancelled'" (click)="changeStatus('cancelled')">
+                <button mat-raised-button color="warn" *ngIf="reservation.status !== 'in-progress' && reservation.status !== 'cancelled'" (click)="changeStatus('cancelled')">
                   <mat-icon>cancel</mat-icon> Cancel
                 </button>
               </div>
@@ -274,10 +274,13 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   getStatusColor(status: string): string {
-    switch (status.toLowerCase()) {
+    const normalized = (status ?? '').trim().toLowerCase();
+    switch (normalized) {
       case 'confirmed': return 'primary';
       case 'pending': return 'accent';
-      case 'in_progress': return 'primary';
+      case 'in-progress':
+      case 'in_progress':
+      case 'in progress': return 'primary';
       case 'cancelled': return 'warn';
       default: return '';
     }

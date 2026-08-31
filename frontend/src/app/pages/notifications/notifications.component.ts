@@ -10,7 +10,9 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NotificationService } from '../../services/notification.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { Notification } from '../../models/notification.model';
+import { AppLanguage, TRANSLATIONS } from '../../shared/translations';
 
 @Component({
   selector: 'app-notifications',
@@ -30,9 +32,9 @@ import { Notification } from '../../models/notification.model';
   template: `
     <div class="notifications-container">
       <div class="header">
-        <h1>Notifications</h1>
+        <h1>{{ t('notifications') }}</h1>
         <button mat-stroked-button (click)="markAllAsRead()" [disabled]="notifications.length === 0">
-          <mat-icon>done_all</mat-icon> Mark All as Read
+          <mat-icon>done_all</mat-icon> {{ t('mark_all_read') }}
         </button>
       </div>
 
@@ -45,7 +47,7 @@ import { Notification } from '../../models/notification.model';
           <ng-template #loadedContent>
             <div *ngIf="notifications.length === 0" class="empty-state">
               <mat-icon class="empty-icon">notifications_none</mat-icon>
-              <p>No notifications</p>
+              <p>{{ t('no_notifications') }}</p>
             </div>
 
             <mat-list *ngIf="notifications.length > 0">
@@ -55,7 +57,7 @@ import { Notification } from '../../models/notification.model';
                 </mat-icon>
                 <div matListItemTitle>
                   <span>{{ notif.title }}</span>
-                  <mat-chip *ngIf="!notif.isRead" class="unread-chip" color="primary" selected>New</mat-chip>
+                  <mat-chip *ngIf="!notif.isRead" class="unread-chip" color="primary" selected>{{ t('new_badge') }}</mat-chip>
                 </div>
                 <div matListItemLine>{{ notif.message }}</div>
                 <div matListItemLine class="notif-time">{{ notif.createdAt | date:'medium' }}</div>
@@ -99,20 +101,20 @@ import { Notification } from '../../models/notification.model';
       padding: 0.5rem 0;
     }
     .notification-item:hover {
-      background: rgba(0,0,0,0.03);
+      background: var(--surface-hover);
     }
     .notification-item.unread {
-      background: rgba(63, 81, 181, 0.05);
+      background: var(--surface-accent);
     }
     .unread-chip {
       font-size: 0.7rem;
-      margin-left: 0.5rem;
+      margin-inline-start: 0.5rem;
       height: 18px;
       line-height: 18px;
     }
     .notif-time {
       font-size: 0.75rem;
-      color: rgba(0,0,0,0.5);
+      color: var(--text-secondary);
     }
     .loading-container {
       display: flex;
@@ -124,7 +126,7 @@ import { Notification } from '../../models/notification.model';
       flex-direction: column;
       align-items: center;
       padding: 3rem;
-      color: rgba(0,0,0,0.5);
+      color: var(--text-secondary);
     }
     .empty-icon {
       font-size: 4rem;
@@ -137,13 +139,19 @@ import { Notification } from '../../models/notification.model';
 export class NotificationsComponent implements OnInit {
   notifications: Notification[] = [];
   loading = true;
+  language: AppLanguage = 'fr';
 
   constructor(
     private notificationService: NotificationService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
   ) {}
 
   ngOnInit(): void {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe(language => {
+      this.language = language;
+    });
     this.loadNotifications();
   }
 
@@ -170,12 +178,16 @@ export class NotificationsComponent implements OnInit {
     }
   }
 
+  t(key: string): string {
+    return TRANSLATIONS[key]?.[this.language] ?? key;
+  }
+
   markAllAsRead(): void {
     this.notificationService.markAllAsRead().subscribe({
       next: () => {
         this.notifications.forEach(n => n.isRead = true);
         this.notificationService.unreadCountChange$.next();
-        this.snackBar.open('All notifications marked as read', 'Close', { duration: 2000 });
+        this.snackBar.open(this.t('mark_all_read'), this.t('close'), { duration: 2000 });
       },
     });
   }
@@ -185,7 +197,7 @@ export class NotificationsComponent implements OnInit {
       next: () => {
         this.notifications = this.notifications.filter(n => n.id !== id);
         this.notificationService.unreadCountChange$.next();
-        this.snackBar.open('Notification deleted', 'Close', { duration: 2000 });
+        this.snackBar.open(this.t('notification_deleted'), this.t('close'), { duration: 2000 });
       },
     });
   }
