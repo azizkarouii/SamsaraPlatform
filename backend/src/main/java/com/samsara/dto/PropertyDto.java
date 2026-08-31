@@ -1,11 +1,14 @@
 package com.samsara.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
 public class PropertyDto {
     private Long id;
+
+    @NotBlank
     private String title;
     private String configuration;
     private Boolean hautStanding;

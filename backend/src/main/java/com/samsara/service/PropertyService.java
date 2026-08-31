@@ -3,6 +3,7 @@ package com.samsara.service;
 import com.samsara.dto.PropertyDto;
 import com.samsara.entity.Property;
 import com.samsara.repository.PropertyRepository;
+import com.samsara.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Sort;
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final UserRepository userRepository;
 
     public List<Property> findAll() {
         return propertyRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -21,6 +23,26 @@ public class PropertyService {
 
     public List<Property> findAvailableOnDate(String date) {
         return propertyRepository.findAvailableOnDate(date);
+    }
+
+    public List<Property> findAvailableBetween(String startDate, String endDate) {
+        if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+        if (startDate.compareTo(endDate) > 0) {
+            throw new IllegalArgumentException("Start date must be before or equal to end date");
+        }
+        return propertyRepository.findAvailableBetween(startDate, endDate, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    public List<Property> findAvailableBetweenByCreator(Long userId, String startDate, String endDate) {
+        if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
+            throw new IllegalArgumentException("Start date and end date are required");
+        }
+        if (startDate.compareTo(endDate) > 0) {
+            throw new IllegalArgumentException("Start date must be before or equal to end date");
+        }
+        return propertyRepository.findAvailableBetweenByCreatedBy(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     public Property findById(Long id) {
@@ -37,6 +59,10 @@ public class PropertyService {
     }
 
     public Property create(PropertyDto dto, Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new RuntimeException("Owner not found");
+        }
+
         Property property = Property.builder()
                 .title(dto.getTitle())
                 .configuration(dto.getConfiguration())

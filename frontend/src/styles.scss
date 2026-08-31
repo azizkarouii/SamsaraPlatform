@@ -1,5 +1,5 @@
 html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; background: var(--bg-main); color: var(--text-primary); }
 
 :root {
   --bg-main: #f5f5f5;
@@ -7,7 +7,11 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   --bg-toolbar: #ffffff;
   --bg-sidenav: #fafafa;
   --text-primary: rgba(0,0,0,0.87);
+  --text-secondary: rgba(0,0,0,0.5);
   --border-color: rgba(0,0,0,0.08);
+  --surface-hover: rgba(0,0,0,0.04);
+  --surface-subtle: rgba(0,0,0,0.03);
+  --surface-accent: rgba(63, 81, 181, 0.05);
 }
 
 html.dark-theme {
@@ -16,7 +20,11 @@ html.dark-theme {
   --bg-toolbar: #212121;
   --bg-sidenav: #2c2c2c;
   --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,0.72);
   --border-color: rgba(255,255,255,0.12);
+  --surface-hover: rgba(255,255,255,0.06);
+  --surface-subtle: rgba(255,255,255,0.04);
+  --surface-accent: rgba(63, 81, 181, 0.16);
 
   color-scheme: dark;
 
@@ -62,4 +70,48 @@ mat-card {
 
 .mat-mdc-form-field {
   width: 100%;
+}
+
+html.dark-theme app-main-layout {
+  --light: var(--bg-toolbar);
+  --grey: var(--bg-main);
+  --dark: var(--text-primary);
+  --dark-grey: var(--text-secondary);
+  --light-blue: rgba(63, 145, 230, 0.18);
+  --light-yellow: rgba(255, 206, 38, 0.16);
+  --light-orange: rgba(253, 114, 56, 0.18);
+}
+
+html[dir='rtl'] app-main-layout #sidebar {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+html[dir='rtl'] app-main-layout #content {
+  inset-inline-start: auto;
+  inset-inline-end: 280px;
+}
+
+html[dir='rtl'] app-main-layout #content.sidebar-hide {
+  inset-inline-end: 60px;
+}
+
+html[dir='rtl'] app-main-layout #sidebar .side-menu li {
+  margin-inline-start: 0;
+  margin-inline-end: 6px;
+  border-radius: 0 48px 48px 0;
+}
+
+html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::before,
+html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::after {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+}
+
+html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::before {
+  box-shadow: -20px 20px 0 var(--grey);
+}
+
+html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::after {
+  box-shadow: -20px -20px 0 var(--grey);
 }

@@ -166,7 +166,7 @@ import { ShareDialogComponent } from './share-dialog.component';
       cursor: pointer;
     }
     .clickable-row:hover {
-      background: rgba(0,0,0,0.04);
+      background: var(--surface-hover);
     }
     .loading-container {
       display: flex;
@@ -178,7 +178,7 @@ import { ShareDialogComponent } from './share-dialog.component';
       flex-direction: column;
       align-items: center;
       padding: 3rem;
-      color: rgba(0,0,0,0.5);
+      color: var(--text-secondary);
     }
     .empty-icon {
       font-size: 4rem;

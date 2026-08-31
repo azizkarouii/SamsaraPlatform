@@ -56,6 +56,12 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
             <span class="text">{{ t('reservations') }}</span>
           </a>
         </li>
+        <li [class.active]="router.url.startsWith('/availability')">
+          <a routerLink="/availability">
+            <i class='bx bxs-calendar'></i>
+            <span class="text">{{ t('availability') }}</span>
+          </a>
+        </li>
         <li [class.active]="router.url.startsWith('/notifications')">
           <a routerLink="/notifications">
             <i class='bx bxs-bell'></i>
@@ -68,12 +74,6 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
           <a routerLink="/profile">
             <i class='bx bxs-user'></i>
             <span class="text">{{ t('profile') }}</span>
-          </a>
-        </li>
-        <li class="settings" (click)="toggleSidebar()">
-          <a>
-            <i class='bx bx-menu-alt-left'></i>
-            <span class="text">{{ t('collapse') }}</span>
           </a>
         </li>
         <li>
@@ -150,7 +150,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #sidebar {
       position: fixed;
       top: 0;
-      left: 0;
+      inset-inline-start: 0;
       width: 280px;
       height: 100%;
       background: var(--light);
@@ -175,7 +175,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       color: var(--blue);
       position: sticky;
       top: 0;
-      left: 0;
+      inset-inline-start: 0;
       background: var(--light);
       z-index: 500;
       padding-bottom: 20px;
@@ -200,7 +200,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #sidebar .side-menu li {
       height: 48px;
       background: transparent;
-      margin-left: 6px;
+      margin-inline-start: 6px;
       border-radius: 48px 0 0 48px;
       padding: 4px;
     }
@@ -215,7 +215,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       height: 40px;
       border-radius: 50%;
       top: -40px;
-      right: 0;
+      inset-inline-end: 0;
       box-shadow: 20px 20px 0 var(--grey);
       z-index: -1;
     }
@@ -226,7 +226,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       height: 40px;
       border-radius: 50%;
       bottom: -40px;
-      right: 0;
+      inset-inline-end: 0;
       box-shadow: 20px -20px 0 var(--grey);
       z-index: -1;
     }
@@ -271,7 +271,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #content {
       position: relative;
       width: calc(100% - 280px);
-      left: 280px;
+      inset-inline-start: 280px;
       transition: .3s ease;
       min-height: 100vh;
       display: flex;
@@ -279,7 +279,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     }
     #content.sidebar-hide {
       width: calc(100% - 60px);
-      left: 60px;
+      inset-inline-start: 60px;
     }
 
     /* NAVBAR */
@@ -294,7 +294,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       position: sticky;
       top: 0;
       z-index: 1000;
-      border-bottom: 1px solid rgba(0,0,0,0.06);
+      border-bottom: 1px solid var(--border-color);
     }
     #content nav .bx-menu {
       cursor: pointer;
@@ -314,7 +314,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #content nav .notification .num {
       position: absolute;
       top: -6px;
-      right: -6px;
+      inset-inline-end: -6px;
       width: 18px;
       height: 18px;
       border-radius: 50%;
@@ -352,11 +352,13 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     .nav-btn {
       width: 36px;
       height: 36px;
-      line-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .nav-btn mat-icon {
       font-size: 20px;
-      line-height: 20px;
+      line-height: 1;
     }
     .logout-mobile {
       display: none;
@@ -379,7 +381,9 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       flex: 1;
       padding: 1.5rem;
       background: var(--grey);
+      color: var(--text-primary);
     }
+
   `]
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {

@@ -237,7 +237,7 @@ interface GroupedSamsars {
     .pill {
       padding: 0.35rem 0.75rem;
       border-radius: 999px;
-      background: rgba(0,0,0,0.06);
+      background: var(--surface-subtle);
       font-size: 0.85rem;
     }
     .details p {
@@ -274,8 +274,8 @@ interface GroupedSamsars {
     }
     .samsar-contact {
       font-size: 0.8rem;
-      opacity: 0.6;
-      margin-left: 0.3rem;
+      opacity: 0.7;
+      margin-inline-start: 0.3rem;
     }
     .samsar-meta {
       display: flex;

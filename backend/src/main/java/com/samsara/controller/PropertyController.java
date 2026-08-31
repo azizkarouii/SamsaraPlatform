@@ -3,6 +3,7 @@ package com.samsara.controller;
 import com.samsara.dto.PropertyDto;
 import com.samsara.entity.Property;
 import com.samsara.service.PropertyService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,6 +26,12 @@ public class PropertyController {
         return ResponseEntity.ok(propertyService.findAll());
     }
 
+    @GetMapping("/available")
+    public ResponseEntity<List<Property>> findAvailableBetween(@RequestParam String startDate,
+                                                               @RequestParam String endDate) {
+        return ResponseEntity.ok(propertyService.findAvailableBetween(startDate, endDate));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Property> findById(@PathVariable Long id) {
         return ResponseEntity.ok(propertyService.findById(id));
@@ -41,7 +48,7 @@ public class PropertyController {
     }
 
     @PostMapping
-    public ResponseEntity<Property> create(@RequestBody PropertyDto dto,
+    public ResponseEntity<Property> create(@Valid @RequestBody PropertyDto dto,
                                            Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(propertyService.create(dto, userId));

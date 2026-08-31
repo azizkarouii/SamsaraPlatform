@@ -34,6 +34,10 @@ export class ReservationService {
     return this.http.get<Reservation[]>(this.apiUrl);
   }
 
+  findByProperty(propertyId: number): Observable<Reservation[]> {
+    return this.http.get<Reservation[]>(`${this.apiUrl}/property/${propertyId}`);
+  }
+
   findMine(): Observable<Reservation[]> {
     return this.http.get<Reservation[]>(`${this.apiUrl}/mine`);
   }

@@ -10,12 +10,21 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatListModule } from '@angular/material/list';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../../services/auth.service';
 import { PropertyService } from '../../../services/property.service';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { Property } from '../../../models/property.model';
+import { Reservation } from '../../../models/reservation.model';
 import { PropertySamsar } from '../../../models/property-samsar.model';
 import { Clipboard } from '@angular/cdk/clipboard';
+import { ReservationService } from '../../../services/reservation.service';
+import { AvailabilityService } from '../../../services/availability.service';
+import { CalendarMonth, CalendarDay, buildCalendarMonth, createDayStatusMap, getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils';
+import { PropertyAvailability } from '../../../models/property-availability.model';
+import { UiPreferencesService } from '../../../services/ui-preferences.service';
+import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
 
 @Component({
   selector: 'app-property-detail',
@@ -32,6 +41,8 @@ import { Clipboard } from '@angular/cdk/clipboard';
     MatDialogModule,
     MatProgressSpinnerModule,
     MatListModule,
+    MatFormFieldModule,
+    MatSelectModule,
   ],
   template: `
     <div class="detail-container" *ngIf="!loading; else loadingSpinner">
@@ -125,6 +136,49 @@ import { Clipboard } from '@angular/cdk/clipboard';
             <div class="dates">
               <span class="date-label">Created: {{ property.createdAt | date:'medium' }}</span>
               <span class="date-label">Updated: {{ property.updatedAt | date:'medium' }}</span>
+            </div>
+            <div class="detail-calendar-section">
+              <div class="availability-head">
+                <div>
+                  <p class="calendar-eyebrow">{{ t('availability_section') }}</p>
+                  <h3>{{ t('availability_section') }}</h3>
+                </div>
+                <div class="calendar-legend-inline">
+                  <span><i class="dot reserved"></i>{{ t('reserved') }}</span>
+                  <span><i class="dot pending"></i>{{ t('pending') }}</span>
+                  <span><i class="dot free"></i>{{ t('free') }}</span>
+                </div>
+              </div>
+              <div class="calendar-strip">
+                <mat-card class="calendar-month-card" *ngFor="let month of visibleMonths; let index = index">
+                  <mat-card-header>
+                    <mat-card-title>{{ month.monthLabel }} {{ month.year }}</mat-card-title>
+                    <mat-card-subtitle>{{ index === 0 ? t('select_start') : index === 2 ? t('select_end') : t('choose_period') }}</mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    <div class="weekdays compact">
+                      <span *ngFor="let label of weekdayLabels">{{ label }}</span>
+                    </div>
+                    <div class="days-grid compact">
+                      <button
+                        type="button"
+                        class="day-cell"
+                        *ngFor="let day of month.days"
+                        [class.empty]="!day.dayNumber"
+                        [class.reserved]="day.status === 'reserved'"
+                        [class.pending]="day.status === 'pending'"
+                        [class.free]="day.status === 'free'"
+                        [class.range-start]="day.date === startDate"
+                        [class.range-end]="day.date === endDate"
+                        [class.in-range]="isInRange(day.date)"
+                        (click)="selectDay(day)"
+                      >
+                        <span>{{ day.dayNumber }}</span>
+                      </button>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
             </div>
 
             <div class="share-row" *ngIf="publicLink">
@@ -239,6 +293,58 @@ import { Clipboard } from '@angular/cdk/clipboard';
       flex-wrap: wrap;
       margin-top: 1rem;
     }
+    .detail-calendar-section {
+      margin-top: 1.75rem;
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.94));
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+    }
+    :host-context(html.dark-theme) .detail-calendar-section {
+      background: linear-gradient(180deg, rgba(19, 24, 32, 0.9), rgba(15, 18, 25, 0.98));
+    }
+    .calendar-eyebrow {
+      margin: 0 0 0.15rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      opacity: 0.6;
+    }
+    .calendar-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+      margin-top: 0.85rem;
+    }
+    .calendar-month-card {
+      border-radius: 18px;
+      border: 1px solid var(--border-color);
+      background: rgba(255,255,255,0.64);
+      overflow: hidden;
+    }
+    :host-context(html.dark-theme) .calendar-month-card {
+      background: rgba(255,255,255,0.04);
+    }
+    .calendar-legend-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      align-items: center;
+    }
+    .calendar-legend-inline span,
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+    }
+    .days-grid.compact {
+      gap: 0.35rem;
+    }
+    .weekdays.compact span {
+      font-size: 0.68rem;
+    }
     .samsar-section {
       margin-top: 1.5rem;
     }
@@ -258,6 +364,11 @@ import { Clipboard } from '@angular/cdk/clipboard';
       justify-content: center;
       padding: 3rem;
     }
+    @media (max-width: 960px) {
+      .calendar-strip {
+        grid-template-columns: 1fr;
+      }
+    }
   `]
 })
 export class PropertyDetailComponent implements OnInit {
@@ -266,6 +377,16 @@ export class PropertyDetailComponent implements OnInit {
   publicView = false;
   publicLink = '';
   samsars: PropertySamsar[] = [];
+  language: AppLanguage = 'fr';
+  calendar!: CalendarMonth;
+  visibleMonths: CalendarMonth[] = [];
+  weekdayLabels = getWeekdayLabels('fr');
+  monthOptions: { value: string; label: string; year: number; monthIndex: number }[] = [];
+  selectedMonthValue = '';
+  startDate = '';
+  endDate = '';
+  private propertyReservations: Reservation[] = [];
+  private propertyAvailabilities: PropertyAvailability[] = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -273,10 +394,25 @@ export class PropertyDetailComponent implements OnInit {
     private authService: AuthService,
     private propertyService: PropertyService,
     private propertySamsarService: PropertySamsarService,
+    private reservationService: ReservationService,
+    private availabilityService: AvailabilityService,
+    private uiPrefs: UiPreferencesService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
     private clipboard: Clipboard
-  ) {}
+  ) {
+    this.language = this.uiPrefs.getLanguage() as AppLanguage;
+    const current = new Date();
+    this.monthOptions = [5, 6, 7].map(monthIndex => ({
+      value: `${current.getFullYear()}-${monthIndex}`,
+      year: current.getFullYear(),
+      monthIndex,
+      label: getMonthLabel(monthIndex, this.language),
+    }));
+    this.selectedMonthValue = this.monthOptions[0].value;
+    this.rebuildVisibleMonths({});
+    this.weekdayLabels = getWeekdayLabels(this.language);
+  }
 
   ngOnInit(): void {
     this.publicView = this.route.snapshot.data['publicView'] === true;
@@ -293,6 +429,7 @@ export class PropertyDetailComponent implements OnInit {
         this.publicLink = `${window.location.origin}/public/properties/${property.id}`;
         this.loading = false;
         this.loadSamsars(id);
+        this.loadCalendarData(id);
       },
       error: () => {
         this.loading = false;
@@ -300,6 +437,89 @@ export class PropertyDetailComponent implements OnInit {
         this.router.navigate(['/properties']);
       },
     });
+  }
+
+  t(key: string): string {
+    return TRANSLATIONS[key]?.[this.language] ?? key;
+  }
+
+  onMonthChange(value: string): void {
+    this.selectedMonthValue = value;
+    this.rebuildVisibleMonths(this.buildDayStatusMap());
+  }
+
+  selectDay(day: CalendarDay): void {
+    if (!day.dayNumber) return;
+    if (!this.startDate || this.endDate) {
+      this.startDate = day.date;
+      this.endDate = '';
+      return;
+    }
+    if (day.date < this.startDate) {
+      this.endDate = this.startDate;
+      this.startDate = day.date;
+      return;
+    }
+    this.endDate = day.date;
+    this.rebuildVisibleMonths(this.buildDayStatusMap());
+  }
+
+  private loadCalendarData(propertyId: number): void {
+    this.reservationService.findByProperty(propertyId).subscribe({
+      next: (reservations) => {
+        this.propertyReservations = reservations;
+        this.applyCalendarState();
+      },
+      error: () => this.applyCalendarState(),
+    });
+
+    this.availabilityService.findByProperty(propertyId).subscribe({
+      next: (availabilities) => {
+        this.propertyAvailabilities = availabilities;
+        this.applyCalendarState();
+      },
+      error: () => this.applyCalendarState(),
+    });
+  }
+
+  private applyCalendarState(): void {
+    this.rebuildVisibleMonths(this.buildDayStatusMap());
+  }
+
+  private buildDayStatusMap(): Record<string, 'free' | 'reserved' | 'pending' | 'blocked'> {
+    const month = this.resolveMonth(this.selectedMonthValue);
+    const rangeStart = new Date(month.year, month.monthIndex, 1).toISOString().slice(0, 10);
+    const rangeEnd = new Date(month.year, month.monthIndex + 3, 0).toISOString().slice(0, 10);
+    const reservations = this.propertyReservations.filter(reservation => reservation.startDate <= rangeEnd && reservation.endDate >= rangeStart);
+    return createDayStatusMap(
+      reservations.map(reservation => ({
+        startDate: reservation.startDate,
+        endDate: reservation.endDate,
+        status: reservation.advanceAmount > 0 ? reservation.status : 'pending',
+      })),
+      this.propertyAvailabilities.filter(item => item.date >= rangeStart && item.date <= rangeEnd)
+    );
+  }
+
+  private resolveMonth(value: string): { year: number; monthIndex: number } {
+    const [year, monthIndex] = value.split('-').map(Number);
+    return { year, monthIndex };
+  }
+
+  private rebuildVisibleMonths(dayStatuses: Record<string, 'free' | 'reserved' | 'pending' | 'blocked'>): void {
+    const base = this.resolveMonth(this.selectedMonthValue);
+    this.visibleMonths = [0, 1, 2].map(offset => {
+      const date = new Date(base.year, base.monthIndex + offset, 1);
+      return buildCalendarMonth(date.getFullYear(), date.getMonth(), dayStatuses, this.language);
+    });
+    this.calendar = this.visibleMonths[0];
+  }
+
+  isInRange(date: string): boolean {
+    if (!this.startDate || !this.endDate || !date) {
+      return false;
+    }
+    return date > this.startDate && date < this.endDate;
   }
 
   private loadSamsars(propertyId: number): void {
