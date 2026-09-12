@@ -10,6 +10,8 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ReservationService } from '../../../services/reservation.service';
 import { Reservation } from '../../../models/reservation.model';
+import { UiPreferencesService } from '../../../services/ui-preferences.service';
+import { AppLanguage, t } from '../../../shared/translations';
 
 @Component({
   selector: 'app-reservation-detail',
@@ -29,14 +31,14 @@ import { Reservation } from '../../../models/reservation.model';
     <div class="detail-container" *ngIf="!loading; else loadingSpinner">
       <div class="header">
         <button mat-stroked-button routerLink="/reservations">
-          <mat-icon>arrow_back</mat-icon> Back to List
+          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
         <div class="header-actions">
           <button mat-raised-button color="accent" [routerLink]="['/reservations', reservation?.id, 'edit']">
-            <mat-icon>edit</mat-icon> Edit
+            <mat-icon>edit</mat-icon> {{ t('edit') }}
           </button>
           <button mat-raised-button color="warn" (click)="deleteReservation()">
-            <mat-icon>delete</mat-icon> Delete
+            <mat-icon>delete</mat-icon> {{ t('delete') }}
           </button>
         </div>
       </div>
@@ -50,7 +52,7 @@ import { Reservation } from '../../../models/reservation.model';
             </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            <h3>Client Information</h3>
+            <h3>{{ t('client_information') }}</h3>
             <mat-divider></mat-divider>
             <div class="info-grid">
               <div class="info-item">
@@ -63,68 +65,68 @@ import { Reservation } from '../../../models/reservation.model';
               </div>
             </div>
 
-            <h3>Property</h3>
+            <h3>{{ t('property_details') }}</h3>
             <mat-divider></mat-divider>
             <div class="info-grid">
               <div class="info-item">
-                <span class="label">Property</span>
-                <span class="value">{{ reservation.property?.title || 'Property #' + reservation.propertyId }}</span>
+                <span class="label">{{ t('property_label') }}</span>
+                <span class="value">{{ reservation.property?.title || t('property_label') + ' #' + reservation.propertyId }}</span>
               </div>
             </div>
 
-            <h3>Dates & Times</h3>
+            <h3>{{ t('dates_times') }}</h3>
             <mat-divider></mat-divider>
             <div class="info-grid">
               <div class="info-item">
-                <span class="label">Check-in</span>
+                <span class="label">{{ t('checkin_time') }}</span>
                 <span class="value">{{ reservation.startDate | date:'mediumDate' }} at {{ reservation.checkInTime }}</span>
               </div>
               <div class="info-item">
-                <span class="label">Check-out</span>
+                <span class="label">{{ t('checkout_time') }}</span>
                 <span class="value">{{ reservation.endDate | date:'mediumDate' }} at {{ reservation.checkOutTime }}</span>
               </div>
             </div>
 
-            <h3>Financial Details</h3>
+            <h3>{{ t('financial_details') }}</h3>
             <mat-divider></mat-divider>
             <div class="info-grid">
               <div class="info-item">
-                <span class="label">Total Amount</span>
+                <span class="label">{{ t('total_amount_label') }}</span>
                 <span class="value price">{{ reservation.totalAmount | currency:'TND':'symbol':'1.0-0' }}</span>
               </div>
               <div class="info-item">
-                <span class="label">Advance Paid</span>
+                <span class="label">{{ t('advance_paid') }}</span>
                 <span class="value">{{ reservation.advanceAmount | currency:'TND':'symbol':'1.0-0' }}</span>
               </div>
               <div class="info-item">
-                <span class="label">Balance Due</span>
+                <span class="label">{{ t('balance_due') }}</span>
                 <span class="value">{{ reservation.totalAmount - reservation.advanceAmount | currency:'TND':'symbol':'1.0-0' }}</span>
               </div>
             </div>
 
             <div *ngIf="reservation.notes" class="notes-section">
-              <h3>Notes</h3>
+              <h3>{{ t('notes_label') }}</h3>
               <mat-divider></mat-divider>
               <p>{{ reservation.notes }}</p>
             </div>
 
             <div class="dates">
-              <span class="date-label">Created: {{ reservation.createdAt | date:'medium' }}</span>
-              <span class="date-label">Updated: {{ reservation.updatedAt | date:'medium' }}</span>
+              <span class="date-label">{{ t('created_label') }} {{ reservation.createdAt | date:'medium' }}</span>
+              <span class="date-label">{{ t('updated_label') }} {{ reservation.updatedAt | date:'medium' }}</span>
             </div>
 
             <div class="status-actions" *ngIf="reservation.status !== 'cancelled'">
-              <h3>Actions</h3>
+              <h3>{{ t('actions_label') }}</h3>
               <mat-divider></mat-divider>
               <div class="status-buttons">
                 <button mat-raised-button color="primary" *ngIf="reservation.status === 'pending'" (click)="changeStatus('confirmed')">
-                  <mat-icon>check_circle</mat-icon> Confirm
+                  <mat-icon>check_circle</mat-icon> {{ t('confirm_status') }}
                 </button>
                 <button mat-raised-button color="primary" *ngIf="reservation.status === 'confirmed'" (click)="changeStatus('in-progress')">
-                  <mat-icon>play_circle</mat-icon> Start (In Progress)
+                  <mat-icon>play_circle</mat-icon> {{ t('start_in_progress') }}
                 </button>
                 <button mat-raised-button color="warn" *ngIf="reservation.status !== 'in-progress' && reservation.status !== 'cancelled'" (click)="changeStatus('cancelled')">
-                  <mat-icon>cancel</mat-icon> Cancel
+                  <mat-icon>cancel</mat-icon> {{ t('cancel_status') }}
                 </button>
               </div>
             </div>
@@ -216,19 +218,30 @@ import { Reservation } from '../../../models/reservation.model';
 export class ReservationDetailComponent implements OnInit {
   reservation?: Reservation;
   loading = true;
+  language: AppLanguage = 'fr';
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private reservationService: ReservationService,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
+  ) {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe((lang) => {
+      this.language = lang;
+    });
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadReservation(+id);
     }
+  }
+
+  t(key: string): string {
+    return t(key, this.language);
   }
 
   private loadReservation(id: number): void {
@@ -239,22 +252,22 @@ export class ReservationDetailComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snackBar.open('Failed to load reservation', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('reservation_failed_load'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/reservations']);
       },
     });
   }
 
   deleteReservation(): void {
-    if (confirm('Are you sure you want to delete this reservation?')) {
+    if (confirm(this.t('reservation_delete_confirm'))) {
       this.reservationService.remove(this.reservation!.id).subscribe({
         next: () => {
-          this.snackBar.open('Reservation deleted successfully', 'Close', { duration: 3000 });
+          this.snackBar.open(this.t('reservation_deleted'), this.t('close'), { duration: 3000 });
           this.router.navigate(['/reservations']);
         },
         error: (err) => {
-          const msg = err.error?.message || 'Failed to delete reservation';
-          this.snackBar.open(msg, 'Close', { duration: 5000 });
+          const msg = err.error?.message || this.t('reservation_failed_load');
+          this.snackBar.open(msg, this.t('close'), { duration: 5000 });
         },
       });
     }
@@ -264,11 +277,12 @@ export class ReservationDetailComponent implements OnInit {
     this.reservationService.updateStatus(this.reservation!.id, status).subscribe({
       next: (updated) => {
         this.reservation = updated;
-        this.snackBar.open(`Status changed to ${status}`, 'Close', { duration: 2500 });
+        const message = this.t('reservation_status_changed').replace('{{status}}', status);
+        this.snackBar.open(message, this.t('close'), { duration: 2500 });
       },
       error: (err) => {
-        const msg = err.error?.message || 'Failed to update status';
-        this.snackBar.open(msg, 'Close', { duration: 3000 });
+        const msg = err.error?.message || this.t('reservation_update_failed');
+        this.snackBar.open(msg, this.t('close'), { duration: 3000 });
       },
     });
   }
