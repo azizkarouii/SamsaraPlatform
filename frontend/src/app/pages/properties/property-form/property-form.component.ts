@@ -13,6 +13,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { PropertyService } from '../../../services/property.service';
 import { Property } from '../../../models/property.model';
+import { UiPreferencesService } from '../../../services/ui-preferences.service';
+import { AppLanguage, t } from '../../../shared/translations';
 
 @Component({
   selector: 'app-property-form',
@@ -34,23 +36,23 @@ import { Property } from '../../../models/property.model';
   template: `
     <div class="form-container">
       <div class="header">
-        <h1>{{ isEdit ? 'Edit' : 'Add' }} Property</h1>
+        <h1>{{ isEdit ? t('edit_property') : t('add_property') }} {{ t('properties') }}</h1>
         <button mat-stroked-button routerLink="/properties">
-          <mat-icon>arrow_back</mat-icon> Back to List
+          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
       </div>
 
       <mat-card>
         <mat-card-content>
           <form [formGroup]="propertyForm" (ngSubmit)="onSubmit()">
-            <h2>Basic Information</h2>
+            <h2>{{ t('basic_information') }}</h2>
             <mat-divider class="section-divider"></mat-divider>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-2">
-                <mat-label>Title *</mat-label>
-                <input matInput formControlName="title" placeholder="Property title" />
-                <mat-error *ngIf="propertyForm.get('title')?.hasError('required')">Title is required</mat-error>
+                <mat-label>{{ t('title_col') }} *</mat-label>
+                <input matInput formControlName="title" placeholder="{{ t('title_col') }}" />
+                <mat-error *ngIf="propertyForm.get('title')?.hasError('required')">{{ t('property_title_required') }}</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
@@ -76,7 +78,7 @@ import { Property } from '../../../models/property.model';
               </mat-form-field>
             </div>
 
-            <h2>Pricing</h2>
+            <h2>{{ t('pricing') }}</h2>
             <mat-divider class="section-divider"></mat-divider>
 
             <div class="form-row">
@@ -96,7 +98,7 @@ import { Property } from '../../../models/property.model';
               </mat-form-field>
             </div>
 
-            <h2>Details</h2>
+            <h2>{{ t('details') }}</h2>
             <mat-divider class="section-divider"></mat-divider>
 
             <div class="form-row">
@@ -116,7 +118,7 @@ import { Property } from '../../../models/property.model';
               </mat-form-field>
             </div>
 
-            <h2>Options</h2>
+            <h2>{{ t('options') }}</h2>
             <mat-divider class="section-divider"></mat-divider>
 
             <div class="checkbox-row">
@@ -124,7 +126,7 @@ import { Property } from '../../../models/property.model';
               <mat-checkbox formControlName="appartientResidence">Part of Residence</mat-checkbox>
             </div>
 
-            <h3>Equipment</h3>
+            <h3>{{ t('equipment') }}</h3>
             <div class="checkbox-row">
               <mat-checkbox formControlName="wifi">WiFi</mat-checkbox>
               <mat-checkbox formControlName="airCondition">Air Conditioning</mat-checkbox>
@@ -136,10 +138,10 @@ import { Property } from '../../../models/property.model';
             </div>
 
             <div class="form-actions">
-              <button mat-stroked-button type="button" routerLink="/properties">Cancel</button>
+              <button mat-stroked-button type="button" routerLink="/properties">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="propertyForm.invalid || loading">
                 <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-                <span *ngIf="!loading">{{ isEdit ? 'Update' : 'Create' }} Property</span>
+                <span *ngIf="!loading">{{ isEdit ? t('edit_property') : t('add_property') }} {{ t('properties') }}</span>
               </button>
             </div>
           </form>
@@ -203,6 +205,7 @@ export class PropertyFormComponent implements OnInit {
   isEdit = false;
   propertyId?: number;
   loading = false;
+  language: AppLanguage = 'fr';
 
   propertyForm: FormGroup = this.fb.group({
     title: ['', Validators.required],
@@ -232,8 +235,18 @@ export class PropertyFormComponent implements OnInit {
     private propertyService: PropertyService,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
+  ) {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe((lang) => {
+      this.language = lang;
+    });
+  }
+
+  t(key: string): string {
+    return t(key, this.language);
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -271,7 +284,7 @@ export class PropertyFormComponent implements OnInit {
         });
       },
       error: () => {
-        this.snackBar.open('Failed to load property', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('property_load_error'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/properties']);
       },
     });
@@ -289,17 +302,14 @@ export class PropertyFormComponent implements OnInit {
 
     obs.subscribe({
       next: () => {
-        this.snackBar.open(
-          `Property ${this.isEdit ? 'updated' : 'created'} successfully!`,
-          'Close',
-          { duration: 3000 }
-        );
+        const message = this.isEdit ? this.t('property_update_success') : this.t('property_create_success');
+        this.snackBar.open(message, this.t('close'), { duration: 3000 });
         this.router.navigate(['/properties']);
       },
       error: (err) => {
         this.loading = false;
-        const msg = err.error?.message || `Failed to ${this.isEdit ? 'update' : 'create'} property`;
-        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        const msg = err.error?.message || this.t('error_generic');
+        this.snackBar.open(msg, this.t('close'), { duration: 5000 });
       },
     });
   }

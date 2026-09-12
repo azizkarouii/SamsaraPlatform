@@ -11,6 +11,8 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { AuthService } from '../../services/auth.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
+import { AppLanguage, t } from '../../shared/translations';
 
 @Component({
   selector: 'app-register',
@@ -33,74 +35,74 @@ import { AuthService } from '../../services/auth.service';
       <mat-card class="register-card">
         <div class="card-accent"></div>
         <mat-card-header>
-          <mat-card-title>Create Account</mat-card-title>
-          <mat-card-subtitle>Join Samsara Property Management</mat-card-subtitle>
+          <mat-card-title>{{ t('create_account') }}</mat-card-title>
+          <mat-card-subtitle>{{ t('register_subtitle') }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p class="form-intro">Create your profile once and manage your rentals with a cleaner, faster workspace.</p>
+          <p class="form-intro">{{ t('register_intro') }}</p>
           <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Full Name</mat-label>
-              <input matInput formControlName="name" placeholder="Enter your name" />
+              <mat-label>{{ t('full_name') }}</mat-label>
+              <input matInput formControlName="name" [placeholder]="t('full_name')" />
               <mat-icon matSuffix>person</mat-icon>
-              <mat-error *ngIf="registerForm.get('name')?.hasError('required')">Name is required</mat-error>
+              <mat-error *ngIf="registerForm.get('name')?.hasError('required')">{{ t('name_required') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Email</mat-label>
-              <input matInput type="email" formControlName="email" placeholder="Enter your email" />
+              <mat-label>{{ t('email_label') }}</mat-label>
+              <input matInput type="email" formControlName="email" [placeholder]="t('email_label')" />
               <mat-icon matSuffix>email</mat-icon>
-              <mat-error *ngIf="registerForm.get('email')?.hasError('required')">Email is required</mat-error>
-              <mat-error *ngIf="registerForm.get('email')?.hasError('email')">Invalid email format</mat-error>
+              <mat-error *ngIf="registerForm.get('email')?.hasError('required')">{{ t('email_required') }}</mat-error>
+              <mat-error *ngIf="registerForm.get('email')?.hasError('email')">{{ t('email_invalid') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Password</mat-label>
-              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" placeholder="Enter your password" />
+              <mat-label>{{ t('password_required') }}</mat-label>
+              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" [placeholder]="t('password_required')" />
               <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
                 <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
-              <mat-error *ngIf="registerForm.get('password')?.hasError('required')">Password is required</mat-error>
-              <mat-error *ngIf="registerForm.get('password')?.hasError('minlength')">Password must be at least 6 characters</mat-error>
+              <mat-error *ngIf="registerForm.get('password')?.hasError('required')">{{ t('password_required') }}</mat-error>
+              <mat-error *ngIf="registerForm.get('password')?.hasError('minlength')">{{ t('password_min') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Confirm Password</mat-label>
-              <input matInput [type]="hideConfirm ? 'password' : 'text'" formControlName="confirmPassword" placeholder="Confirm your password" />
+              <mat-label>{{ t('confirm_password') }}</mat-label>
+              <input matInput [type]="hideConfirm ? 'password' : 'text'" formControlName="confirmPassword" [placeholder]="t('confirm_password')" />
               <button mat-icon-button matSuffix type="button" (click)="hideConfirm = !hideConfirm">
                 <mat-icon>{{ hideConfirm ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
-              <mat-error *ngIf="registerForm.hasError('mismatch')">Passwords do not match</mat-error>
+              <mat-error *ngIf="registerForm.hasError('mismatch')">{{ t('passwords_dont_match') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Phone (optional)</mat-label>
-              <input matInput formControlName="phone" placeholder="Enter your phone number" />
+              <mat-label>{{ t('phone_optional') }}</mat-label>
+              <input matInput formControlName="phone" [placeholder]="t('phone_optional')" />
               <mat-icon matSuffix>phone</mat-icon>
             </mat-form-field>
 
-            <label class="role-label">Account type</label>
+            <label class="role-label">{{ t('account_type') }}</label>
             <mat-button-toggle-group formControlName="role" class="role-toggle full-width" aria-label="Account role">
               <mat-button-toggle value="PROPRIETAIRE">
                 <mat-icon>home</mat-icon>
-                Propriétaire
+                {{ t('owner_role') }}
               </mat-button-toggle>
               <mat-button-toggle value="SAMSAR">
                 <mat-icon>support_agent</mat-icon>
-                Samsar
+                {{ t('samsar_role') }}
               </mat-button-toggle>
             </mat-button-toggle-group>
-            <mat-error *ngIf="registerForm.get('role')?.hasError('required') && registerForm.get('role')?.touched" class="field-error">Select your account type</mat-error>
+            <mat-error *ngIf="registerForm.get('role')?.hasError('required') && registerForm.get('role')?.touched" class="field-error">{{ t('select_account_type') }}</mat-error>
 
             <button mat-raised-button color="primary" class="full-width" type="submit" [disabled]="registerForm.invalid || loading">
               <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-              <span *ngIf="!loading">Create Account</span>
+              <span *ngIf="!loading">{{ t('create_account') }}</span>
             </button>
           </form>
         </mat-card-content>
         <mat-card-actions align="end" class="card-actions">
-          <span class="login-text">Already have an account?</span>
-          <button mat-button color="primary" routerLink="/login">Sign In</button>
+          <span class="login-text">{{ t('already_account') }}</span>
+          <button mat-button color="primary" routerLink="/login">{{ t('sign_in') }}</button>
         </mat-card-actions>
       </mat-card>
     </div>
@@ -229,6 +231,7 @@ export class RegisterComponent {
   hidePassword = true;
   hideConfirm = true;
   loading = false;
+  language: AppLanguage = 'fr';
 
   registerForm = this.fb.group({
     name: ['', [Validators.required]],
@@ -243,8 +246,18 @@ export class RegisterComponent {
     private fb: FormBuilder,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
+  ) {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe((lang) => {
+      this.language = lang;
+    });
+  }
+
+  t(key: string): string {
+    return t(key, this.language);
+  }
 
   passwordMatchValidator(group: any) {
     const password = group.get('password')?.value;
@@ -260,20 +273,20 @@ export class RegisterComponent {
 
     this.authService.register({ name: name!, email: email!, password: password!, phone: phone || undefined, role: role! as 'PROPRIETAIRE' | 'SAMSAR' }).subscribe({
       next: () => {
-        this.snackBar.open('Registration successful!', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('register_success'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading = false;
-        let msg = 'Registration failed. Please try again.';
+        let msg = this.t('register_failed');
         if (err.error?.message) {
           msg = Array.isArray(err.error.message) ? err.error.message.join(', ') : err.error.message;
         } else if (err.status === 0) {
-          msg = 'Cannot reach server. Make sure the backend is running on port 3001.';
+          msg = this.t('server_unreachable');
         } else if (err.message) {
           msg = err.message;
         }
-        this.snackBar.open(msg, 'Close', { duration: 8000 });
+        this.snackBar.open(msg, this.t('close'), { duration: 8000 });
       },
     });
   }

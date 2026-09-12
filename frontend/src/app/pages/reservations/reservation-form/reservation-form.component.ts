@@ -18,6 +18,8 @@ import { PropertySamsarService } from '../../../services/property-samsar.service
 import { ReservationService, CreateReservationDto } from '../../../services/reservation.service';
 import { Property } from '../../../models/property.model';
 import { Reservation } from '../../../models/reservation.model';
+import { UiPreferencesService } from '../../../services/ui-preferences.service';
+import { AppLanguage, t } from '../../../shared/translations';
 
 @Component({
   selector: 'app-reservation-form',
@@ -40,9 +42,9 @@ import { Reservation } from '../../../models/reservation.model';
   template: `
     <div class="form-container">
       <div class="header">
-        <h1>{{ isEdit ? 'Edit' : 'New' }} Reservation</h1>
+        <h1>{{ isEdit ? t('reservation_edit_title') : t('reservation_new_title') }}</h1>
         <button mat-stroked-button routerLink="/reservations">
-          <mat-icon>arrow_back</mat-icon> Back to List
+          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
       </div>
 
@@ -50,61 +52,61 @@ import { Reservation } from '../../../models/reservation.model';
         <mat-card-content>
           <form [formGroup]="reservationForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Property *</mat-label>
+              <mat-label>{{ t('property_label') }} *</mat-label>
               <mat-select formControlName="propertyId" (selectionChange)="onPropertyChange($event.value)">
                 <mat-option *ngFor="let prop of properties" [value]="prop.id">
                   {{ prop.title }} - {{ prop.pricePerDay | currency:'TND':'symbol':'1.0-0' }}/day
                 </mat-option>
               </mat-select>
-              <mat-error *ngIf="reservationForm.get('propertyId')?.hasError('required')">Property is required</mat-error>
+              <mat-error *ngIf="reservationForm.get('propertyId')?.hasError('required')">{{ t('property_required') }}</mat-error>
             </mat-form-field>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Client Name *</mat-label>
-                <input matInput formControlName="clientName" placeholder="Client name" />
-                <mat-error *ngIf="reservationForm.get('clientName')?.hasError('required')">Client name is required</mat-error>
+                <mat-label>{{ t('client_name_label') }} *</mat-label>
+                <input matInput formControlName="clientName" [placeholder]="t('client_name_label')" />
+                <mat-error *ngIf="reservationForm.get('clientName')?.hasError('required')">{{ t('client_name_required') }}</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Client Phone</mat-label>
-                <input matInput formControlName="clientPhone" placeholder="Phone number" />
+                <mat-label>{{ t('client_phone_label') }}</mat-label>
+                <input matInput formControlName="clientPhone" [placeholder]="t('client_phone_label')" />
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Start Date *</mat-label>
+                <mat-label>{{ t('start_date_label') }} *</mat-label>
                 <input matInput [matDatepicker]="startPicker" formControlName="startDate" (dateChange)="calculateTotal()" />
                 <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
                 <mat-datepicker #startPicker></mat-datepicker>
-                <mat-error *ngIf="reservationForm.get('startDate')?.hasError('required')">Start date is required</mat-error>
+                <mat-error *ngIf="reservationForm.get('startDate')?.hasError('required')">{{ t('start_date_required') }}</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>End Date *</mat-label>
+                <mat-label>{{ t('end_date_label') }} *</mat-label>
                 <input matInput [matDatepicker]="endPicker" formControlName="endDate" (dateChange)="calculateTotal()" />
                 <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
                 <mat-datepicker #endPicker></mat-datepicker>
-                <mat-error *ngIf="reservationForm.get('endDate')?.hasError('required')">End date is required</mat-error>
+                <mat-error *ngIf="reservationForm.get('endDate')?.hasError('required')">{{ t('end_date_required') }}</mat-error>
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Check-in Time</mat-label>
+                <mat-label>{{ t('checkin_time') }}</mat-label>
                 <input matInput type="time" formControlName="checkInTime" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Check-out Time</mat-label>
+                <mat-label>{{ t('checkout_time') }}</mat-label>
                 <input matInput type="time" formControlName="checkOutTime" />
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Status</mat-label>
+                <mat-label>{{ t('reservation_status_label') }}</mat-label>
                 <mat-select formControlName="status">
                   <mat-option value="Pending">Pending</mat-option>
                   <mat-option value="Confirmed">Confirmed</mat-option>
@@ -113,34 +115,34 @@ import { Reservation } from '../../../models/reservation.model';
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Total Nights</mat-label>
+                <mat-label>{{ t('total_nights_label') }}</mat-label>
                 <input matInput [value]="totalNights" readonly />
               </mat-form-field>
             </div>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Total Amount (€) *</mat-label>
+                <mat-label>{{ t('total_amount_label') }} *</mat-label>
                 <input matInput type="number" formControlName="totalAmount" />
-                <mat-error *ngIf="reservationForm.get('totalAmount')?.hasError('required')">Total amount is required</mat-error>
+                <mat-error *ngIf="reservationForm.get('totalAmount')?.hasError('required')">{{ t('total_amount_required') }}</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Advance Amount (€)</mat-label>
+                <mat-label>{{ t('advance_amount_label') }}</mat-label>
                 <input matInput type="number" formControlName="advanceAmount" />
               </mat-form-field>
             </div>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Notes</mat-label>
-              <textarea matInput formControlName="notes" rows="3" placeholder="Additional notes..."></textarea>
+              <mat-label>{{ t('notes_label') }}</mat-label>
+              <textarea matInput formControlName="notes" rows="3" [placeholder]="t('notes_label')"></textarea>
             </mat-form-field>
 
             <div class="form-actions">
-              <button mat-stroked-button type="button" routerLink="/reservations">Cancel</button>
+              <button mat-stroked-button type="button" routerLink="/reservations">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="reservationForm.invalid || loading">
                 <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-                <span *ngIf="!loading">{{ isEdit ? 'Update' : 'Create' }} Reservation</span>
+                <span *ngIf="!loading">{{ isEdit ? t('update_reservation') : t('create_reservation') }}</span>
               </button>
             </div>
           </form>
@@ -191,6 +193,7 @@ export class ReservationFormComponent implements OnInit {
   loading = false;
   properties: Property[] = [];
   totalNights = 0;
+  language: AppLanguage = 'fr';
 
   reservationForm = this.fb.group({
     propertyId: [0, Validators.required],
@@ -214,8 +217,18 @@ export class ReservationFormComponent implements OnInit {
     private propertySamsarService: PropertySamsarService,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
+  ) {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe((lang) => {
+      this.language = lang;
+    });
+  }
+
+  t(key: string): string {
+    return t(key, this.language);
+  }
 
   ngOnInit(): void {
     this.loadProperties();
@@ -264,7 +277,7 @@ export class ReservationFormComponent implements OnInit {
         this.calculateTotal();
       },
       error: () => {
-        this.snackBar.open('Failed to load reservation', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('reservation_failed_load'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/reservations']);
       },
     });
@@ -308,11 +321,8 @@ export class ReservationFormComponent implements OnInit {
 
     obs.subscribe({
       next: () => {
-        this.snackBar.open(
-          `Reservation ${this.isEdit ? 'updated' : 'created'} successfully!`,
-          'Close',
-          { duration: 3000 }
-        );
+        const message = this.isEdit ? this.t('reservation_update_success') : this.t('reservation_create_success');
+        this.snackBar.open(message, this.t('close'), { duration: 3000 });
         this.router.navigate(['/reservations']);
       },
       error: (err) => {

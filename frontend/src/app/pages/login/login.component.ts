@@ -10,6 +10,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
+import { AppLanguage, t } from '../../shared/translations';
 
 @Component({
   selector: 'app-login',
@@ -32,38 +34,38 @@ import { AuthService } from '../../services/auth.service';
         <div class="card-accent"></div>
         <mat-card-header>
           <mat-card-title>Samsara</mat-card-title>
-          <mat-card-subtitle>Property Rental Management</mat-card-subtitle>
+          <mat-card-subtitle>{{ t('login_subtitle') }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p class="form-intro">Access your properties, reservations, and notifications from one place.</p>
+          <p class="form-intro">{{ t('login_intro') }}</p>
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Email</mat-label>
-              <input matInput type="email" formControlName="email" placeholder="Enter your email" />
+              <mat-label>{{ t('email_label') }}</mat-label>
+              <input matInput type="email" formControlName="email" [placeholder]="t('email_label')" />
               <mat-icon matSuffix>email</mat-icon>
-              <mat-error *ngIf="loginForm.get('email')?.hasError('required')">Email is required</mat-error>
-              <mat-error *ngIf="loginForm.get('email')?.hasError('email')">Invalid email format</mat-error>
+              <mat-error *ngIf="loginForm.get('email')?.hasError('required')">{{ t('email_required') }}</mat-error>
+              <mat-error *ngIf="loginForm.get('email')?.hasError('email')">{{ t('email_invalid') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Password</mat-label>
-              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" placeholder="Enter your password" />
+              <mat-label>{{ t('password_required') }}</mat-label>
+              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" [placeholder]="t('password_required')" />
               <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
                 <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
-              <mat-error *ngIf="loginForm.get('password')?.hasError('required')">Password is required</mat-error>
-              <mat-error *ngIf="loginForm.get('password')?.hasError('minlength')">Password must be at least 6 characters</mat-error>
+              <mat-error *ngIf="loginForm.get('password')?.hasError('required')">{{ t('password_required') }}</mat-error>
+              <mat-error *ngIf="loginForm.get('password')?.hasError('minlength')">{{ t('password_min') }}</mat-error>
             </mat-form-field>
 
             <button mat-raised-button color="primary" class="full-width" type="submit" [disabled]="loginForm.invalid || loading">
               <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-              <span *ngIf="!loading">Sign In</span>
+              <span *ngIf="!loading">{{ t('sign_in') }}</span>
             </button>
           </form>
         </mat-card-content>
         <mat-card-actions align="end" class="card-actions">
-          <span class="register-text">Don't have an account?</span>
-          <button mat-button color="primary" routerLink="/register">Register</button>
+          <span class="register-text">{{ t('no_account') }}</span>
+          <button mat-button color="primary" routerLink="/register">{{ t('register') }}</button>
         </mat-card-actions>
       </mat-card>
     </div>
@@ -171,6 +173,7 @@ import { AuthService } from '../../services/auth.service';
 export class LoginComponent {
   hidePassword = true;
   loading = false;
+  language: AppLanguage = 'fr';
 
   loginForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -181,8 +184,18 @@ export class LoginComponent {
     private fb: FormBuilder,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
-  ) {}
+    private snackBar: MatSnackBar,
+    private uiPreferencesService: UiPreferencesService
+  ) {
+    this.language = this.uiPreferencesService.getLanguage();
+    this.uiPreferencesService.language$.subscribe((lang) => {
+      this.language = lang;
+    });
+  }
+
+  t(key: string): string {
+    return t(key, this.language);
+  }
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;
@@ -192,13 +205,13 @@ export class LoginComponent {
 
     this.authService.login({ email: email!, password: password! }).subscribe({
       next: () => {
-        this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
+        this.snackBar.open(this.t('login_success'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/dashboard']);
       },
       error: (err) => {
         this.loading = false;
-        const msg = err.error?.message || 'Login failed. Please check your credentials.';
-        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        const msg = err.error?.message || this.t('login_failed');
+        this.snackBar.open(msg, this.t('close'), { duration: 5000 });
       },
     });
   }
