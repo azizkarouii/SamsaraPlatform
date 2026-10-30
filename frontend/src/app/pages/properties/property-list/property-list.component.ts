@@ -13,7 +13,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
@@ -41,7 +40,6 @@ import { ShareDialogComponent } from './share-dialog.component';
     MatChipsModule,
     MatProgressSpinnerModule,
     MatDatepickerModule,
-    MatNativeDateModule,
     MatDialogModule,
     MatTooltipModule,
     MatSnackBarModule,

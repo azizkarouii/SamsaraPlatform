@@ -17,6 +17,14 @@ public class ReservationStatusScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
+        try {
+            int fixed = reservationService.normalizeLegacyData();
+            if (fixed > 0) {
+                log.info("Normalized {} legacy reservation rows", fixed);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Legacy reservation normalization failed", e);
+        }
         run();
     }
 

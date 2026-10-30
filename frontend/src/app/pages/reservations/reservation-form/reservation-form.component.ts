@@ -9,7 +9,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { map } from 'rxjs/operators';
@@ -54,7 +53,6 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
     MatIconModule,
     MatSelectModule,
     MatDatepickerModule,
-    MatNativeDateModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
   ],
@@ -90,14 +88,14 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
             <div class="form-row">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('start_date_label') }}</mat-label>
-                <input matInput [matDatepicker]="startPicker" [matDatepickerFilter]="dateFilter" [min]="minDate" formControlName="startDate" (dateChange)="recalculate()" />
+                <input matInput [matDatepicker]="startPicker" [matDatepickerFilter]="dateFilter" [min]="minDate" formControlName="startDate" />
                 <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
                 <mat-datepicker #startPicker></mat-datepicker>
                 <mat-error>{{ t('start_date_required') }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('end_date_label') }}</mat-label>
-                <input matInput [matDatepicker]="endPicker" [matDatepickerFilter]="dateFilter" [min]="form.value.startDate ?? minDate" formControlName="endDate" (dateChange)="recalculate()" />
+                <input matInput [matDatepicker]="endPicker" [matDatepickerFilter]="dateFilter" [min]="form.value.startDate ?? minDate" formControlName="endDate" />
                 <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
                 <mat-datepicker #endPicker [startAt]="form.value.startDate ?? null"></mat-datepicker>
                 <mat-error>{{ t('end_date_required') }}</mat-error>
@@ -250,6 +248,15 @@ export class ReservationFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Dates may be picked in the calendar or typed: recompute the suggested total either way
+    let lastRange = '';
+    this.form.valueChanges.subscribe(() => {
+      const range = `${this.startIso}|${this.endIso}`;
+      if (range !== lastRange) {
+        lastRange = range;
+        this.recalculate();
+      }
+    });
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.isEdit = true;

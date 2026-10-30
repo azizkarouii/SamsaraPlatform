@@ -48,6 +48,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     @Query("SELECT r FROM Reservation r WHERE r.status = 'confirmed' AND r.startDate <= :today")
     List<Reservation> findConfirmedAndDateReached(@Param("today") String today);
 
+    @Query("SELECT r FROM Reservation r WHERE r.status = 'pending' AND r.endDate < :today")
+    List<Reservation> findPendingAndEnded(@Param("today") String today);
+
     @Query("SELECT r FROM Reservation r WHERE r.status = 'in-progress' AND r.endDate < :today")
     List<Reservation> findInProgressAndEnded(@Param("today") String today);
 }

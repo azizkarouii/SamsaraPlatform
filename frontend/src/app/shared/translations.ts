@@ -207,6 +207,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   action_in_progress: { fr: 'Démarrer le séjour', en: 'Start stay', ar: 'بدء الإقامة' },
   action_completed: { fr: 'Terminer le séjour', en: 'Complete stay', ar: 'إنهاء الإقامة' },
   action_cancelled: { fr: 'Annuler la réservation', en: 'Cancel reservation', ar: 'إلغاء الحجز' },
+  auto_start_hint: { fr: 'Le séjour passera « En cours » automatiquement le jour d\'arrivée.', en: 'The stay will switch to "In progress" automatically on arrival day.', ar: 'ستتحول الإقامة إلى "جارٍ" تلقائيًا يوم الوصول.' },
   next_step: { fr: 'Étape suivante :', en: 'Next step:', ar: 'الخطوة التالية:' },
   reservation: { fr: 'Réservation', en: 'Reservation', ar: 'حجز' },
   reservation_cancel_confirm: { fr: 'Annuler cette réservation ? Les dates seront libérées.', en: 'Cancel this reservation? The dates will be released.', ar: 'هل تريد إلغاء هذا الحجز؟ سيتم تحرير التواريخ.' },

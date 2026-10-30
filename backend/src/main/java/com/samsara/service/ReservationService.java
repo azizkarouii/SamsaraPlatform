@@ -108,10 +108,51 @@ public class ReservationService {
         return normalized;
     }
 
-    /** Called periodically: confirmed stays start on their arrival day and finish after their last day. */
+    /**
+     * Repairs rows written by the old frontend: dates sent as ISO instants ("2026-06-26T23:00:00.000Z",
+     * i.e. local midnight shifted to UTC) and statuses such as "in_progress" or "Pending".
+     */
+    @Transactional
+    public int normalizeLegacyData() {
+        int fixed = 0;
+        for (Reservation r : reservationRepository.findAll()) {
+            String start = toLocalDate(r.getStartDate());
+            String end = toLocalDate(r.getEndDate());
+            String status = normalizeStatus(r.getStatus());
+            if (!start.equals(r.getStartDate()) || !end.equals(r.getEndDate()) || !status.equals(r.getStatus())) {
+                r.setStartDate(start);
+                r.setEndDate(end);
+                r.setStatus(status);
+                reservationRepository.save(r);
+                fixed++;
+            }
+        }
+        return fixed;
+    }
+
+    private String toLocalDate(String value) {
+        if (value == null || !value.contains("T")) {
+            return value;
+        }
+        try {
+            return java.time.OffsetDateTime.parse(value)
+                    .atZoneSameInstant(java.time.ZoneId.systemDefault())
+                    .toLocalDate().toString();
+        } catch (DateTimeParseException e) {
+            return value.substring(0, 10);
+        }
+    }
+
+    /**
+     * Called periodically: confirmed stays start on their arrival day and finish after their last day;
+     * a request still pending once its stay is over can no longer happen and is cancelled.
+     */
     @Transactional
     public void autoUpdateStatuses() {
         String today = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        for (Reservation r : reservationRepository.findPendingAndEnded(today)) {
+            applyStatus(r, CANCELLED, null);
+        }
         for (Reservation r : reservationRepository.findConfirmedAndDateReached(today)) {
             applyStatus(r, IN_PROGRESS, null);
         }
@@ -143,6 +184,7 @@ public class ReservationService {
                 .build();
 
         validate(reservation, property, userId);
+        requireNotInPast(reservation.getStartDate());
         Reservation saved = reservationRepository.save(reservation);
 
         userRepository.findById(userId)
@@ -167,6 +209,9 @@ public class ReservationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Cannot change status from " + current + " to " + target);
         }
+        if (IN_PROGRESS.equals(target) && LocalDate.parse(reservation.getStartDate()).isAfter(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The stay cannot start before the arrival date");
+        }
         User actor = userRepository.findById(userId).orElse(null);
         return applyStatus(reservation, target, actor);
     }
@@ -174,18 +219,7 @@ public class ReservationService {
     private Reservation applyStatus(Reservation reservation, String target, User actor) {
         reservation.setStatus(target);
         reservation = reservationRepository.save(reservation);
-
-        double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
-        double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
-        switch (target) {
-            case CONFIRMED -> recordRevenue(reservation, "advance", advance);
-            case IN_PROGRESS, COMPLETED -> {
-                // The stay is paid in full once it starts
-                recordRevenue(reservation, "advance", advance);
-                recordRevenue(reservation, "completion", total - advance);
-            }
-            default -> { }
-        }
+        syncRevenue(reservation);
 
         Property property = reservation.getProperty() != null
                 ? reservation.getProperty()
@@ -194,16 +228,39 @@ public class ReservationService {
         return reservation;
     }
 
-    private void recordRevenue(Reservation reservation, String type, double amount) {
-        if (amount <= 0 || revenueHistoryRepository.existsByReservationIdAndType(reservation.getId(), type)) {
+    /**
+     * Keeps the revenue history in line with the reservation: the advance is cashed on confirmation,
+     * the remaining balance once the stay starts. Re-run after an edit so amounts never go stale.
+     * A cancelled reservation keeps what was already cashed (the advance is not refunded).
+     */
+    private void syncRevenue(Reservation reservation) {
+        String status = normalizeStatus(reservation.getStatus());
+        if (PENDING.equals(status) || CANCELLED.equals(status)) {
             return;
         }
-        revenueHistoryRepository.save(RevenueHistory.builder()
-                .userId(reservation.getSamsarId())
-                .reservationId(reservation.getId())
-                .amount(amount)
-                .type(type)
-                .build());
+        double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
+        double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
+        upsertRevenue(reservation, "advance", advance);
+        if (IN_PROGRESS.equals(status) || COMPLETED.equals(status)) {
+            upsertRevenue(reservation, "completion", total - advance);
+        }
+    }
+
+    private void upsertRevenue(Reservation reservation, String type, double amount) {
+        RevenueHistory existing = revenueHistoryRepository.findByReservationIdAndType(reservation.getId(), type).orElse(null);
+        if (amount <= 0) {
+            if (existing != null) revenueHistoryRepository.delete(existing);
+            return;
+        }
+        if (existing == null) {
+            existing = RevenueHistory.builder()
+                    .userId(reservation.getSamsarId())
+                    .reservationId(reservation.getId())
+                    .type(type)
+                    .build();
+        }
+        existing.setAmount(amount);
+        revenueHistoryRepository.save(existing);
     }
 
     @Transactional
@@ -217,7 +274,11 @@ public class ReservationService {
         }
 
         // Status changes go through PATCH /reservations/{id}/status to respect the workflow
-        if (dto.getStartDate() != null) reservation.setStartDate(dto.getStartDate());
+        if (dto.getStartDate() != null && !dto.getStartDate().equals(reservation.getStartDate())) {
+            parseDate(dto.getStartDate(), "start date");
+            requireNotInPast(dto.getStartDate());
+            reservation.setStartDate(dto.getStartDate());
+        }
         if (dto.getEndDate() != null) reservation.setEndDate(dto.getEndDate());
         if (dto.getCheckInTime() != null) reservation.setCheckInTime(dto.getCheckInTime());
         if (dto.getCheckOutTime() != null) reservation.setCheckOutTime(dto.getCheckOutTime());
@@ -230,6 +291,7 @@ public class ReservationService {
         Property property = reservation.getProperty();
         validate(reservation, property, reservation.getSamsarId());
         reservation = reservationRepository.save(reservation);
+        syncRevenue(reservation);
 
         User actor = userRepository.findById(userId).orElse(null);
         if (actor != null) {
@@ -300,6 +362,12 @@ public class ReservationService {
         }
         if (availabilityRepository.existsBlockedBetween(property.getId(), reservation.getStartDate(), reservation.getEndDate())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Some of these dates are marked unavailable by the owner");
+        }
+    }
+
+    private void requireNotInPast(String startDate) {
+        if (LocalDate.parse(startDate).isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("A reservation cannot start in the past");
         }
     }
 

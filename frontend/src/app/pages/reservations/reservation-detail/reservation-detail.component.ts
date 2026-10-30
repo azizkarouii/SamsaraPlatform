@@ -20,6 +20,7 @@ import {
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
+import { todayIso } from '../../../shared/calendar-utils';
 
 @Component({
   selector: 'app-reservation-detail',
@@ -79,6 +80,7 @@ import { t } from '../../../shared/translations';
                     (click)="changeStatus(next)">
               <mat-icon>{{ actionIcon(next) }}</mat-icon> {{ t('action_' + next.replace('-', '_')) }}
             </button>
+            <span class="hint" *ngIf="startsLater">{{ t('auto_start_hint') }}</span>
           </div>
         </mat-card-content>
       </mat-card>
@@ -227,8 +229,13 @@ export class ReservationDetailComponent implements OnInit {
     return this.workflowSteps.indexOf(this.status);
   }
 
+  /** The stay can only start on the arrival day (it also starts automatically that day). */
+  get startsLater(): boolean {
+    return this.status === 'confirmed' && !!this.reservation && this.reservation.startDate > todayIso();
+  }
+
   get nextStatuses(): ReservationStatus[] {
-    return STATUS_TRANSITIONS[this.status] ?? [];
+    return (STATUS_TRANSITIONS[this.status] ?? []).filter(s => !(s === 'in-progress' && this.startsLater));
   }
 
   get editable(): boolean {
