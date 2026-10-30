@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -26,7 +26,8 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     MatTooltipModule,
   ],
   template: `
-    <section id="sidebar" [class.hide]="sidebarHidden">
+    <div class="sidebar-backdrop" *ngIf="isMobile && !sidebarHidden" (click)="sidebarHidden = true"></div>
+    <section id="sidebar" [class.hide]="sidebarHidden" [class.mobile]="isMobile" (click)="onSidebarClick($event)">
       <a class="brand">
         <i class='bx bxs-building-house'></i>
         <span class="text">{{ t('app_title') }}</span>
@@ -44,10 +45,10 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
             <span class="text">{{ t('my_houses') }}</span>
           </a>
         </li>
-        <li *ngIf="user?.role === 'SAMSAR'" [class.active]="router.url.startsWith('/shared-houses')">
+        <li [class.active]="router.url.startsWith('/shared-houses')">
           <a routerLink="/shared-houses">
-            <i class='bx bxs-hotel'></i>
-            <span class="text">{{ t('shared_houses') }}</span>
+            <i class='bx' [ngClass]="user?.role === 'PROPRIETAIRE' ? 'bxs-group' : 'bxs-hotel'"></i>
+            <span class="text">{{ user?.role === 'PROPRIETAIRE' ? t('my_samsars') : t('shared_houses') }}</span>
           </a>
         </li>
         <li [class.active]="router.url.startsWith('/reservations')">
@@ -92,25 +93,29 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
 
         <a class="notification" routerLink="/notifications">
           <i class='bx bxs-bell'></i>
-          <span class="num" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
+          <span class="num" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
         </a>
 
-        <button mat-icon-button (click)="toggleLanguage()" [matTooltip]="t('language')" class="nav-btn">
+        <button mat-icon-button [matMenuTriggerFor]="languageMenu" [matTooltip]="t('language')" class="nav-btn">
           <mat-icon>translate</mat-icon>
         </button>
+        <mat-menu #languageMenu="matMenu">
+          <button mat-menu-item *ngFor="let lang of languages" (click)="setLanguage(lang.code)">
+            <mat-icon>{{ language === lang.code ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+            <span>{{ lang.label }}</span>
+          </button>
+        </mat-menu>
 
         <button mat-icon-button (click)="toggleTheme()" [matTooltip]="t(themeMode === 'dark' ? 'light_mode' : 'dark_mode')" class="nav-btn">
           <mat-icon>{{ themeMode === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
 
-        <a class="profile" *ngIf="user">
+        <a class="profile" *ngIf="user" routerLink="/profile">
+          <span class="avatar">{{ initials }}</span>
           <span class="username">{{ user.name }}</span>
-          <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? 'Propriétaire' : 'Samsar' }}</span>
+          <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
         </a>
 
-        <a class="logout-mobile" (click)="logout()">
-          <i class='bx bxs-log-out-circle'></i>
-        </a>
       </nav>
 
       <main>
@@ -271,15 +276,38 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #content {
       position: relative;
       width: calc(100% - 280px);
-      inset-inline-start: 280px;
+      margin-inline-start: 280px;
       transition: .3s ease;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      min-width: 0;
     }
     #content.sidebar-hide {
       width: calc(100% - 60px);
-      inset-inline-start: 60px;
+      margin-inline-start: 60px;
+    }
+    .sidebar-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 1999;
+    }
+    @media (max-width: 768px) {
+      #sidebar.mobile.hide {
+        width: 0;
+      }
+      #content, #content.sidebar-hide {
+        width: 100%;
+        margin-inline-start: 0;
+      }
+      #content nav {
+        padding: 0 12px;
+        gap: 8px;
+      }
+      #content main {
+        padding: 1rem;
+      }
     }
 
     /* NAVBAR */
@@ -337,6 +365,18 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     #content nav .profile .username {
       font-size: 0.9rem;
     }
+    #content nav .profile .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
     #content nav .profile .role-badge {
       font-size: 0.65rem;
       text-transform: uppercase;
@@ -360,16 +400,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       font-size: 20px;
       line-height: 1;
     }
-    .logout-mobile {
-      display: none;
-    }
     @media (max-width: 768px) {
-      .logout-mobile {
-        display: flex;
-        align-items: center;
-        color: var(--red);
-        font-size: 1.3rem;
-      }
       #content nav .profile .username,
       #content nav .profile .role-badge {
         display: none;
@@ -382,6 +413,12 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       padding: 1.5rem;
       background: var(--grey);
       color: var(--text-primary);
+      min-width: 0;
+    }
+    @media (max-width: 768px) {
+      #content main {
+        padding: 1rem;
+      }
     }
 
   `]
@@ -392,6 +429,12 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   language: AppLanguage = 'fr';
   themeMode: 'light' | 'dark' = 'light';
   sidebarHidden = false;
+  isMobile = false;
+  readonly languages: { code: AppLanguage; label: string }[] = [
+    { code: 'fr', label: 'Français' },
+    { code: 'en', label: 'English' },
+    { code: 'ar', label: 'العربية' },
+  ];
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -401,7 +444,33 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     public router: Router
   ) {}
 
+  get initials(): string {
+    return (this.user?.name || '?')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0].toUpperCase())
+      .join('');
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    const mobile = window.innerWidth <= 768;
+    if (mobile !== this.isMobile) {
+      this.isMobile = mobile;
+      this.sidebarHidden = mobile;
+    }
+  }
+
+  /** On mobile the sidebar is an overlay: close it once a link has been chosen. */
+  onSidebarClick(event: MouseEvent): void {
+    if (this.isMobile && (event.target as HTMLElement).closest('a')) {
+      this.sidebarHidden = true;
+    }
+  }
+
   ngOnInit(): void {
+    this.onResize();
     this.user = this.authService.getCurrentUser();
     this.language = this.uiPreferencesService.getLanguage();
     this.themeMode = this.uiPreferencesService.getTheme();
@@ -440,9 +509,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.themeMode = this.uiPreferencesService.getTheme();
   }
 
-  toggleLanguage(): void {
-    this.uiPreferencesService.toggleLanguage();
-    this.language = this.uiPreferencesService.getLanguage();
+  setLanguage(language: AppLanguage): void {
+    this.uiPreferencesService.setLanguage(language);
+    this.language = language;
   }
 
   t(key: string): string {

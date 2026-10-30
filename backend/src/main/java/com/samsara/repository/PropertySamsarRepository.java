@@ -18,6 +18,9 @@ public interface PropertySamsarRepository extends JpaRepository<PropertySamsar, 
 
     boolean existsByPropertyIdAndSamsarId(Long propertyId, Long samsarId);
 
+    @Query("SELECT ps.samsarId FROM PropertySamsar ps WHERE ps.propertyId = :propertyId")
+    List<Long> findSamsarIdsByPropertyId(@Param("propertyId") Long propertyId);
+
     @Query("SELECT ps FROM PropertySamsar ps JOIN FETCH ps.property JOIN FETCH ps.samsar WHERE ps.propertyId = :propertyId AND ps.samsarId = :samsarId")
     Optional<PropertySamsar> findByPropertyIdAndSamsarId(@Param("propertyId") Long propertyId, @Param("samsarId") Long samsarId);
 
@@ -27,4 +30,8 @@ public interface PropertySamsarRepository extends JpaRepository<PropertySamsar, 
     @Modifying
     @Query("DELETE FROM PropertySamsar ps WHERE ps.samsarId = :samsarId AND ps.propertyId IN (SELECT p.id FROM Property p WHERE p.createdBy = :ownerId)")
     void deleteBySamsarIdAndPropertyCreatedBy(@Param("samsarId") Long samsarId, @Param("ownerId") Long ownerId);
+
+    @Modifying
+    @Query("DELETE FROM PropertySamsar ps WHERE ps.propertyId = :propertyId")
+    void deleteByPropertyId(@Param("propertyId") Long propertyId);
 }

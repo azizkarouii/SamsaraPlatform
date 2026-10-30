@@ -1,8 +1,10 @@
 package com.samsara.controller;
 
 import com.samsara.dto.AuthResponse;
+import com.samsara.dto.ChangePasswordDto;
 import com.samsara.dto.LoginDto;
 import com.samsara.dto.RegisterDto;
+import com.samsara.dto.UpdateProfileDto;
 import com.samsara.dto.UserDto;
 import com.samsara.service.AuthService;
 import jakarta.validation.Valid;
@@ -32,5 +34,20 @@ public class AuthController {
     public ResponseEntity<UserDto> profile(Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(authService.getProfile(userId));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<UserDto> updateProfile(@Valid @RequestBody UpdateProfileDto dto,
+                                                 Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.updateProfile(userId, dto));
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordDto dto,
+                                               Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        authService.changePassword(userId, dto);
+        return ResponseEntity.noContent().build();
     }
 }

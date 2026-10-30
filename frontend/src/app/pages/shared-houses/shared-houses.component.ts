@@ -5,22 +5,21 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatDividerModule } from '@angular/material/divider';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../services/auth.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
-import { PropertySamsar } from '../../models/property-samsar.model';
 import { PropertyService } from '../../services/property.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
+import { PropertySamsar } from '../../models/property-samsar.model';
 import { Property } from '../../models/property.model';
 import { User } from '../../models/auth.model';
-import { UiPreferencesService } from '../../services/ui-preferences.service';
-import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
+import { t } from '../../shared/translations';
 
 interface GroupedSamsars {
   propertyTitle: string;
@@ -38,265 +37,192 @@ interface GroupedSamsars {
     MatCardModule,
     MatButtonModule,
     MatIconModule,
-    MatChipsModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
-    MatDividerModule,
+    MatMenuModule,
     MatTooltipModule,
   ],
   template: `
-    <div class="shared-container">
-      <div class="page-head">
+    <div class="page">
+      <div class="page-header">
         <div>
           <p class="eyebrow">{{ t('shared_management') }}</p>
-          <h1>{{ user?.role === 'PROPRIETAIRE' ? t('manage_shared_access') : t('my_shared_houses') }}</h1>
+          <h1>{{ isOwner ? t('manage_shared_access') : t('my_shared_houses') }}</h1>
+          <p class="subtitle">{{ isOwner ? t('shared_owner_subtitle') : t('shared_samsar_subtitle') }}</p>
         </div>
       </div>
 
-      <!-- Invite card: only for PROPRIETAIRE -->
-      <mat-card class="invite-card" *ngIf="user?.role === 'PROPRIETAIRE'">
-        <mat-card-header>
-          <mat-card-title>{{ t('invite_samsar') }}</mat-card-title>
-          <mat-card-subtitle>{{ t('invite_samsar_sub') }}</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <form class="invite-form" [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
-            <mat-form-field appearance="outline">
-              <mat-label>{{ t('my_houses') }}</mat-label>
-              <mat-select formControlName="propertyId">
-                <mat-option *ngFor="let property of ownedProperties" [value]="property.id">
-                  {{ property.title }}
-                </mat-option>
-              </mat-select>
-            </mat-form-field>
+      <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
-            <mat-form-field appearance="outline">
-              <mat-label>{{ t('samsar_email') }}</mat-label>
-              <input matInput type="email" formControlName="email" placeholder="samsar@example.com" />
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>{{ t('samsar_phone') }}</mat-label>
-              <span matTextPrefix>+216&nbsp;</span>
-              <input matInput formControlName="phone" placeholder="12345678" />
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>{{ t('allowed_increase') }}</mat-label>
-              <mat-select formControlName="priceIncreaseTnd">
-                <mat-option [value]="10">10 TND</mat-option>
-                <mat-option [value]="20">20 TND</mat-option>
-                <mat-option [value]="30">30 TND</mat-option>
-              </mat-select>
-            </mat-form-field>
-
-            <div class="invite-actions">
-              <button mat-raised-button color="primary" type="submit" [disabled]="inviteForm.invalid || submitting">
-                <mat-icon>person_add</mat-icon>
-                {{ t('send_invite') }}
-              </button>
-            </div>
-          </form>
-        </mat-card-content>
-      </mat-card>
-
-      <!-- Owner view: invited samsars grouped by property -->
-      <div *ngIf="user?.role === 'PROPRIETAIRE' && groupedSamsars.length">
-        <h2 class="section-title">{{ t('invited_samsars') }}</h2>
-        <mat-card class="group-card" *ngFor="let group of groupedSamsars">
+      <!-- ===== Owner ===== -->
+      <ng-container *ngIf="isOwner && !loading">
+        <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ group.propertyTitle }}</mat-card-title>
+            <mat-card-title>{{ t('invite_samsar') }}</mat-card-title>
+            <mat-card-subtitle>{{ t('invite_samsar_sub') }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div *ngIf="!ownedProperties.length" class="empty-state">
+              <mat-icon>add_home</mat-icon>
+              <p>{{ t('add_property_first') }}</p>
+              <a mat-raised-button color="primary" routerLink="/properties/add">{{ t('add_property') }}</a>
+            </div>
+            <form *ngIf="ownedProperties.length" class="invite-form" [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('property_label') }}</mat-label>
+                <mat-select formControlName="propertyId">
+                  <mat-option *ngFor="let property of ownedProperties" [value]="property.id">{{ property.title }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('samsar_email') }}</mat-label>
+                <input matInput type="email" formControlName="email" placeholder="samsar@example.com" />
+                <mat-error>{{ t('email_invalid') }}</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('samsar_phone') }}</mat-label>
+                <span matTextPrefix>+216&nbsp;</span>
+                <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
+                <mat-error>{{ t('phone_invalid') }}</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('allowed_increase') }}</mat-label>
+                <mat-select formControlName="priceIncreaseTnd">
+                  <mat-option *ngFor="let m of margins" [value]="m">+{{ m }} TND / {{ t('day') }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <div class="invite-actions">
+                <button mat-raised-button color="primary" type="submit" [disabled]="inviteForm.invalid || submitting">
+                  <mat-icon>person_add</mat-icon> {{ t('send_invite') }}
+                </button>
+              </div>
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <h2 class="section-title">{{ t('invited_samsars') }}</h2>
+        <mat-card *ngIf="!groupedSamsars.length">
+          <mat-card-content>
+            <div class="empty-state"><mat-icon>group_off</mat-icon><p>{{ t('no_samsar_yet') }}</p></div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card *ngFor="let group of groupedSamsars">
+          <mat-card-header>
+            <mat-card-title><a class="link" [routerLink]="['/properties', group.propertyId]">{{ group.propertyTitle }}</a></mat-card-title>
             <mat-card-subtitle>{{ group.samsars.length }} samsar(s)</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <div class="samsar-row" *ngFor="let rel of group.samsars">
+              <div class="avatar">{{ (rel.samsar?.name || '?')[0] | uppercase }}</div>
               <div class="samsar-info">
-                <mat-icon>person</mat-icon>
-                <span>{{ rel.samsar?.name || '#' + rel.samsarId }}</span>
-                <span class="samsar-contact">{{ rel.samsar?.email || '' }}</span>
+                <strong>{{ rel.samsar?.name || '#' + rel.samsarId }}</strong>
+                <span>{{ rel.samsar?.email }}<ng-container *ngIf="rel.samsar?.phone"> · +216 {{ rel.samsar?.phone }}</ng-container></span>
               </div>
-              <div class="samsar-meta">
-                <button mat-icon-button (click)="editPriceIncrease(rel)" matTooltip="Modifier la marge">
-                  <mat-icon>edit</mat-icon>
+              <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">+{{ rel.priceIncreaseTnd || 0 }} TND</button>
+              <mat-menu #marginMenu="matMenu">
+                <button mat-menu-item *ngFor="let m of margins" (click)="updateMargin(rel, m)">
+                  <mat-icon>{{ rel.priceIncreaseTnd === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
                 </button>
-                <span class="pill">+{{ rel.priceIncreaseTnd || 0 }} TND</span>
-                <button mat-icon-button color="primary" (click)="remove(rel)" matTooltip="{{ t('delete') }}">
-                  <mat-icon>remove_circle</mat-icon>
-                </button>
-                <button mat-icon-button color="warn" (click)="removeFromAll(rel)" matTooltip="Retirer de toutes les propriétés">
-                  <mat-icon>delete_forever</mat-icon>
-                </button>
-              </div>
+              </mat-menu>
+              <button mat-icon-button [matMenuTriggerFor]="removeMenu" color="warn" [matTooltip]="t('remove_access')">
+                <mat-icon>person_remove</mat-icon>
+              </button>
+              <mat-menu #removeMenu="matMenu">
+                <button mat-menu-item (click)="remove(rel)"><mat-icon>home</mat-icon>{{ t('remove_from_this_property') }}</button>
+                <button mat-menu-item (click)="removeFromAll(rel)"><mat-icon>delete_sweep</mat-icon>{{ t('remove_from_all_properties') }}</button>
+              </mat-menu>
             </div>
           </mat-card-content>
         </mat-card>
-      </div>
+      </ng-container>
 
-      <!-- Samsar view -->
-      <div *ngIf="user?.role === 'SAMSAR' && loading" class="loading-state">
-        <mat-spinner diameter="42"></mat-spinner>
-      </div>
-
-      <div *ngIf="user?.role === 'SAMSAR'">
-        <div class="grid" *ngIf="relations.length; else emptyStateSamsar">
+      <!-- ===== Samsar ===== -->
+      <ng-container *ngIf="!isOwner && !loading">
+        <div class="grid" *ngIf="relations.length; else emptySamsar">
           <mat-card class="house-card" *ngFor="let relation of relations">
             <mat-card-header>
-              <mat-card-title>{{ relation.property?.title || t('unsaved') }}</mat-card-title>
-              <mat-card-subtitle>{{ relation.property?.address || '-' }}</mat-card-subtitle>
+              <mat-card-title>{{ relation.property?.title || '#' + relation.propertyId }}</mat-card-title>
+              <mat-card-subtitle>{{ relation.property?.address || relation.property?.configuration || '-' }}</mat-card-subtitle>
             </mat-card-header>
-
             <mat-card-content>
-              <div class="meta-row">
-                <span class="pill">Price increase: {{ relation.priceIncreaseTnd || 0 }} TND</span>
-                <span class="pill">Ref: #{{ relation.propertyId }}</span>
+              <div class="price" *ngIf="relation.property?.pricePerDay">
+                <strong>{{ (relation.property?.pricePerDay || 0) + (relation.priceIncreaseTnd || 0) | number:'1.0-0' }} TND</strong>
+                <span>/ {{ t('day') }}</span>
               </div>
-
-              <div class="details" *ngIf="relation.property">
-                <p>Daily price: {{ relation.property.pricePerDay | currency:'TND':'symbol':'1.0-0' }}</p>
-                <p>Phone: +216 {{ relation.property.ownerContact || '-' }}</p>
+              <div class="meta">
+                <span class="pill">{{ t('base_price') }} {{ relation.property?.pricePerDay | number:'1.0-0' }} TND</span>
+                <span class="pill primary">{{ t('your_margin') }} +{{ relation.priceIncreaseTnd || 0 }} TND</span>
               </div>
+              <p class="contact" *ngIf="relation.property?.ownerContact">
+                <mat-icon inline>call</mat-icon> {{ t('owner_contact') }} : <a class="ltr" [href]="'tel:+216' + relation.property?.ownerContact">+216 {{ relation.property?.ownerContact }}</a>
+              </p>
             </mat-card-content>
-
             <mat-card-actions>
-              <button mat-stroked-button color="primary" [routerLink]="['/public/properties', relation.propertyId]">
-                <mat-icon>open_in_new</mat-icon>
-                {{ t('view') }}
-              </button>
-              <button mat-stroked-button color="warn" (click)="remove(relation)">
-                <mat-icon>close</mat-icon>
-                {{ t('delete') }}
-              </button>
+              <a mat-button color="primary" [routerLink]="['/properties', relation.propertyId]"><mat-icon>visibility</mat-icon> {{ t('view') }}</a>
+              <a mat-button color="primary" [routerLink]="['/reservations/add']" [queryParams]="{ propertyId: relation.propertyId }"><mat-icon>add</mat-icon> {{ t('book') }}</a>
+              <span class="spacer"></span>
+              <button mat-icon-button (click)="leave(relation)" [matTooltip]="t('leave_property')"><mat-icon>logout</mat-icon></button>
             </mat-card-actions>
           </mat-card>
         </div>
-      </div>
-
-      <ng-template #emptyStateSamsar>
-        <mat-card class="empty-card">
-          <mat-card-content>
-            <mat-icon>home_work</mat-icon>
-            <h2>{{ t('no_shared_properties') }}</h2>
-            <p>{{ t('no_shared_desc_samsar') }}</p>
-          </mat-card-content>
-        </mat-card>
-      </ng-template>
+        <ng-template #emptySamsar>
+          <mat-card>
+            <mat-card-content>
+              <div class="empty-state">
+                <mat-icon>home_work</mat-icon>
+                <h2>{{ t('no_shared_properties') }}</h2>
+                <p>{{ t('no_shared_desc_samsar') }}</p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </ng-template>
+      </ng-container>
     </div>
   `,
   styles: [`
-    .shared-container {
-      display: grid;
-      gap: 1rem;
-      padding: 1.5rem;
+    .section-title { margin: 0.5rem 0 0; font-size: 1.1rem; font-weight: 600; }
+    .invite-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1rem; margin-top: 1rem; }
+    .invite-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+    .link { color: inherit; text-decoration: none; }
+    .link:hover { color: var(--primary); }
+    .samsar-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border-color); }
+    .samsar-row:last-child { border-bottom: none; }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      background: var(--primary-soft); color: var(--primary); font-weight: 700;
     }
-    .page-head h1 {
-      margin: 0;
-    }
-    .eyebrow {
-      margin: 0 0 0.25rem;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 0.75rem;
-      opacity: 0.7;
-    }
-    .section-title {
-      margin: 0.5rem 0 0;
-      font-size: 1.1rem;
-      font-weight: 500;
-    }
-    .invite-card {
-      border-radius: 20px;
-    }
-    .invite-form {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-    .invite-actions {
-      grid-column: 1 / -1;
-      display: flex;
-      justify-content: flex-end;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1rem;
-    }
-    .house-card, .group-card {
-      border-radius: 20px;
-    }
-    .meta-row {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-bottom: 1rem;
-    }
-    .pill {
-      padding: 0.35rem 0.75rem;
-      border-radius: 999px;
-      background: var(--surface-subtle);
-      font-size: 0.85rem;
-    }
-    .details p {
-      margin: 0.35rem 0;
-    }
-    .loading-state {
-      display: flex;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .empty-card {
-      border-radius: 20px;
-    }
-    .samsar-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--border-color, rgba(0,0,0,0.08));
-    }
-    .samsar-row:last-child {
-      border-bottom: none;
-    }
-    .samsar-info {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .samsar-info mat-icon {
-      font-size: 1.2rem;
-      width: 1.2rem;
-      height: 1.2rem;
-      opacity: 0.6;
-    }
-    .samsar-contact {
-      font-size: 0.8rem;
-      opacity: 0.7;
-      margin-inline-start: 0.3rem;
-    }
-    .samsar-meta {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+    .samsar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .samsar-info span { font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .margin-btn { min-width: 0; padding: 0 0.7rem; font-size: 0.8rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .house-card { display: flex; flex-direction: column; }
+    .house-card mat-card-content { flex: 1; }
+    .price { margin: 0.5rem 0; }
+    .price strong { font-size: 1.6rem; }
+    .price span { color: var(--text-secondary); }
+    .meta { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .contact { font-size: 0.85rem; margin: 0.75rem 0 0; }
+    .contact a { color: var(--primary); text-decoration: none; }
+    .spacer { flex: 1; }
   `]
 })
 export class SharedHousesComponent implements OnInit {
   relations: PropertySamsar[] = [];
-  invitedSamsars: PropertySamsar[] = [];
   groupedSamsars: GroupedSamsars[] = [];
   ownedProperties: Property[] = [];
   loading = true;
   submitting = false;
   user: User | null = null;
-  language: AppLanguage = 'fr';
+  readonly margins = [10, 20, 30];
+
   inviteForm = this.fb.group({
     propertyId: [null as number | null, Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    phone: ['', Validators.required],
+    phone: ['', [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]],
     priceIncreaseTnd: [10, Validators.required],
   });
 
@@ -307,18 +233,24 @@ export class SharedHousesComponent implements OnInit {
     private fb: FormBuilder,
     private snackBar: MatSnackBar,
     private uiPrefs: UiPreferencesService,
-  ) {
-    this.language = this.uiPrefs.getLanguage() as AppLanguage;
+  ) {}
+
+  get isOwner(): boolean {
+    return this.user?.role === 'PROPRIETAIRE';
   }
 
   ngOnInit(): void {
     this.user = this.authService.getCurrentUser();
-    if (this.user?.role === 'PROPRIETAIRE') {
+    if (this.isOwner) {
       this.loadOwnedProperties();
       this.loadInvitedSamsars();
     } else {
       this.loadMine();
     }
+  }
+
+  t(key: string): string {
+    return t(key, this.uiPrefs.getLanguage());
   }
 
   private loadOwnedProperties(): void {
@@ -335,26 +267,22 @@ export class SharedHousesComponent implements OnInit {
   private loadInvitedSamsars(): void {
     this.propertySamsarService.findByOwner().subscribe({
       next: (relations) => {
-        this.invitedSamsars = relations;
         this.groupedSamsars = this.groupByProperty(relations);
+        this.loading = false;
       },
+      error: () => this.loading = false,
     });
   }
 
   private groupByProperty(relations: PropertySamsar[]): GroupedSamsars[] {
     const map = new Map<number, GroupedSamsars>();
     for (const rel of relations) {
-      const pid = rel.propertyId;
-      if (!map.has(pid)) {
-        map.set(pid, {
-          propertyId: pid,
-          propertyTitle: rel.property?.title || '#' + pid,
-          samsars: [],
-        });
+      if (!map.has(rel.propertyId)) {
+        map.set(rel.propertyId, { propertyId: rel.propertyId, propertyTitle: rel.property?.title || '#' + rel.propertyId, samsars: [] });
       }
-      map.get(pid)!.samsars.push(rel);
+      map.get(rel.propertyId)!.samsars.push(rel);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => a.propertyTitle.localeCompare(b.propertyTitle));
   }
 
   private loadMine(): void {
@@ -364,86 +292,81 @@ export class SharedHousesComponent implements OnInit {
         this.relations = relations;
         this.loading = false;
       },
-      error: () => {
-        this.loading = false;
-        this.snackBar.open(this.t('no_shared_properties'), this.t('close'), { duration: 3000 });
-      },
+      error: () => this.loading = false,
     });
   }
 
-  t(key: string): string {
-    return TRANSLATIONS[key]?.[this.language] ?? key;
+  private showError(err: any): void {
+    this.snackBar.open(err?.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
   }
 
   remove(relation: PropertySamsar): void {
+    const name = relation.samsar?.name || '#' + relation.samsarId;
+    if (!confirm(this.t('remove_confirm').replace('{{name}}', name))) return;
     this.propertySamsarService.remove(relation.propertyId, relation.samsarId).subscribe({
       next: () => {
         this.snackBar.open(this.t('access_removed'), this.t('close'), { duration: 2500 });
-        this.relations = this.relations.filter(item => item !== relation);
-        this.invitedSamsars = this.invitedSamsars.filter(item => item !== relation);
-        this.groupedSamsars = this.groupByProperty(this.invitedSamsars);
+        this.loadInvitedSamsars();
       },
-      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
+      error: (err) => this.showError(err),
+    });
+  }
+
+  leave(relation: PropertySamsar): void {
+    if (!confirm(this.t('leave_confirm'))) return;
+    this.propertySamsarService.remove(relation.propertyId, relation.samsarId).subscribe({
+      next: () => {
+        this.relations = this.relations.filter(item => item !== relation);
+        this.snackBar.open(this.t('access_removed'), this.t('close'), { duration: 2500 });
+      },
+      error: (err) => this.showError(err),
     });
   }
 
   removeFromAll(relation: PropertySamsar): void {
-    if (this.authService.getCurrentUser()?.role !== 'PROPRIETAIRE') return;
     const name = relation.samsar?.name || '#' + relation.samsarId;
-    const message = this.t('remove_from_all_confirm').replace('{{name}}', name);
-    if (!confirm(message)) return;
+    if (!confirm(this.t('remove_from_all_confirm').replace('{{name}}', name))) return;
     this.propertySamsarService.removeSamsarFromAll(relation.samsarId).subscribe({
       next: () => {
-        const success = this.t('remove_from_all_success').replace('{{name}}', name);
-        this.snackBar.open(success, this.t('close'), { duration: 2500 });
+        this.snackBar.open(this.t('remove_from_all_success').replace('{{name}}', name), this.t('close'), { duration: 2500 });
         this.loadInvitedSamsars();
-        this.loadMine();
       },
-      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
+      error: (err) => this.showError(err),
     });
   }
 
-  editPriceIncrease(relation: PropertySamsar): void {
-    const current = relation.priceIncreaseTnd || 10;
-    const result = prompt(this.t('margin_prompt'), String(current));
-    if (!result) return;
-    const val = parseInt(result, 10);
-    if (![10, 20, 30].includes(val)) {
-      this.snackBar.open(this.t('invalid_margin'), this.t('close'), { duration: 3000 });
-      return;
-    }
-    this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, val).subscribe({
+  updateMargin(relation: PropertySamsar, margin: number): void {
+    if (relation.priceIncreaseTnd === margin) return;
+    this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, margin).subscribe({
       next: () => {
+        relation.priceIncreaseTnd = margin;
         this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
-        this.loadInvitedSamsars();
       },
-      error: () => this.snackBar.open(this.t('error_generic'), this.t('close'), { duration: 3000 }),
+      error: (err) => this.showError(err),
     });
   }
 
   submitInvite(): void {
-    if (this.inviteForm.invalid) {
-      return;
-    }
-
+    if (this.inviteForm.invalid) return;
     const value = this.inviteForm.getRawValue();
     this.submitting = true;
     this.propertySamsarService.invite({
       propertyId: value.propertyId!,
-      email: value.email!,
-      phone: value.phone!,
+      email: value.email!.trim(),
+      phone: value.phone!.trim(),
       priceIncreaseTnd: value.priceIncreaseTnd || 10,
     }).subscribe({
       next: () => {
         this.submitting = false;
         this.snackBar.open(this.t('invite_success'), this.t('close'), { duration: 3000 });
-        this.loadMine();
+        this.inviteForm.patchValue({ email: '', phone: '' });
+        this.inviteForm.get('email')?.markAsUntouched();
+        this.inviteForm.get('phone')?.markAsUntouched();
         this.loadInvitedSamsars();
       },
-      error: (error) => {
+      error: (err) => {
         this.submitting = false;
-        const message = error.error?.message || 'Erreur';
-        this.snackBar.open(message, this.t('close'), { duration: 4000 });
+        this.showError(err);
       },
     });
   }

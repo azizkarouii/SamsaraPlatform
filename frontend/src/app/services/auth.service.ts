@@ -34,6 +34,16 @@ export class AuthService {
     return this.http.get<User>(`${this.apiUrl}/profile`);
   }
 
+  updateProfile(dto: { name: string; phone?: string }): Observable<User> {
+    return this.http.put<User>(`${this.apiUrl}/profile`, dto).pipe(
+      tap(user => localStorage.setItem('user', JSON.stringify(user)))
+    );
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<void> {
+    return this.http.put<void>(`${this.apiUrl}/password`, { currentPassword, newPassword });
+  }
+
   logout(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -44,8 +54,12 @@ export class AuthService {
   }
 
   getCurrentUser(): User | null {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    try {
+      const user = localStorage.getItem('user');
+      return user ? JSON.parse(user) : null;
+    } catch {
+      return null;
+    }
   }
 
   isLoggedIn(): boolean {

@@ -33,6 +33,7 @@ public class PropertyAvailability {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", insertable = false, updatable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Property property;
 
     @PrePersist

@@ -76,9 +76,12 @@ import { AppLanguage, t } from '../../shared/translations';
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ t('phone_optional') }}</mat-label>
-              <input matInput formControlName="phone" [placeholder]="t('phone_optional')" />
+              <mat-label>{{ isSamsar ? t('phone_required_label') : t('phone_optional') }}</mat-label>
+              <span matTextPrefix>+216&nbsp;</span>
+              <input matInput formControlName="phone" inputmode="tel" />
               <mat-icon matSuffix>phone</mat-icon>
+              <mat-hint *ngIf="isSamsar">{{ t('samsar_phone_hint') }}</mat-hint>
+              <mat-error>{{ t('phone_invalid') }}</mat-error>
             </mat-form-field>
 
             <label class="role-label">{{ t('account_type') }}</label>
@@ -234,11 +237,11 @@ export class RegisterComponent {
   language: AppLanguage = 'fr';
 
   registerForm = this.fb.group({
-    name: ['', [Validators.required]],
+    name: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     confirmPassword: ['', [Validators.required]],
-    phone: [''],
+    phone: ['', Validators.pattern(/^[\d\s+]{8,15}$/)],
     role: ['PROPRIETAIRE', [Validators.required]],
   }, { validators: this.passwordMatchValidator });
 
@@ -253,10 +256,22 @@ export class RegisterComponent {
     this.uiPreferencesService.language$.subscribe((lang) => {
       this.language = lang;
     });
+    // Owners find a samsar by email + phone, so the phone is mandatory for samsars
+    this.registerForm.get('role')!.valueChanges.subscribe(role => {
+      const phone = this.registerForm.get('phone')!;
+      phone.setValidators(role === 'SAMSAR'
+        ? [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]
+        : [Validators.pattern(/^[\d\s+]{8,15}$/)]);
+      phone.updateValueAndValidity();
+    });
   }
 
   t(key: string): string {
     return t(key, this.language);
+  }
+
+  get isSamsar(): boolean {
+    return this.registerForm.get('role')?.value === 'SAMSAR';
   }
 
   passwordMatchValidator(group: any) {

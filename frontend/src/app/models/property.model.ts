@@ -21,6 +21,7 @@ export interface Property {
   bathrooms?: number;
   photos?: string;
   description?: string;
+  createdBy?: number;
   createdAt: string;
   updatedAt: string;
   images?: PropertyImage[];

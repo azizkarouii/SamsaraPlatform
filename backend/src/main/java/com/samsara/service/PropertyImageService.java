@@ -12,12 +12,14 @@ import java.util.List;
 public class PropertyImageService {
 
     private final PropertyImageRepository propertyImageRepository;
+    private final AccessService accessService;
 
     public List<PropertyImage> findByProperty(Long propertyId) {
         return propertyImageRepository.findByPropertyId(propertyId);
     }
 
-    public PropertyImage upload(Long propertyId, String imagePath, Boolean isMain, Integer position) {
+    public PropertyImage upload(Long propertyId, String imagePath, Boolean isMain, Integer position, Long userId) {
+        accessService.requireOwner(propertyId, userId);
         PropertyImage image = PropertyImage.builder()
                 .propertyId(propertyId)
                 .imagePath(imagePath)
@@ -27,7 +29,10 @@ public class PropertyImageService {
         return propertyImageRepository.save(image);
     }
 
-    public void delete(Long id) {
-        propertyImageRepository.deleteById(id);
+    public void delete(Long id, Long userId) {
+        PropertyImage image = propertyImageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Image not found"));
+        accessService.requireOwner(image.getPropertyId(), userId);
+        propertyImageRepository.delete(image);
     }
 }

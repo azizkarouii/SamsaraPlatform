@@ -1,415 +1,347 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { FormsModule } from '@angular/forms';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
 import { PropertyService } from '../../services/property.service';
 import { ReservationService } from '../../services/reservation.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
+import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { Property } from '../../models/property.model';
-import { Reservation } from '../../models/reservation.model';
+import { User } from '../../models/auth.model';
+import {
+  Reservation,
+  RESERVATION_STATUSES,
+  isRevenueStatus,
+  normalizeReservationStatus,
+  statusKey,
+} from '../../models/reservation.model';
+import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
+import { t } from '../../shared/translations';
+
+interface MonthBucket { key: string; label: string; revenue: number; count: number; }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    FormsModule,
-  ],
+  imports: [CommonModule, RouterModule, FormsModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   template: `
-    <div class="dashboard-container">
-      <div class="page-header d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div class="page">
+      <div class="page-header">
         <div>
-          <h1 class="page-title">Tableau de bord analytique</h1>
-          <p class="page-subtitle">Lecture commerciale de l'activité de réservation.</p>
+          <p class="eyebrow">{{ user?.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</p>
+          <h1>{{ t('hello') }}, {{ user?.name }}</h1>
+          <p class="subtitle">{{ t('dashboard_subtitle') }}</p>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-end">
-          <div>
-            <label class="filter-label">Début</label>
-            <input type="date" class="form-control" [(ngModel)]="dateDebut" />
-          </div>
-          <div>
-            <label class="filter-label">Fin</label>
-            <input type="date" class="form-control" [(ngModel)]="dateFin" />
-          </div>
-          <button class="btn-refresh" (click)="loadData()">
-            <mat-icon>refresh</mat-icon> Actualiser
-          </button>
+        <div class="filters">
+          <label>
+            <span>{{ t('from') }}</span>
+            <input type="date" [(ngModel)]="dateFrom" />
+          </label>
+          <label>
+            <span>{{ t('to') }}</span>
+            <input type="date" [(ngModel)]="dateTo" />
+          </label>
+          <button mat-stroked-button (click)="dateFrom = ''; dateTo = ''" [disabled]="!dateFrom && !dateTo">{{ t('clear_filter') }}</button>
+          <button mat-icon-button (click)="loadData()" [attr.aria-label]="t('refresh')"><mat-icon>refresh</mat-icon></button>
         </div>
       </div>
 
-      <ng-container *ngIf="!loading; else loadingSpinner">
-        <div class="metrics-grid mb-4">
-          <div class="metric-card metric-primary">
-            <div class="metric-body">
-              <div class="metric-label">Revenu total</div>
-              <div class="metric-value">{{ totalRevenue | currency:'TND':'symbol':'1.0-0' }}</div>
+      <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
+
+      <ng-container *ngIf="!loading">
+        <div class="metrics">
+          <div class="metric">
+            <mat-icon class="metric-icon revenue">payments</mat-icon>
+            <div>
+              <div class="metric-label">{{ t('total_revenue') }}</div>
+              <div class="metric-value">{{ totalRevenue | number:'1.0-0' }} <small>TND</small></div>
             </div>
           </div>
-          <div class="metric-card metric-secondary">
-            <div class="metric-body">
-              <div class="metric-label">Réservations</div>
-              <div class="metric-value">{{ filteredReservations.length }}</div>
+          <div class="metric">
+            <mat-icon class="metric-icon bookings">event_available</mat-icon>
+            <div>
+              <div class="metric-label">{{ t('reservations') }}</div>
+              <div class="metric-value">{{ filtered.length }}</div>
             </div>
           </div>
-          <div class="metric-card metric-tertiary">
-            <div class="metric-body">
-              <div class="metric-label">Propriétés actives</div>
+          <a class="metric clickable" routerLink="/reservations" [queryParams]="{ tab: 'pending' }">
+            <mat-icon class="metric-icon pending">hourglass_top</mat-icon>
+            <div>
+              <div class="metric-label">{{ t('pending_reservations') }}</div>
+              <div class="metric-value">{{ countByStatus('pending') }}</div>
+            </div>
+          </a>
+          <a class="metric clickable" [routerLink]="user?.role === 'PROPRIETAIRE' ? '/properties' : '/shared-houses'">
+            <mat-icon class="metric-icon houses">home_work</mat-icon>
+            <div>
+              <div class="metric-label">{{ user?.role === 'PROPRIETAIRE' ? t('total_properties') : t('shared_houses') }}</div>
               <div class="metric-value">{{ properties.length }}</div>
             </div>
-          </div>
-          <div class="metric-card metric-quaternary">
-            <div class="metric-body">
-              <div class="metric-label">Taux de réservation</div>
-              <div class="metric-value">{{ bookingRate }}%</div>
-            </div>
-          </div>
+          </a>
         </div>
 
-        <div class="charts-grid mb-4">
-          <mat-card class="chart-card">
-            <mat-card-header><mat-card-title>Revenu par propriété</mat-card-title></mat-card-header>
+        <div class="grid-2">
+          <mat-card>
+            <mat-card-header><mat-card-title>{{ t('revenue_trend') }}</mat-card-title></mat-card-header>
             <mat-card-content>
-              <div class="bar-chart" *ngIf="revenueByProperty.length; else noData">
-                <div class="bar-item" *ngFor="let item of revenueByProperty">
-                  <span class="bar-label">{{ item.title }}</span>
-                  <div class="bar-track">
-                    <div class="bar-fill revenue-fill" [style.width.%]="(item.amount / maxRevProp) * 100"></div>
+              <div *ngIf="months.length; else noData" class="columns">
+                <div class="column" *ngFor="let m of months" [title]="(m.revenue | number:'1.0-0') + ' TND'">
+                  <span class="column-value">{{ m.revenue ? (m.revenue | number:'1.0-0') : '' }}</span>
+                  <div class="column-track"><div class="column-fill" [style.height.%]="(m.revenue / maxMonthRevenue) * 100"></div></div>
+                  <span class="column-label">{{ m.label }}</span>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header><mat-card-title>{{ t('status_breakdown') }}</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div *ngIf="filtered.length; else noData">
+                <div class="stacked">
+                  <div *ngFor="let s of statuses" class="stacked-part" [ngClass]="'bg-' + s"
+                       [style.width.%]="(countByStatus(s) / filtered.length) * 100"></div>
+                </div>
+                <ul class="legend">
+                  <li *ngFor="let s of statuses">
+                    <span class="status-chip" [ngClass]="'status-' + s">{{ t(statusKey(s)) }}</span>
+                    <strong>{{ countByStatus(s) }}</strong>
+                  </li>
+                </ul>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="grid-2">
+          <mat-card>
+            <mat-card-header><mat-card-title>{{ t('revenue_by_property') }}</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div *ngIf="revenueByProperty.length; else noData" class="bars">
+                <div class="bar" *ngFor="let item of revenueByProperty">
+                  <span class="bar-label" [title]="item.title">{{ item.title }}</span>
+                  <div class="bar-track"><div class="bar-fill" [style.width.%]="(item.amount / maxPropertyRevenue) * 100"></div></div>
+                  <span class="bar-value">{{ item.amount | number:'1.0-0' }} TND</span>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title>{{ t('upcoming_arrivals') }}</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div *ngIf="upcoming.length; else noUpcoming" class="upcoming">
+                <a class="upcoming-item" *ngFor="let r of upcoming" [routerLink]="['/reservations', r.id]">
+                  <div class="date-box">
+                    <strong>{{ r.startDate | date:'dd' }}</strong>
+                    <span>{{ monthShort(r.startDate) }}</span>
                   </div>
-                  <span class="bar-value">{{ item.amount | currency:'TND':'symbol':'1.0-0' }}</span>
-                </div>
-              </div>
-            </mat-card-content>
-          </mat-card>
-          <mat-card class="chart-card">
-            <mat-card-header><mat-card-title>Tendance revenu</mat-card-title></mat-card-header>
-            <mat-card-content>
-              <div class="line-chart" *ngIf="revenueByMonth.length; else noData">
-                <svg viewBox="0 0 400 180" class="line-svg">
-                  <polyline [attr.points]="trendPoints" fill="none" stroke="#2563eb" stroke-width="2.5" />
-                  <circle *ngFor="let p of trendCoords" [attr.cx]="p.x" [attr.cy]="p.y" r="3" fill="#2563eb" />
-                </svg>
-                <div class="line-labels">
-                  <span *ngFor="let m of revenueByMonth" class="line-label">{{ m.month.slice(5) }}</span>
-                </div>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-
-        <div class="charts-grid mb-4">
-          <mat-card class="chart-card">
-            <mat-card-header><mat-card-title>Réservations par période</mat-card-title></mat-card-header>
-            <mat-card-content>
-              <div class="bar-chart" *ngIf="reservationsByPeriod.length; else noData">
-                <div class="bar-item" *ngFor="let item of reservationsByPeriod">
-                  <span class="bar-label">{{ item.period }}</span>
-                  <div class="bar-track">
-                    <div class="bar-fill res-fill" [style.width.%]="(item.count / maxResPeriod) * 100"></div>
+                  <div class="upcoming-body">
+                    <strong>{{ r.clientName }}</strong>
+                    <span>{{ r.property?.title }} · {{ r.startDate | date:'dd/MM' }} → {{ r.endDate | date:'dd/MM' }}</span>
                   </div>
-                  <span class="bar-value">{{ item.count }}</span>
-                </div>
+                  <span class="status-chip" [ngClass]="'status-' + normalize(r.status)">{{ t(statusKey(r.status)) }}</span>
+                </a>
               </div>
-            </mat-card-content>
-          </mat-card>
-          <mat-card class="chart-card">
-            <mat-card-header><mat-card-title>Répartition par statut</mat-card-title></mat-card-header>
-            <mat-card-content>
-              <div class="donut-chart">
-                <div class="donut-segment" *ngFor="let s of statusLabels" [style.background]="s.color" [style.width.%]="filteredReservations.length ? (s.count / filteredReservations.length) * 100 : 0">
-                  <span *ngIf="s.count" class="donut-label">{{ s.count }}</span>
-                </div>
-              </div>
-              <div class="donut-legend">
-                <span *ngFor="let s of statusLabels" class="legend-item">
-                  <span class="legend-dot" [style.background]="s.color"></span>
-                  {{ s.label }} ({{ s.count }})
-                </span>
-              </div>
+              <ng-template #noUpcoming><div class="empty-state small">{{ t('no_upcoming') }}</div></ng-template>
             </mat-card-content>
           </mat-card>
         </div>
 
-        <ng-template #noData>
-          <div class="empty-state">Aucune donnée pour la période sélectionnée</div>
-        </ng-template>
+        <div class="quick-actions">
+          <a mat-raised-button color="primary" routerLink="/reservations/add"><mat-icon>add</mat-icon> {{ t('reservation_new_title') }}</a>
+          <a mat-stroked-button routerLink="/availability"><mat-icon>event</mat-icon> {{ t('search_available_houses') }}</a>
+          <a *ngIf="user?.role === 'PROPRIETAIRE'" mat-stroked-button routerLink="/properties/add"><mat-icon>add_home</mat-icon> {{ t('add_property') }}</a>
+        </div>
       </ng-container>
 
-      <ng-template #loadingSpinner>
-        <div class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
-      </ng-template>
+      <ng-template #noData><div class="empty-state small">{{ t('no_data_period') }}</div></ng-template>
     </div>
   `,
   styles: [`
-    .dashboard-container { padding: 0; }
-    .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
-    .page-subtitle { color: rgba(0,0,0,0.5); margin: 0; font-size: 0.9rem; }
-    .filter-label { font-size: 0.75rem; color: rgba(0,0,0,0.5); margin-bottom: 2px; display: block; }
-    .form-control {
-      border: 1px solid rgba(0,0,0,0.15); border-radius: 6px; padding: 6px 10px;
-      font-size: 0.85rem; background: white; outline: none;
+    .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+    .filters label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--text-secondary); gap: 2px; }
+    .filters input {
+      border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 10px;
+      font: inherit; font-size: 0.85rem; background: var(--bg-card); color: var(--text-primary);
     }
-    .form-control:focus { border-color: #3C91E6; }
-    .btn-refresh {
-      display: inline-flex; align-items: center; gap: 4px;
-      background: #3C91E6; color: white; border: none; border-radius: 6px;
-      padding: 6px 16px; font-size: 0.85rem; cursor: pointer;
-      margin-top: 16px; white-space: nowrap;
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+    .metric {
+      display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem; border-radius: 14px;
+      background: var(--bg-card); border: 1px solid var(--border-color); color: inherit; text-decoration: none;
     }
-    .btn-refresh:hover { background: #2563eb; }
-    .btn-refresh mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .metric.clickable:hover { border-color: var(--primary); }
+    .metric-icon { width: 48px; height: 48px; font-size: 26px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .metric-icon.revenue { background: var(--status-in-progress-bg); color: var(--status-in-progress); }
+    .metric-icon.bookings { background: var(--status-confirmed-bg); color: var(--status-confirmed); }
+    .metric-icon.pending { background: var(--status-pending-bg); color: var(--status-pending); }
+    .metric-icon.houses { background: var(--primary-soft); color: var(--primary); }
+    .metric-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+    .metric-value { font-size: 1.6rem; font-weight: 700; }
+    .metric-value small { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
 
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 1.25rem; }
+    mat-card-title { font-size: 1rem !important; font-weight: 600; }
+    mat-card-content { padding-top: 0.75rem !important; }
+
+    .columns { display: flex; align-items: flex-end; gap: 6px; height: 200px; overflow-x: auto; padding-top: 1rem; }
+    .column { flex: 1; min-width: 34px; display: flex; flex-direction: column; align-items: center; height: 100%; gap: 4px; }
+    .column-value { font-size: 0.65rem; color: var(--text-secondary); min-height: 1em; }
+    .column-track { flex: 1; width: 100%; max-width: 36px; display: flex; align-items: flex-end; background: var(--surface-subtle); border-radius: 6px 6px 0 0; }
+    .column-fill { width: 100%; background: var(--primary); border-radius: 6px 6px 0 0; min-height: 2px; transition: height 0.4s ease; }
+    .column-label { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; }
+
+    .stacked { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-subtle); margin: 0.5rem 0 1rem; }
+    .stacked-part { height: 100%; transition: width 0.4s ease; }
+    .bg-pending { background: var(--status-pending); }
+    .bg-confirmed { background: var(--status-confirmed); }
+    .bg-in-progress { background: var(--status-in-progress); }
+    .bg-completed { background: var(--status-completed); }
+    .bg-cancelled { background: var(--status-cancelled); }
+    .legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+    .legend li { display: flex; align-items: center; justify-content: space-between; }
+
+    .bars { display: grid; gap: 0.6rem; }
+    .bar { display: grid; grid-template-columns: minmax(80px, 140px) 1fr auto; align-items: center; gap: 0.6rem; }
+    .bar-label { font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { height: 12px; background: var(--surface-subtle); border-radius: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--status-in-progress); border-radius: 6px; min-width: 2px; }
+    .bar-value { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+
+    .upcoming { display: grid; gap: 0.5rem; }
+    .upcoming-item {
+      display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 10px;
+      color: inherit; text-decoration: none;
     }
-    .charts-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-      gap: 1.5rem;
+    .upcoming-item:hover { background: var(--surface-hover); }
+    .date-box {
+      width: 44px; flex-shrink: 0; text-align: center; border-radius: 10px; padding: 4px 0;
+      background: var(--primary-soft); color: var(--primary); display: flex; flex-direction: column; line-height: 1.1;
     }
-    .mb-4 { margin-bottom: 1.5rem; }
-
-    .metric-card {
-      border-radius: 10px; padding: 1.25rem; min-height: 100px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    }
-    .metric-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .metric-secondary { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-    .metric-tertiary { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-    .metric-quaternary { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-    .metric-body { color: white; }
-    .metric-label { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; opacity: 0.85; margin-bottom: 4px; }
-    .metric-value { font-size: 1.75rem; font-weight: 700; }
-
-    .chart-card { border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    .chart-card mat-card-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1rem 0; }
-    .chart-card mat-card-title { font-size: 0.95rem; font-weight: 600; }
-    .header-badge {
-      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.03em;
-      padding: 2px 8px; border-radius: 10px; background: #e8f0fe; color: #3C91E6;
-    }
-    .chart-card mat-card-content { padding: 1rem; }
-
-    .bar-chart { display: flex; flex-direction: column; gap: 0.6rem; }
-    .bar-item { display: flex; align-items: center; gap: 0.6rem; }
-    .bar-label {
-      width: 100px; font-size: 0.8rem; color: rgba(0,0,0,0.7);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
-    }
-    .bar-track { flex: 1; height: 20px; background: rgba(0,0,0,0.06); border-radius: 10px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 10px; transition: width 0.6s ease; min-width: 2px; }
-    .revenue-fill { background: linear-gradient(90deg, #667eea, #764ba2); }
-    .res-fill { background: linear-gradient(90deg, #4facfe, #00f2fe); }
-    .bar-value { width: 80px; text-align: right; font-size: 0.8rem; font-weight: 500; flex-shrink: 0; }
-
-    .line-chart { padding: 0.5rem 0; }
-    .line-svg { width: 100%; height: auto; }
-    .line-labels { display: flex; justify-content: space-between; padding: 0 8px; margin-top: -4px; }
-    .line-label { font-size: 0.65rem; color: rgba(0,0,0,0.5); }
-
-    .donut-chart { display: flex; height: 24px; border-radius: 12px; overflow: hidden; margin-bottom: 0.75rem; }
-    .donut-segment { display: flex; align-items: center; justify-content: center; transition: width 0.5s ease; min-width: 0; }
-    .donut-label { color: white; font-size: 0.75rem; font-weight: 600; }
-    .donut-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-    .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; }
-    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-
-    .table-wrap { padding: 0 1rem 1rem !important; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .data-table th { text-align: left; padding: 0.6rem 0.4rem; border-bottom: 2px solid rgba(0,0,0,0.06); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: rgba(0,0,0,0.5); }
-    .data-table td { padding: 0.5rem 0.4rem; border-bottom: 1px solid rgba(0,0,0,0.04); }
-    .data-table tbody tr:hover { background: rgba(60, 145, 230, 0.04); }
-    .text-end { text-align: right; }
-    .text-center { text-align: center; }
-    .text-muted { color: rgba(0,0,0,0.4); }
-    .py-3 { padding-top: 1rem; padding-bottom: 1rem; }
-
-    .empty-state { text-align: center; padding: 2rem; color: rgba(0,0,0,0.4); font-size: 0.9rem; }
-    .loading-container { display: flex; justify-content: center; padding: 3rem; }
+    .date-box strong { font-size: 1.1rem; }
+    .date-box span { font-size: 0.65rem; text-transform: uppercase; }
+    .upcoming-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .upcoming-body span { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty-state.small { padding: 1.5rem; }
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
   `]
 })
 export class DashboardComponent implements OnInit {
+  user: User | null = null;
   properties: Property[] = [];
-  allReservations: Reservation[] = [];
+  reservations: Reservation[] = [];
   loading = false;
-  dateDebut = '';
-  dateFin = '';
-  private pendingLoads = 0;
-
-  get filteredReservations(): Reservation[] {
-    let list = this.allReservations;
-    if (this.dateDebut) {
-      list = list.filter(r => r.startDate >= this.dateDebut);
-    }
-    if (this.dateFin) {
-      list = list.filter(r => r.endDate <= this.dateFin);
-    }
-    return list;
-  }
-
-  get totalRevenue(): number {
-    return this.filteredReservations
-      .filter(r => r.status === 'confirmed' || r.status === 'in-progress' || r.status === 'in_progress' || r.status === 'in progress')
-      .reduce((sum, r) => sum + r.totalAmount, 0);
-  }
-
-  get pendingReservations(): number {
-    return this.filteredReservations.filter(r => r.status === 'pending').length;
-  }
-
-  get confirmedReservations(): number {
-    return this.filteredReservations.filter(r => r.status === 'confirmed').length;
-  }
-
-  get inProgressReservations(): number {
-    return this.filteredReservations.filter(r => r.status === 'in-progress' || r.status === 'in_progress' || r.status === 'in progress').length;
-  }
-
-  get cancelledReservations(): number {
-    return this.filteredReservations.filter(r => r.status === 'cancelled').length;
-  }
-
-  get bookingRate(): number {
-    if (!this.filteredReservations.length) return 0;
-    const active = this.confirmedReservations + this.inProgressReservations;
-    return Math.round((active / this.filteredReservations.length) * 100);
-  }
-
-  get statusLabels(): { label: string; count: number; color: string }[] {
-    return [
-      { label: 'Pending', count: this.pendingReservations, color: '#ff9800' },
-      { label: 'Confirmed', count: this.confirmedReservations, color: '#2196f3' },
-      { label: 'In Progress', count: this.inProgressReservations, color: '#4caf50' },
-      { label: 'Cancelled', count: this.cancelledReservations, color: '#f44336' },
-    ];
-  }
-
-  get revenueByProperty(): { title: string; amount: number }[] {
-    const active = this.filteredReservations.filter(r => r.status === 'confirmed' || r.status === 'in-progress' || r.status === 'in_progress' || r.status === 'in progress');
-    const map = new Map<string, number>();
-    for (const r of active) {
-      const key = r.property?.title || '#' + r.propertyId;
-      map.set(key, (map.get(key) || 0) + r.totalAmount);
-    }
-    return Array.from(map.entries())
-      .map(([title, amount]) => ({ title, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 10);
-  }
-
-  get maxRevProp(): number {
-    return Math.max(...this.revenueByProperty.map(i => i.amount), 1);
-  }
-
-  private monthUpToSept(m: string): boolean {
-    const monthNum = parseInt(m.split('-')[1], 10);
-    return monthNum <= 9;
-  }
-
-  get revenueByMonth(): { month: string; amount: number }[] {
-    const active = this.filteredReservations.filter(r => r.status === 'confirmed' || r.status === 'in-progress' || r.status === 'in_progress' || r.status === 'in progress');
-    const map = new Map<string, number>();
-    for (const r of active) {
-      const d = new Date(r.startDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      map.set(key, (map.get(key) || 0) + r.totalAmount);
-    }
-    return Array.from(map.entries())
-      .map(([month, amount]) => ({ month, amount }))
-      .filter(({ month }) => this.monthUpToSept(month))
-      .sort((a, b) => a.month.localeCompare(b.month));
-  }
-
-  get trendCoords(): { x: number; y: number }[] {
-    const data = this.revenueByMonth;
-    if (!data.length) return [];
-    const max = Math.max(...data.map(d => d.amount), 1);
-    const w = 400, h = 180, padX = 10, padY = 10;
-    const stepX = (data.length > 1) ? (w - padX * 2) / (data.length - 1) : 0;
-    return data.map((d, i) => ({
-      x: padX + (data.length > 1 ? i * stepX : w / 2),
-      y: h - padY - ((d.amount / max) * (h - padY * 2)),
-    }));
-  }
-
-  get trendPoints(): string {
-    return this.trendCoords.map(p => `${p.x},${p.y}`).join(' ');
-  }
-
-  get reservationsByPeriod(): { period: string; count: number }[] {
-    const map = new Map<string, number>();
-    for (const r of this.filteredReservations) {
-      const d = new Date(r.startDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!this.monthUpToSept(key)) continue;
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([period, count]) => ({ period, count }))
-      .sort((a, b) => a.period.localeCompare(b.period));
-  }
-
-  get maxResPeriod(): number {
-    return Math.max(...this.reservationsByPeriod.map(i => i.count), 1);
-  }
+  dateFrom = '';
+  dateTo = '';
+  readonly statuses = RESERVATION_STATUSES;
+  readonly statusKey = statusKey;
+  readonly normalize = normalizeReservationStatus;
 
   constructor(
     private authService: AuthService,
     private propertyService: PropertyService,
     private reservationService: ReservationService,
     private propertySamsarService: PropertySamsarService,
+    private uiPrefs: UiPreferencesService,
   ) {}
 
   ngOnInit(): void {
+    this.user = this.authService.getCurrentUser();
     this.loadData();
+  }
+
+  t(key: string): string {
+    return t(key, this.uiPrefs.getLanguage());
   }
 
   loadData(): void {
     this.loading = true;
-    this.pendingLoads = 2;
-    const user = this.authService.getCurrentUser();
+    const isSamsar = this.user?.role === 'SAMSAR';
+    const properties$ = isSamsar
+      ? this.propertySamsarService.findMine().pipe(map(rels => rels.map(r => r.property).filter((p): p is Property => !!p)))
+      : this.propertyService.findMine();
+    const reservations$ = isSamsar ? this.reservationService.findMine() : this.reservationService.findByOwner();
 
-    if (user?.role === 'SAMSAR') {
-      this.propertySamsarService.findMine().subscribe({
-        next: (rels) => {
-          this.properties = rels.map(r => r.property).filter((p): p is Property => !!p);
-          this.markLoaded();
-        },
-        error: () => this.markLoaded(),
-      });
-    } else {
-      this.propertyService.findMine().subscribe({
-        next: (props) => { this.properties = props; this.markLoaded(); },
-        error: () => this.markLoaded(),
-      });
-    }
-
-    const resObs = user?.role === 'SAMSAR'
-      ? this.reservationService.findMine()
-      : this.reservationService.findByOwner();
-    resObs.subscribe({
-      next: (res) => { this.allReservations = res; this.markLoaded(); },
-      error: () => this.markLoaded(),
+    forkJoin({
+      properties: properties$.pipe(catchError(() => of([] as Property[]))),
+      reservations: reservations$.pipe(catchError(() => of([] as Reservation[]))),
+    }).subscribe(({ properties, reservations }) => {
+      this.properties = properties;
+      this.reservations = reservations;
+      this.loading = false;
     });
   }
 
-  private markLoaded(): void {
-    this.pendingLoads = Math.max(0, this.pendingLoads - 1);
-    if (this.pendingLoads === 0) this.loading = false;
+  /** Reservations overlapping the selected period (or all of them without filter). */
+  get filtered(): Reservation[] {
+    return this.reservations.filter(r =>
+      (!this.dateFrom || r.endDate >= this.dateFrom) && (!this.dateTo || r.startDate <= this.dateTo));
+  }
+
+  countByStatus(status: string): number {
+    return this.filtered.filter(r => normalizeReservationStatus(r.status) === status).length;
+  }
+
+  get totalRevenue(): number {
+    return this.filtered.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+  }
+
+  get months(): MonthBucket[] {
+    const buckets = new Map<string, MonthBucket>();
+    for (const r of this.filtered) {
+      const key = r.startDate.slice(0, 7);
+      if (!buckets.has(key)) {
+        const [year, month] = key.split('-').map(Number);
+        const label = `${getShortMonthLabel(month - 1, this.uiPrefs.getLanguage())} ${String(year).slice(2)}`;
+        buckets.set(key, { key, label, revenue: 0, count: 0 });
+      }
+      const bucket = buckets.get(key)!;
+      bucket.count++;
+      if (isRevenueStatus(r.status)) {
+        bucket.revenue += r.totalAmount || 0;
+      }
+    }
+    return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key)).slice(-12);
+  }
+
+  get maxMonthRevenue(): number {
+    return Math.max(...this.months.map(m => m.revenue), 1);
+  }
+
+  get revenueByProperty(): { title: string; amount: number }[] {
+    const totals = new Map<string, number>();
+    for (const r of this.filtered.filter(item => isRevenueStatus(item.status))) {
+      const key = r.property?.title || '#' + r.propertyId;
+      totals.set(key, (totals.get(key) || 0) + (r.totalAmount || 0));
+    }
+    return Array.from(totals.entries())
+      .map(([title, amount]) => ({ title, amount }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8);
+  }
+
+  get maxPropertyRevenue(): number {
+    return Math.max(...this.revenueByProperty.map(i => i.amount), 1);
+  }
+
+  get upcoming(): Reservation[] {
+    const today = todayIso();
+    return this.reservations
+      .filter(r => r.endDate >= today && ['pending', 'confirmed', 'in-progress'].includes(normalizeReservationStatus(r.status)))
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))
+      .slice(0, 5);
+  }
+
+  monthShort(date: string): string {
+    return getShortMonthLabel(Number(date.slice(5, 7)) - 1, this.uiPrefs.getLanguage());
   }
 }

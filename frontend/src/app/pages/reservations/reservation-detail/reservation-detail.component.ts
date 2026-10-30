@@ -4,14 +4,22 @@ import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ReservationService } from '../../../services/reservation.service';
-import { Reservation } from '../../../models/reservation.model';
+import { AuthService } from '../../../services/auth.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { AppLanguage, t } from '../../../shared/translations';
+import {
+  Reservation,
+  ReservationStatus,
+  RESERVATION_STATUSES,
+  STATUS_TRANSITIONS,
+  countReservationDays,
+  normalizeReservationStatus,
+  statusKey,
+} from '../../../models/reservation.model';
+import { t } from '../../../shared/translations';
 
 @Component({
   selector: 'app-reservation-detail',
@@ -22,218 +30,185 @@ import { AppLanguage, t } from '../../../shared/translations';
     MatCardModule,
     MatButtonModule,
     MatIconModule,
-    MatChipsModule,
     MatDividerModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
   ],
   template: `
-    <div class="detail-container" *ngIf="!loading; else loadingSpinner">
-      <div class="header">
-        <button mat-stroked-button routerLink="/reservations">
-          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
-        </button>
+    <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
+
+    <div class="page" *ngIf="!loading && reservation as r">
+      <div class="page-header">
+        <div>
+          <p class="eyebrow">{{ t('reservation') }} #{{ r.id }}</p>
+          <h1>{{ r.clientName }}</h1>
+          <p class="subtitle">{{ r.property?.title }}</p>
+        </div>
         <div class="header-actions">
-          <button mat-raised-button color="accent" [routerLink]="['/reservations', reservation?.id, 'edit']">
-            <mat-icon>edit</mat-icon> {{ t('edit') }}
+          <button mat-stroked-button routerLink="/reservations">
+            <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
           </button>
-          <button mat-raised-button color="warn" (click)="deleteReservation()">
+          <a mat-stroked-button *ngIf="editable" [routerLink]="['/reservations', r.id, 'edit']">
+            <mat-icon>edit</mat-icon> {{ t('edit') }}
+          </a>
+          <button mat-stroked-button color="warn" (click)="deleteReservation()">
             <mat-icon>delete</mat-icon> {{ t('delete') }}
           </button>
         </div>
       </div>
 
-      <div *ngIf="reservation">
-        <mat-card class="detail-card">
-          <mat-card-header>
-            <mat-card-title>Reservation #{{ reservation.id }}</mat-card-title>
-            <mat-card-subtitle>
-              <mat-chip [color]="getStatusColor(reservation.status)" selected>{{ reservation.status }}</mat-chip>
-            </mat-card-subtitle>
-          </mat-card-header>
+      <mat-card>
+        <mat-card-content>
+          <!-- Workflow progress -->
+          <div class="workflow" *ngIf="status !== 'cancelled'; else cancelledBanner">
+            <div class="step" *ngFor="let s of workflowSteps; let i = index"
+                 [class.done]="stepIndex > i" [class.current]="stepIndex === i">
+              <span class="bullet">{{ stepIndex > i ? '✓' : i + 1 }}</span>
+              <span class="step-label">{{ t(statusKey(s)) }}</span>
+            </div>
+          </div>
+          <ng-template #cancelledBanner>
+            <div class="cancelled-banner"><mat-icon>cancel</mat-icon> {{ t('reservation_cancelled_banner') }}</div>
+          </ng-template>
+
+          <div class="status-actions" *ngIf="nextStatuses.length">
+            <span class="hint">{{ t('next_step') }}</span>
+            <button mat-raised-button *ngFor="let next of nextStatuses"
+                    [color]="next === 'cancelled' ? 'warn' : 'primary'"
+                    [disabled]="updating"
+                    (click)="changeStatus(next)">
+              <mat-icon>{{ actionIcon(next) }}</mat-icon> {{ t('action_' + next.replace('-', '_')) }}
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <div class="grid">
+        <mat-card>
           <mat-card-content>
-            <h3>{{ t('client_information') }}</h3>
-            <mat-divider></mat-divider>
+            <h3>{{ t('dates_times') }}</h3>
             <div class="info-grid">
               <div class="info-item">
-                <span class="label">Name</span>
-                <span class="value">{{ reservation.clientName }}</span>
+                <span class="label">{{ t('arrival') }}</span>
+                <span class="value">{{ r.startDate | date:'dd/MM/yyyy' }} · {{ r.checkInTime }}</span>
               </div>
               <div class="info-item">
-                <span class="label">Phone</span>
-                <span class="value">{{ reservation.clientPhone || '-' }}</span>
+                <span class="label">{{ t('departure') }}</span>
+                <span class="value">{{ r.endDate | date:'dd/MM/yyyy' }} · {{ r.checkOutTime }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">{{ t('days_count') }}</span>
+                <span class="value">{{ days }}</span>
               </div>
             </div>
 
-            <h3>{{ t('property_details') }}</h3>
             <mat-divider></mat-divider>
+            <h3>{{ t('client_information') }}</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="label">{{ t('name_label') }}</span>
+                <span class="value">{{ r.clientName }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">{{ t('client_phone_label') }}</span>
+                <a class="value link ltr" *ngIf="r.clientPhone; else dash" [href]="'tel:+216' + r.clientPhone">+216 {{ r.clientPhone }}</a>
+              </div>
+            </div>
+
+            <mat-divider></mat-divider>
+            <h3>{{ t('property_details') }}</h3>
             <div class="info-grid">
               <div class="info-item">
                 <span class="label">{{ t('property_label') }}</span>
-                <span class="value">{{ reservation.property?.title || t('property_label') + ' #' + reservation.propertyId }}</span>
+                <a class="value link" [routerLink]="['/properties', r.propertyId]">{{ r.property?.title || '#' + r.propertyId }}</a>
+              </div>
+              <div class="info-item" *ngIf="r.samsar">
+                <span class="label">{{ t('booked_by') }}</span>
+                <span class="value">{{ r.samsar.name }}<span class="muted" *ngIf="r.samsarId === currentUserId"> ({{ t('you') }})</span></span>
               </div>
             </div>
 
-            <h3>{{ t('dates_times') }}</h3>
-            <mat-divider></mat-divider>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="label">{{ t('checkin_time') }}</span>
-                <span class="value">{{ reservation.startDate | date:'mediumDate' }} at {{ reservation.checkInTime }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ t('checkout_time') }}</span>
-                <span class="value">{{ reservation.endDate | date:'mediumDate' }} at {{ reservation.checkOutTime }}</span>
-              </div>
-            </div>
-
-            <h3>{{ t('financial_details') }}</h3>
-            <mat-divider></mat-divider>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="label">{{ t('total_amount_label') }}</span>
-                <span class="value price">{{ reservation.totalAmount | currency:'TND':'symbol':'1.0-0' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ t('advance_paid') }}</span>
-                <span class="value">{{ reservation.advanceAmount | currency:'TND':'symbol':'1.0-0' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ t('balance_due') }}</span>
-                <span class="value">{{ reservation.totalAmount - reservation.advanceAmount | currency:'TND':'symbol':'1.0-0' }}</span>
-              </div>
-            </div>
-
-            <div *ngIf="reservation.notes" class="notes-section">
+            <div *ngIf="r.notes">
+              <mat-divider></mat-divider>
               <h3>{{ t('notes_label') }}</h3>
-              <mat-divider></mat-divider>
-              <p>{{ reservation.notes }}</p>
+              <p class="notes">{{ r.notes }}</p>
             </div>
+          </mat-card-content>
+        </mat-card>
 
-            <div class="dates">
-              <span class="date-label">{{ t('created_label') }} {{ reservation.createdAt | date:'medium' }}</span>
-              <span class="date-label">{{ t('updated_label') }} {{ reservation.updatedAt | date:'medium' }}</span>
+        <mat-card>
+          <mat-card-content>
+            <h3>{{ t('financial_details') }}</h3>
+            <div class="money">
+              <div><span>{{ t('total_amount_label') }}</span><strong class="total">{{ r.totalAmount | number:'1.0-0' }} TND</strong></div>
+              <div><span>{{ t('advance_paid') }}</span><strong>{{ r.advanceAmount | number:'1.0-0' }} TND</strong></div>
+              <div class="balance"><span>{{ t('balance_due') }}</span><strong>{{ r.totalAmount - r.advanceAmount | number:'1.0-0' }} TND</strong></div>
             </div>
-
-            <div class="status-actions" *ngIf="reservation.status !== 'cancelled'">
-              <h3>{{ t('actions_label') }}</h3>
-              <mat-divider></mat-divider>
-              <div class="status-buttons">
-                <button mat-raised-button color="primary" *ngIf="reservation.status === 'pending'" (click)="changeStatus('confirmed')">
-                  <mat-icon>check_circle</mat-icon> {{ t('confirm_status') }}
-                </button>
-                <button mat-raised-button color="primary" *ngIf="reservation.status === 'confirmed'" (click)="changeStatus('in-progress')">
-                  <mat-icon>play_circle</mat-icon> {{ t('start_in_progress') }}
-                </button>
-                <button mat-raised-button color="warn" *ngIf="reservation.status !== 'in-progress' && reservation.status !== 'cancelled'" (click)="changeStatus('cancelled')">
-                  <mat-icon>cancel</mat-icon> {{ t('cancel_status') }}
-                </button>
-              </div>
+            <div class="meta">
+              <span>{{ t('created_label') }} {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+              <span>{{ t('updated_label') }} {{ r.updatedAt | date:'dd/MM/yyyy HH:mm' }}</span>
             </div>
           </mat-card-content>
         </mat-card>
       </div>
     </div>
 
-    <ng-template #loadingSpinner>
-      <div class="loading-container">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-    </ng-template>
+    <ng-template #dash><span class="value">-</span></ng-template>
   `,
   styles: [`
-    .detail-container {
-      padding: 1.5rem;
-      max-width: 800px;
+    .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 1.25rem; align-items: start; }
+    h3 { margin: 1rem 0 0.25rem; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
+    .link { color: var(--primary); text-decoration: none; }
+    .muted { color: var(--text-secondary); font-weight: 400; }
+    .notes { white-space: pre-line; margin: 0.5rem 0 0; }
+
+    .workflow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .step { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 120px; color: var(--text-secondary); }
+    .step:not(:last-child)::after { content: ''; flex: 1; height: 2px; background: var(--border-color); min-width: 16px; }
+    .step.done:not(:last-child)::after { background: var(--status-in-progress); }
+    .bullet {
+      width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 700; background: var(--surface-subtle); border: 2px solid var(--border-color); flex-shrink: 0;
     }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
+    .step.done .bullet { background: var(--status-in-progress); border-color: var(--status-in-progress); color: #fff; }
+    .step.current { color: var(--text-primary); font-weight: 700; }
+    .step.current .bullet { border-color: var(--primary); color: var(--primary); }
+    .step-label { font-size: 0.85rem; white-space: nowrap; }
+    .cancelled-banner {
+      display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px;
+      background: var(--status-cancelled-bg); color: var(--status-cancelled); font-weight: 600;
     }
-    .header-actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-    .detail-card {
-      margin-bottom: 1rem;
-    }
-    h3 {
-      margin-top: 1.5rem;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin: 1rem 0;
-    }
-    .info-item {
-      display: flex;
-      flex-direction: column;
-    }
-    .label {
-      font-size: 0.75rem;
-      color: rgba(0,0,0,0.6);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .value {
-      font-size: 1rem;
-      font-weight: 500;
-    }
-    .price {
-      font-size: 1.25rem;
-      color: #4caf50;
-    }
-    .notes-section p {
-      color: rgba(0,0,0,0.7);
-      margin: 1rem 0;
-    }
-    .dates {
-      display: flex;
-      gap: 1.5rem;
-      margin-top: 1.5rem;
-      font-size: 0.8rem;
-      color: rgba(0,0,0,0.5);
-    }
-    .status-actions {
-      margin-top: 1.5rem;
-    }
-    .status-buttons {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-      flex-wrap: wrap;
-    }
-    .loading-container {
-      display: flex;
-      justify-content: center;
-      padding: 3rem;
-    }
+    .status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+    .hint { font-size: 0.85rem; color: var(--text-secondary); }
+
+    .money { display: grid; gap: 0.6rem; margin: 0.75rem 0; }
+    .money > div { display: flex; justify-content: space-between; align-items: baseline; }
+    .money span { color: var(--text-secondary); font-size: 0.9rem; }
+    .money .total { font-size: 1.4rem; color: var(--status-in-progress); }
+    .money .balance { border-top: 1px solid var(--border-color); padding-top: 0.6rem; }
+    .meta { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; color: var(--text-secondary); margin-top: 1rem; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   `]
 })
 export class ReservationDetailComponent implements OnInit {
   reservation?: Reservation;
   loading = true;
-  language: AppLanguage = 'fr';
+  updating = false;
+  currentUserId?: number;
+  readonly workflowSteps: ReservationStatus[] = RESERVATION_STATUSES.filter(s => s !== 'cancelled');
+  readonly statusKey = statusKey;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private reservationService: ReservationService,
+    private authService: AuthService,
     private snackBar: MatSnackBar,
-    private uiPreferencesService: UiPreferencesService
-  ) {
-    this.language = this.uiPreferencesService.getLanguage();
-    this.uiPreferencesService.language$.subscribe((lang) => {
-      this.language = lang;
-    });
-  }
+    private uiPrefs: UiPreferencesService,
+  ) {}
 
   ngOnInit(): void {
+    this.currentUserId = this.authService.getCurrentUser()?.id;
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadReservation(+id);
@@ -241,7 +216,31 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   t(key: string): string {
-    return t(key, this.language);
+    return t(key, this.uiPrefs.getLanguage());
+  }
+
+  get status(): ReservationStatus {
+    return normalizeReservationStatus(this.reservation?.status) as ReservationStatus;
+  }
+
+  get stepIndex(): number {
+    return this.workflowSteps.indexOf(this.status);
+  }
+
+  get nextStatuses(): ReservationStatus[] {
+    return STATUS_TRANSITIONS[this.status] ?? [];
+  }
+
+  get editable(): boolean {
+    return this.status !== 'completed' && this.status !== 'cancelled';
+  }
+
+  get days(): number {
+    return this.reservation ? countReservationDays(this.reservation.startDate, this.reservation.endDate) : 0;
+  }
+
+  actionIcon(status: ReservationStatus): string {
+    return { 'confirmed': 'check_circle', 'in-progress': 'login', 'completed': 'task_alt', 'cancelled': 'cancel', 'pending': 'hourglass_top' }[status];
   }
 
   private loadReservation(id: number): void {
@@ -259,44 +258,32 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   deleteReservation(): void {
-    if (confirm(this.t('reservation_delete_confirm'))) {
-      this.reservationService.remove(this.reservation!.id).subscribe({
-        next: () => {
-          this.snackBar.open(this.t('reservation_deleted'), this.t('close'), { duration: 3000 });
-          this.router.navigate(['/reservations']);
-        },
-        error: (err) => {
-          const msg = err.error?.message || this.t('reservation_failed_load');
-          this.snackBar.open(msg, this.t('close'), { duration: 5000 });
-        },
-      });
-    }
-  }
-
-  changeStatus(status: string): void {
-    this.reservationService.updateStatus(this.reservation!.id, status).subscribe({
-      next: (updated) => {
-        this.reservation = updated;
-        const message = this.t('reservation_status_changed').replace('{{status}}', status);
-        this.snackBar.open(message, this.t('close'), { duration: 2500 });
+    if (!confirm(this.t('reservation_delete_confirm'))) return;
+    this.reservationService.remove(this.reservation!.id).subscribe({
+      next: () => {
+        this.snackBar.open(this.t('reservation_deleted'), this.t('close'), { duration: 3000 });
+        this.router.navigate(['/reservations']);
       },
       error: (err) => {
-        const msg = err.error?.message || this.t('reservation_update_failed');
-        this.snackBar.open(msg, this.t('close'), { duration: 3000 });
+        this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 5000 });
       },
     });
   }
 
-  getStatusColor(status: string): string {
-    const normalized = (status ?? '').trim().toLowerCase();
-    switch (normalized) {
-      case 'confirmed': return 'primary';
-      case 'pending': return 'accent';
-      case 'in-progress':
-      case 'in_progress':
-      case 'in progress': return 'primary';
-      case 'cancelled': return 'warn';
-      default: return '';
-    }
+  changeStatus(status: ReservationStatus): void {
+    if (status === 'cancelled' && !confirm(this.t('reservation_cancel_confirm'))) return;
+    this.updating = true;
+    this.reservationService.updateStatus(this.reservation!.id, status).subscribe({
+      next: (updated) => {
+        this.reservation = updated;
+        this.updating = false;
+        const message = this.t('reservation_status_changed').replace('{{status}}', this.t(statusKey(status)));
+        this.snackBar.open(message, this.t('close'), { duration: 2500 });
+      },
+      error: (err) => {
+        this.updating = false;
+        this.snackBar.open(err.error?.message || this.t('reservation_update_failed'), this.t('close'), { duration: 3000 });
+      },
+    });
   }
 }

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -12,14 +12,33 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { map } from 'rxjs/operators';
 import { AuthService } from '../../../services/auth.service';
 import { PropertyService } from '../../../services/property.service';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { ReservationService, CreateReservationDto } from '../../../services/reservation.service';
-import { Property } from '../../../models/property.model';
-import { Reservation } from '../../../models/reservation.model';
+import { AvailabilityService } from '../../../services/availability.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { AppLanguage, t } from '../../../shared/translations';
+import { Property } from '../../../models/property.model';
+import { countReservationDays } from '../../../models/reservation.model';
+import { DayStatus, createDayStatusMap, formatIsoDate, isRangeFree, parseIsoDate, todayIso } from '../../../shared/calendar-utils';
+import { t } from '../../../shared/translations';
+
+interface BookableProperty { property: Property; margin: number; }
+
+function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
+  const start = group.get('startDate')?.value as Date | null;
+  const end = group.get('endDate')?.value as Date | null;
+  if (start && end && end < start) {
+    return { dateRange: true };
+  }
+  const total = Number(group.get('totalAmount')?.value ?? 0);
+  const advance = Number(group.get('advanceAmount')?.value ?? 0);
+  if (advance > total) {
+    return { advanceTooHigh: true };
+  }
+  return null;
+}
 
 @Component({
   selector: 'app-reservation-form',
@@ -40,150 +59,151 @@ import { AppLanguage, t } from '../../../shared/translations';
     MatProgressSpinnerModule,
   ],
   template: `
-    <div class="form-container">
-      <div class="header">
-        <h1>{{ isEdit ? t('reservation_edit_title') : t('reservation_new_title') }}</h1>
-        <button mat-stroked-button routerLink="/reservations">
-          <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1>{{ isEdit ? t('reservation_edit_title') : t('reservation_new_title') }}</h1>
+          <p class="subtitle">{{ t('reservation_form_subtitle') }}</p>
+        </div>
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ t('back') }}
         </button>
       </div>
 
-      <mat-card>
-        <mat-card-content>
-          <form [formGroup]="reservationForm" (ngSubmit)="onSubmit()">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ t('property_label') }} *</mat-label>
-              <mat-select formControlName="propertyId" (selectionChange)="onPropertyChange($event.value)">
-                <mat-option *ngFor="let prop of properties" [value]="prop.id">
-                  {{ prop.title }} - {{ prop.pricePerDay | currency:'TND':'symbol':'1.0-0' }}/day
+      <form class="layout" [formGroup]="form" (ngSubmit)="onSubmit()">
+        <mat-card>
+          <mat-card-content>
+            <h3>{{ t('property_details') }}</h3>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ t('property_label') }}</mat-label>
+              <mat-select formControlName="propertyId" (selectionChange)="onPropertyChange()">
+                <mat-option *ngFor="let item of properties" [value]="item.property.id">
+                  {{ item.property.title }}
+                  <span class="option-price" *ngIf="item.property.pricePerDay">· {{ unitPriceOf(item) | number:'1.0-0' }} TND/{{ t('day') }}</span>
                 </mat-option>
               </mat-select>
-              <mat-error *ngIf="reservationForm.get('propertyId')?.hasError('required')">{{ t('property_required') }}</mat-error>
+              <mat-hint *ngIf="!properties.length && propertiesLoaded">{{ t('no_bookable_property') }}</mat-hint>
+              <mat-error>{{ t('property_required') }}</mat-error>
             </mat-form-field>
 
+            <h3>{{ t('dates_times') }}</h3>
             <div class="form-row">
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('client_name_label') }} *</mat-label>
-                <input matInput formControlName="clientName" [placeholder]="t('client_name_label')" />
-                <mat-error *ngIf="reservationForm.get('clientName')?.hasError('required')">{{ t('client_name_required') }}</mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('client_phone_label') }}</mat-label>
-                <input matInput formControlName="clientPhone" [placeholder]="t('client_phone_label')" />
-              </mat-form-field>
-            </div>
-
-            <div class="form-row">
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('start_date_label') }} *</mat-label>
-                <input matInput [matDatepicker]="startPicker" formControlName="startDate" (dateChange)="calculateTotal()" />
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('start_date_label') }}</mat-label>
+                <input matInput [matDatepicker]="startPicker" [matDatepickerFilter]="dateFilter" [min]="minDate" formControlName="startDate" (dateChange)="recalculate()" />
                 <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
                 <mat-datepicker #startPicker></mat-datepicker>
-                <mat-error *ngIf="reservationForm.get('startDate')?.hasError('required')">{{ t('start_date_required') }}</mat-error>
+                <mat-error>{{ t('start_date_required') }}</mat-error>
               </mat-form-field>
-
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('end_date_label') }} *</mat-label>
-                <input matInput [matDatepicker]="endPicker" formControlName="endDate" (dateChange)="calculateTotal()" />
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('end_date_label') }}</mat-label>
+                <input matInput [matDatepicker]="endPicker" [matDatepickerFilter]="dateFilter" [min]="form.value.startDate ?? minDate" formControlName="endDate" (dateChange)="recalculate()" />
                 <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
-                <mat-datepicker #endPicker></mat-datepicker>
-                <mat-error *ngIf="reservationForm.get('endDate')?.hasError('required')">{{ t('end_date_required') }}</mat-error>
+                <mat-datepicker #endPicker [startAt]="form.value.startDate ?? null"></mat-datepicker>
+                <mat-error>{{ t('end_date_required') }}</mat-error>
               </mat-form-field>
             </div>
+            <div class="inline-error" *ngIf="form.hasError('dateRange')"><mat-icon>error</mat-icon>{{ t('end_before_start') }}</div>
+            <div class="inline-error" *ngIf="rangeConflict"><mat-icon>event_busy</mat-icon>{{ t('dates_unavailable') }}</div>
 
             <div class="form-row">
-              <mat-form-field appearance="outline" class="flex-1">
+              <mat-form-field appearance="outline">
                 <mat-label>{{ t('checkin_time') }}</mat-label>
                 <input matInput type="time" formControlName="checkInTime" />
               </mat-form-field>
-
-              <mat-form-field appearance="outline" class="flex-1">
+              <mat-form-field appearance="outline">
                 <mat-label>{{ t('checkout_time') }}</mat-label>
                 <input matInput type="time" formControlName="checkOutTime" />
               </mat-form-field>
             </div>
 
+            <h3>{{ t('client_information') }}</h3>
             <div class="form-row">
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('reservation_status_label') }}</mat-label>
-                <mat-select formControlName="status">
-                  <mat-option value="Pending">Pending</mat-option>
-                  <mat-option value="Confirmed">Confirmed</mat-option>
-                  <mat-option value="Cancelled">Cancelled</mat-option>
-                </mat-select>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('client_name_label') }}</mat-label>
+                <input matInput formControlName="clientName" autocomplete="off" />
+                <mat-error>{{ t('client_name_required') }}</mat-error>
               </mat-form-field>
-
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('total_nights_label') }}</mat-label>
-                <input matInput [value]="totalNights" readonly />
+              <mat-form-field appearance="outline">
+                <mat-label>{{ t('client_phone_label') }}</mat-label>
+                <span matTextPrefix>+216&nbsp;</span>
+                <input matInput formControlName="clientPhone" inputmode="tel" />
+                <mat-error>{{ t('phone_invalid') }}</mat-error>
               </mat-form-field>
             </div>
 
-            <div class="form-row">
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('total_amount_label') }} *</mat-label>
-                <input matInput type="number" formControlName="totalAmount" />
-                <mat-error *ngIf="reservationForm.get('totalAmount')?.hasError('required')">{{ t('total_amount_required') }}</mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>{{ t('advance_amount_label') }}</mat-label>
-                <input matInput type="number" formControlName="advanceAmount" />
-              </mat-form-field>
-            </div>
-
-            <mat-form-field appearance="outline" class="full-width">
+            <mat-form-field appearance="outline">
               <mat-label>{{ t('notes_label') }}</mat-label>
-              <textarea matInput formControlName="notes" rows="3" [placeholder]="t('notes_label')"></textarea>
+              <textarea matInput formControlName="notes" rows="3"></textarea>
             </mat-form-field>
+          </mat-card-content>
+        </mat-card>
 
-            <div class="form-actions">
-              <button mat-stroked-button type="button" routerLink="/reservations">{{ t('cancel') }}</button>
-              <button mat-raised-button color="primary" type="submit" [disabled]="reservationForm.invalid || loading">
-                <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-                <span *ngIf="!loading">{{ isEdit ? t('update_reservation') : t('create_reservation') }}</span>
-              </button>
+        <mat-card class="summary">
+          <mat-card-content>
+            <h3>{{ t('financial_details') }}</h3>
+            <div class="summary-line">
+              <span>{{ t('days_count') }}</span>
+              <strong>{{ days }}</strong>
             </div>
-          </form>
-        </mat-card-content>
-      </mat-card>
+            <div class="summary-line" *ngIf="selected?.property?.pricePerDay">
+              <span>{{ t('price_per_day') }}</span>
+              <strong>{{ selected!.property.pricePerDay | number:'1.0-0' }} TND<span *ngIf="selected!.margin"> + {{ selected!.margin }}</span></strong>
+            </div>
+            <div class="summary-line suggested" *ngIf="suggestedTotal">
+              <span>{{ t('suggested_total') }}</span>
+              <strong>{{ suggestedTotal | number:'1.0-0' }} TND</strong>
+            </div>
+            <p class="hint" *ngIf="selected?.margin">{{ t('margin_hint').replace('{{margin}}', '' + selected!.margin) }}</p>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ t('total_amount_label') }}</mat-label>
+              <input matInput type="number" min="0" formControlName="totalAmount" (input)="totalTouched = true" />
+              <span matTextSuffix>TND</span>
+              <mat-error>{{ t('total_amount_required') }}</mat-error>
+            </mat-form-field>
+            <div class="inline-error" *ngIf="exceedsMax">
+              <mat-icon>error</mat-icon>{{ t('total_above_max').replace('{{max}}', '' + maxTotal) }}
+            </div>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ t('advance_amount_label') }}</mat-label>
+              <input matInput type="number" min="0" formControlName="advanceAmount" />
+              <span matTextSuffix>TND</span>
+            </mat-form-field>
+            <div class="inline-error" *ngIf="form.hasError('advanceTooHigh')"><mat-icon>error</mat-icon>{{ t('advance_above_total') }}</div>
+
+            <div class="summary-line balance">
+              <span>{{ t('balance_due') }}</span>
+              <strong>{{ balance | number:'1.0-0' }} TND</strong>
+            </div>
+
+            <button mat-raised-button color="primary" type="submit" class="submit" [disabled]="form.invalid || loading || rangeConflict || exceedsMax">
+              <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
+              <span *ngIf="!loading">{{ isEdit ? t('update_reservation') : t('create_reservation') }}</span>
+            </button>
+            <p class="hint" *ngIf="!isEdit">{{ t('reservation_pending_hint') }}</p>
+          </mat-card-content>
+        </mat-card>
+      </form>
     </div>
   `,
   styles: [`
-    .form-container {
-      padding: 1.5rem;
-      max-width: 800px;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-    .header h1 {
-      margin: 0;
-      font-weight: 500;
-    }
-    .full-width {
-      width: 100%;
-      margin-bottom: 1rem;
-    }
-    .form-row {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 0.5rem;
-    }
-    .flex-1 { flex: 1; }
-    .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 1rem;
-      margin-top: 2rem;
-    }
-    .spinner {
-      display: inline-block;
-      margin-right: 0.5rem;
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.25rem; align-items: start; }
+    h3 { margin: 0.5rem 0 0.75rem; font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); }
+    .summary { position: sticky; top: 72px; }
+    .summary-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0.4rem 0; font-size: 0.9rem; }
+    .summary-line.suggested { color: var(--primary); }
+    .summary-line.balance { border-top: 1px solid var(--border-color); margin: 0.25rem 0 1rem; padding-top: 0.75rem; font-size: 1rem; }
+    .option-price { color: var(--text-secondary); font-size: 0.85em; }
+    .hint { font-size: 0.78rem; color: var(--text-secondary); margin: 0.25rem 0 0.75rem; }
+    .submit { width: 100%; height: 44px; }
+    .submit mat-spinner { margin: 0 auto; }
+    .inline-error { display: flex; align-items: center; gap: 0.35rem; color: var(--status-cancelled); font-size: 0.82rem; margin: -0.5rem 0 0.75rem; }
+    .inline-error mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .summary { position: static; }
     }
   `]
 })
@@ -191,23 +211,26 @@ export class ReservationFormComponent implements OnInit {
   isEdit = false;
   reservationId?: number;
   loading = false;
-  properties: Property[] = [];
-  totalNights = 0;
-  language: AppLanguage = 'fr';
+  properties: BookableProperty[] = [];
+  propertiesLoaded = false;
+  totalTouched = false;
+  minDate: Date | null = new Date();
+  private dayStatuses: Record<string, DayStatus> = {};
+  private ownRange?: { startDate: string; endDate: string };
+  private pendingPropertyId?: number;
 
-  reservationForm = this.fb.group({
-    propertyId: [0, Validators.required],
-    clientName: ['', Validators.required],
-    clientPhone: [''],
-    startDate: ['', Validators.required],
-    endDate: ['', Validators.required],
+  form = this.fb.group({
+    propertyId: [null as number | null, Validators.required],
+    clientName: ['', [Validators.required, Validators.minLength(2)]],
+    clientPhone: ['', Validators.pattern(/^[\d\s+]{8,15}$/)],
+    startDate: [null as Date | null, Validators.required],
+    endDate: [null as Date | null, Validators.required],
     checkInTime: ['14:00'],
-    checkOutTime: ['10:00'],
-    status: ['Pending'],
-    totalAmount: [0, Validators.required],
-    advanceAmount: [0],
+    checkOutTime: ['12:00'],
+    totalAmount: [0, [Validators.required, Validators.min(0)]],
+    advanceAmount: [0, Validators.min(0)],
     notes: [''],
-  });
+  }, { validators: dateRangeValidator });
 
   constructor(
     private fb: FormBuilder,
@@ -215,66 +238,82 @@ export class ReservationFormComponent implements OnInit {
     private reservationService: ReservationService,
     private propertyService: PropertyService,
     private propertySamsarService: PropertySamsarService,
+    private availabilityService: AvailabilityService,
     private router: Router,
     private route: ActivatedRoute,
     private snackBar: MatSnackBar,
-    private uiPreferencesService: UiPreferencesService
-  ) {
-    this.language = this.uiPreferencesService.getLanguage();
-    this.uiPreferencesService.language$.subscribe((lang) => {
-      this.language = lang;
-    });
-  }
+    private uiPrefs: UiPreferencesService,
+  ) {}
 
   t(key: string): string {
-    return t(key, this.language);
+    return t(key, this.uiPrefs.getLanguage());
   }
 
   ngOnInit(): void {
-    this.loadProperties();
-
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.isEdit = true;
+      this.minDate = null;
       this.reservationId = +id;
       this.loadReservation(this.reservationId);
+    } else {
+      // Prefill from the property calendar ("Reserve these dates")
+      const query = this.route.snapshot.queryParamMap;
+      const propertyId = Number(query.get('propertyId'));
+      if (propertyId) {
+        this.pendingPropertyId = propertyId;
+      }
+      const start = query.get('start');
+      const end = query.get('end');
+      if (start) this.form.patchValue({ startDate: parseIsoDate(start) });
+      if (end) this.form.patchValue({ endDate: parseIsoDate(end) });
     }
+    this.loadProperties();
   }
 
   private loadProperties(): void {
-    const user = this.authService.getCurrentUser();
-    if (user?.role === 'SAMSAR') {
-      this.propertySamsarService.findMine().subscribe({
-        next: (rels) => {
-          this.properties = rels.map(r => r.property).filter((p): p is Property => !!p);
-        },
-      });
-    } else {
-      this.propertyService.findMine().subscribe({
-        next: (props) => {
-          this.properties = props;
-        },
-      });
-    }
+    const isSamsar = this.authService.getCurrentUser()?.role === 'SAMSAR';
+    const source$ = isSamsar
+      ? this.propertySamsarService.findMine().pipe(map(rels => rels
+          .filter(r => !!r.property)
+          .map(r => ({ property: r.property!, margin: r.priceIncreaseTnd || 0 }))))
+      : this.propertyService.findMine().pipe(map(props => props.map(property => ({ property, margin: 0 }))));
+
+    source$.subscribe({
+      next: (items) => {
+        this.properties = items;
+        this.propertiesLoaded = true;
+        if (this.pendingPropertyId && items.some(i => i.property.id === this.pendingPropertyId)) {
+          this.form.patchValue({ propertyId: this.pendingPropertyId });
+          this.pendingPropertyId = undefined;
+        }
+        this.onPropertyChange();
+      },
+      error: () => this.propertiesLoaded = true,
+    });
   }
 
   private loadReservation(id: number): void {
     this.reservationService.findOne(id).subscribe({
       next: (reservation) => {
-        this.reservationForm.patchValue({
+        this.ownRange = { startDate: reservation.startDate, endDate: reservation.endDate };
+        this.totalTouched = true;
+        this.pendingPropertyId = reservation.propertyId;
+        this.form.patchValue({
           propertyId: reservation.propertyId,
           clientName: reservation.clientName,
           clientPhone: reservation.clientPhone || '',
-          startDate: reservation.startDate,
-          endDate: reservation.endDate,
+          startDate: parseIsoDate(reservation.startDate),
+          endDate: parseIsoDate(reservation.endDate),
           checkInTime: reservation.checkInTime,
           checkOutTime: reservation.checkOutTime,
-          status: reservation.status,
           totalAmount: reservation.totalAmount,
           advanceAmount: reservation.advanceAmount,
           notes: reservation.notes || '',
         });
-        this.calculateTotal();
+        // The property cannot be changed once the reservation exists
+        this.form.get('propertyId')?.disable();
+        this.onPropertyChange();
       },
       error: () => {
         this.snackBar.open(this.t('reservation_failed_load'), this.t('close'), { duration: 3000 });
@@ -283,52 +322,123 @@ export class ReservationFormComponent implements OnInit {
     });
   }
 
-  onPropertyChange(propertyId: number): void {
-    this.calculateTotal();
+  get selected(): BookableProperty | undefined {
+    const id = this.form.getRawValue().propertyId;
+    return this.properties.find(p => p.property.id === id);
   }
 
-  calculateTotal(): void {
-    const start = this.reservationForm.get('startDate')?.value;
-    const end = this.reservationForm.get('endDate')?.value;
-    const propertyId = this.reservationForm.get('propertyId')?.value;
+  unitPriceOf(item: BookableProperty): number {
+    return (item.property.pricePerDay || 0) + item.margin;
+  }
 
-    if (start && end && propertyId) {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      this.totalNights = nights > 0 ? nights : 0;
+  get startIso(): string {
+    const value = this.form.value.startDate;
+    return value ? formatIsoDate(value) : '';
+  }
 
-      const property = this.properties.find(p => p.id === propertyId);
-      if (property?.pricePerDay && this.totalNights > 0) {
-        const total = property.pricePerDay * this.totalNights;
-        if (!this.isEdit) {
-          this.reservationForm.patchValue({ totalAmount: total });
+  get endIso(): string {
+    const value = this.form.value.endDate;
+    return value ? formatIsoDate(value) : '';
+  }
+
+  get days(): number {
+    return countReservationDays(this.startIso, this.endIso);
+  }
+
+  get suggestedTotal(): number {
+    return this.selected?.property.pricePerDay ? this.days * this.unitPriceOf(this.selected) : 0;
+  }
+
+  /** A samsar may not sell above price + margin granted by the owner. */
+  get maxTotal(): number {
+    return this.selected?.margin ? this.suggestedTotal : 0;
+  }
+
+  get exceedsMax(): boolean {
+    return this.maxTotal > 0 && Number(this.form.value.totalAmount ?? 0) > this.maxTotal;
+  }
+
+  get balance(): number {
+    return Math.max(0, Number(this.form.value.totalAmount || 0) - Number(this.form.value.advanceAmount || 0));
+  }
+
+  get rangeConflict(): boolean {
+    return !!this.startIso && !!this.endIso && this.endIso >= this.startIso
+      && !isRangeFree(this.startIso, this.endIso, this.dayStatuses);
+  }
+
+  dateFilter = (date: Date | null): boolean => {
+    if (!date) return true;
+    const status = this.dayStatuses[formatIsoDate(date)];
+    return !status || status === 'free';
+  };
+
+  onPropertyChange(): void {
+    const propertyId = this.form.getRawValue().propertyId;
+    this.dayStatuses = {};
+    if (!propertyId) {
+      return;
+    }
+    this.availabilityService.getOccupancy(propertyId).subscribe({
+      next: (occupancy) => {
+        const statuses = createDayStatusMap(occupancy.reservations, occupancy.blockedDates);
+        if (this.ownRange) {
+          // The reservation being edited must not block its own dates
+          const own = createDayStatusMap([{ ...this.ownRange, status: 'confirmed' }]);
+          Object.keys(own).forEach(day => {
+            if (statuses[day] !== 'blocked') delete statuses[day];
+          });
         }
-      }
+        this.dayStatuses = statuses;
+      },
+    });
+    this.recalculate();
+  }
+
+  recalculate(): void {
+    if (!this.totalTouched && this.suggestedTotal) {
+      this.form.patchValue({ totalAmount: this.suggestedTotal });
+    }
+  }
+
+  goBack(): void {
+    if (this.isEdit) {
+      this.router.navigate(['/reservations', this.reservationId]);
+    } else {
+      this.router.navigate(['/reservations']);
     }
   }
 
   onSubmit(): void {
-    if (this.reservationForm.invalid) return;
+    if (this.form.invalid || this.rangeConflict) return;
+    const value = this.form.getRawValue();
+    const dto: CreateReservationDto = {
+      propertyId: value.propertyId!,
+      clientName: value.clientName!.trim(),
+      clientPhone: value.clientPhone?.trim() || undefined,
+      startDate: this.startIso,
+      endDate: this.endIso,
+      checkInTime: value.checkInTime || '14:00',
+      checkOutTime: value.checkOutTime || '12:00',
+      totalAmount: Number(value.totalAmount),
+      advanceAmount: Number(value.advanceAmount || 0),
+      notes: value.notes || undefined,
+    };
 
     this.loading = true;
-    const dto = this.reservationForm.value as unknown as CreateReservationDto;
-
     const obs = this.isEdit
       ? this.reservationService.update(this.reservationId!, dto)
       : this.reservationService.create(dto);
 
     obs.subscribe({
-      next: () => {
+      next: (saved) => {
         const message = this.isEdit ? this.t('reservation_update_success') : this.t('reservation_create_success');
         this.snackBar.open(message, this.t('close'), { duration: 3000 });
-        this.router.navigate(['/reservations']);
+        this.router.navigate(['/reservations', saved.id]);
       },
       error: (err) => {
         this.loading = false;
-        const msg = err.error?.message || `Failed to ${this.isEdit ? 'update' : 'create'} reservation`;
-        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 5000 });
       },
     });
   }

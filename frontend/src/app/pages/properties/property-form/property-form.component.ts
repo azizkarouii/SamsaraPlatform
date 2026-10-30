@@ -14,7 +14,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { PropertyService } from '../../../services/property.service';
 import { Property } from '../../../models/property.model';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { AppLanguage, t } from '../../../shared/translations';
+import { t } from '../../../shared/translations';
 
 @Component({
   selector: 'app-property-form',
@@ -36,7 +36,7 @@ import { AppLanguage, t } from '../../../shared/translations';
   template: `
     <div class="form-container">
       <div class="header">
-        <h1>{{ isEdit ? t('edit_property') : t('add_property') }} {{ t('properties') }}</h1>
+        <h1>{{ isEdit ? t('edit_property_title') : t('add_property') }}</h1>
         <button mat-stroked-button routerLink="/properties">
           <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
@@ -56,25 +56,27 @@ import { AppLanguage, t } from '../../../shared/translations';
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Configuration</mat-label>
-                <input matInput formControlName="configuration" placeholder="e.g. 2BR Apartment" />
+                <mat-label>{{ t('configuration') }}</mat-label>
+                <input matInput formControlName="configuration" placeholder="S+1, S+2..." />
               </mat-form-field>
             </div>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Description</mat-label>
-              <textarea matInput formControlName="description" rows="3" placeholder="Describe the property"></textarea>
+              <mat-label>{{ t('description') }}</mat-label>
+              <textarea matInput formControlName="description" rows="3"></textarea>
             </mat-form-field>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Address</mat-label>
-                <input matInput formControlName="address" placeholder="Property address" />
+                <mat-label>{{ t('address_col') }}</mat-label>
+                <input matInput formControlName="address" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Owner Contact</mat-label>
-                <input matInput formControlName="ownerContact" placeholder="Phone or email" />
+                <mat-label>{{ t('owner_contact') }}</mat-label>
+                <span matTextPrefix>+216&nbsp;</span>
+                <input matInput formControlName="ownerContact" inputmode="tel" />
+                <mat-error>{{ t('phone_invalid') }}</mat-error>
               </mat-form-field>
             </div>
 
@@ -83,18 +85,21 @@ import { AppLanguage, t } from '../../../shared/translations';
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Price per Day (€)</mat-label>
-                <input matInput type="number" formControlName="pricePerDay" />
+                <mat-label>{{ t('price_per_day') }}</mat-label>
+                <input matInput type="number" min="0" formControlName="pricePerDay" />
+                <span matTextSuffix>TND</span>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Price per Week (€)</mat-label>
-                <input matInput type="number" formControlName="pricePerWeek" />
+                <mat-label>{{ t('price_per_week') }}</mat-label>
+                <input matInput type="number" min="0" formControlName="pricePerWeek" />
+                <span matTextSuffix>TND</span>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Price per Month (€)</mat-label>
-                <input matInput type="number" formControlName="pricePerMonth" />
+                <mat-label>{{ t('price_per_month') }}</mat-label>
+                <input matInput type="number" min="0" formControlName="pricePerMonth" />
+                <span matTextSuffix>TND</span>
               </mat-form-field>
             </div>
 
@@ -103,17 +108,17 @@ import { AppLanguage, t } from '../../../shared/translations';
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Max Capacity</mat-label>
+                <mat-label>{{ t('capacity_col') }}</mat-label>
                 <input matInput type="number" formControlName="maxCapacity" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Bathrooms</mat-label>
+                <mat-label>{{ t('bathrooms') }}</mat-label>
                 <input matInput type="number" formControlName="bathrooms" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
-                <mat-label>Distance to Beach (m)</mat-label>
+                <mat-label>{{ t('distance_beach') }} (m)</mat-label>
                 <input matInput type="number" formControlName="distanceBeach" />
               </mat-form-field>
             </div>
@@ -122,26 +127,26 @@ import { AppLanguage, t } from '../../../shared/translations';
             <mat-divider class="section-divider"></mat-divider>
 
             <div class="checkbox-row">
-              <mat-checkbox formControlName="hautStanding">High Standing</mat-checkbox>
-              <mat-checkbox formControlName="appartientResidence">Part of Residence</mat-checkbox>
+              <mat-checkbox formControlName="hautStanding">{{ t('high_standing') }}</mat-checkbox>
+              <mat-checkbox formControlName="appartientResidence">{{ t('residence') }}</mat-checkbox>
             </div>
 
             <h3>{{ t('equipment') }}</h3>
             <div class="checkbox-row">
-              <mat-checkbox formControlName="wifi">WiFi</mat-checkbox>
-              <mat-checkbox formControlName="airCondition">Air Conditioning</mat-checkbox>
-              <mat-checkbox formControlName="pool">Pool</mat-checkbox>
-              <mat-checkbox formControlName="garage">Garage</mat-checkbox>
-              <mat-checkbox formControlName="kitchen">Kitchen</mat-checkbox>
-              <mat-checkbox formControlName="seaView">Sea View</mat-checkbox>
-              <mat-checkbox formControlName="terrace">Terrace</mat-checkbox>
+              <mat-checkbox formControlName="wifi">{{ t('wifi') }}</mat-checkbox>
+              <mat-checkbox formControlName="airCondition">{{ t('air_condition') }}</mat-checkbox>
+              <mat-checkbox formControlName="pool">{{ t('pool') }}</mat-checkbox>
+              <mat-checkbox formControlName="garage">{{ t('garage') }}</mat-checkbox>
+              <mat-checkbox formControlName="kitchen">{{ t('kitchen') }}</mat-checkbox>
+              <mat-checkbox formControlName="seaView">{{ t('sea_view') }}</mat-checkbox>
+              <mat-checkbox formControlName="terrace">{{ t('terrace') }}</mat-checkbox>
             </div>
 
             <div class="form-actions">
               <button mat-stroked-button type="button" routerLink="/properties">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="propertyForm.invalid || loading">
                 <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
-                <span *ngIf="!loading">{{ isEdit ? t('edit_property') : t('add_property') }} {{ t('properties') }}</span>
+                <span *ngIf="!loading">{{ isEdit ? t('save_changes') : t('add_property') }}</span>
               </button>
             </div>
           </form>
@@ -151,7 +156,6 @@ import { AppLanguage, t } from '../../../shared/translations';
   `,
   styles: [`
     .form-container {
-      padding: 1.5rem;
       max-width: 900px;
     }
     .header {
@@ -177,8 +181,6 @@ import { AppLanguage, t } from '../../../shared/translations';
       margin-bottom: 1rem;
     }
     .form-row {
-      display: flex;
-      gap: 1rem;
       margin-bottom: 0.5rem;
     }
     .flex-1 { flex: 1; }
@@ -205,20 +207,19 @@ export class PropertyFormComponent implements OnInit {
   isEdit = false;
   propertyId?: number;
   loading = false;
-  language: AppLanguage = 'fr';
 
   propertyForm: FormGroup = this.fb.group({
     title: ['', Validators.required],
     configuration: [''],
     description: [''],
     address: [''],
-    ownerContact: [''],
-    pricePerDay: [null],
-    pricePerWeek: [null],
-    pricePerMonth: [null],
-    maxCapacity: [null],
-    bathrooms: [null],
-    distanceBeach: [null],
+    ownerContact: ['', Validators.pattern(/^[\d\s+]{8,15}$/)],
+    pricePerDay: [null, Validators.min(0)],
+    pricePerWeek: [null, Validators.min(0)],
+    pricePerMonth: [null, Validators.min(0)],
+    maxCapacity: [null, Validators.min(0)],
+    bathrooms: [null, Validators.min(0)],
+    distanceBeach: [null, Validators.min(0)],
     hautStanding: [false],
     appartientResidence: [false],
     wifi: [false],
@@ -238,14 +239,10 @@ export class PropertyFormComponent implements OnInit {
     private snackBar: MatSnackBar,
     private uiPreferencesService: UiPreferencesService
   ) {
-    this.language = this.uiPreferencesService.getLanguage();
-    this.uiPreferencesService.language$.subscribe((lang) => {
-      this.language = lang;
-    });
   }
 
   t(key: string): string {
-    return t(key, this.language);
+    return t(key, this.uiPreferencesService.getLanguage());
   }
 
   ngOnInit(): void {
@@ -301,10 +298,10 @@ export class PropertyFormComponent implements OnInit {
       : this.propertyService.create(dto);
 
     obs.subscribe({
-      next: () => {
+      next: (saved) => {
         const message = this.isEdit ? this.t('property_update_success') : this.t('property_create_success');
         this.snackBar.open(message, this.t('close'), { duration: 3000 });
-        this.router.navigate(['/properties']);
+        this.router.navigate(saved?.id ? ['/properties', saved.id] : ['/properties']);
       },
       error: (err) => {
         this.loading = false;

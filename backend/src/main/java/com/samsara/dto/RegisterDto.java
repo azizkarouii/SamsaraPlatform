@@ -10,6 +10,7 @@ import lombok.Data;
 @Data
 public class RegisterDto {
     @NotBlank
+    @Size(min = 3)
     private String name;
 
     @Email

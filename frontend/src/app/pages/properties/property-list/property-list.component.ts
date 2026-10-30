@@ -20,7 +20,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { PropertyService } from '../../../services/property.service';
 import { Property } from '../../../models/property.model';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
+import { TRANSLATIONS } from '../../../shared/translations';
 import { ShareDialogComponent } from './share-dialog.component';
 
 @Component({
@@ -47,9 +47,12 @@ import { ShareDialogComponent } from './share-dialog.component';
     MatSnackBarModule,
   ],
   template: `
-    <div class="property-list-container">
-      <div class="header">
-        <h1>{{ t('my_properties') }}</h1>
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1>{{ t('my_properties') }}</h1>
+          <p class="subtitle">{{ t('my_properties_subtitle') }}</p>
+        </div>
         <button mat-raised-button color="primary" routerLink="/properties/add">
           <mat-icon>add</mat-icon> {{ t('add_property') }}
         </button>
@@ -85,10 +88,14 @@ import { ShareDialogComponent } from './share-dialog.component';
               <button mat-raised-button color="primary" routerLink="/properties/add">{{ t('add_first_property') }}</button>
             </div>
 
-            <table mat-table [dataSource]="dataSource" matSort class="property-table" *ngIf="dataSource.data.length > 0">
+            <div class="table-wrap" *ngIf="dataSource.data.length > 0">
+            <table mat-table [dataSource]="dataSource" matSort class="property-table">
               <ng-container matColumnDef="title">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('title_col') }}</th>
-                <td mat-cell *matCellDef="let prop">{{ prop.title }}</td>
+                <td mat-cell *matCellDef="let prop">
+                  <strong>{{ prop.title }}</strong>
+                  <div class="sub" *ngIf="prop.configuration">{{ prop.configuration }}</div>
+                </td>
               </ng-container>
 
               <ng-container matColumnDef="address">
@@ -98,7 +105,7 @@ import { ShareDialogComponent } from './share-dialog.component';
 
               <ng-container matColumnDef="pricePerDay">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('price_day_col') }}</th>
-                <td mat-cell *matCellDef="let prop">{{ (prop.pricePerDay | currency:'TND':'symbol':'1.0-0') || '-' }}</td>
+                <td mat-cell *matCellDef="let prop">{{ prop.pricePerDay ? (prop.pricePerDay | number:'1.0-0') + ' TND' : '-' }}</td>
               </ng-container>
 
               <ng-container matColumnDef="maxCapacity">
@@ -109,21 +116,19 @@ import { ShareDialogComponent } from './share-dialog.component';
               <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef>{{ t('actions_col') }}</th>
                 <td mat-cell *matCellDef="let prop">
-                  <button mat-icon-button color="primary" [routerLink]="['/properties', prop.id]" [matTooltip]="t('view')">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                  <button mat-icon-button color="accent" [routerLink]="['/properties', prop.id, 'edit']" [matTooltip]="t('edit')">
+                  <button mat-icon-button [routerLink]="['/properties', prop.id, 'edit']" (click)="$event.stopPropagation()" [matTooltip]="t('edit')">
                     <mat-icon>edit</mat-icon>
                   </button>
-                  <button mat-icon-button color="accent" (click)="openShareDialog(prop); $event.stopPropagation()" [matTooltip]="t('share')">
-                    <mat-icon>share</mat-icon>
+                  <button mat-icon-button color="primary" (click)="openShareDialog(prop); $event.stopPropagation()" [matTooltip]="t('share')">
+                    <mat-icon>person_add</mat-icon>
                   </button>
                 </td>
               </ng-container>
 
               <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" [routerLink]="['/properties', row.id]"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" (click)="router.navigate(['/properties', row.id])"></tr>
             </table>
+            </div>
 
             <mat-paginator [pageSizeOptions]="[5, 10, 25]" showFirstLastButtons *ngIf="dataSource.data.length > 0"></mat-paginator>
           </ng-template>
@@ -132,8 +137,12 @@ import { ShareDialogComponent } from './share-dialog.component';
     </div>
   `,
   styles: [`
-    .property-list-container {
-      padding: 1.5rem;
+    .sub {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .table-wrap {
+      overflow-x: auto;
     }
     .header {
       display: flex;
@@ -194,19 +203,17 @@ export class PropertyListComponent implements OnInit {
   searchControl = new FormControl('');
   dateControl = new FormControl<Date | null>(null);
   loading = true;
-  language: AppLanguage = 'fr';
 
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   constructor(
     private propertyService: PropertyService,
-    private router: Router,
+    public router: Router,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
     private uiPrefs: UiPreferencesService,
   ) {
-    this.language = this.uiPrefs.getLanguage() as AppLanguage;
   }
 
   ngOnInit(): void {
@@ -223,13 +230,14 @@ export class PropertyListComponent implements OnInit {
 
   openShareDialog(property: Property): void {
     this.dialog.open(ShareDialogComponent, {
-      width: '420px',
+      width: '440px',
+      maxWidth: '95vw',
       data: { propertyId: property.id, propertyTitle: property.title },
     });
   }
 
   t(key: string): string {
-    return TRANSLATIONS[key]?.[this.language] ?? key;
+    return TRANSLATIONS[key]?.[this.uiPrefs.getLanguage()] ?? key;
   }
 
   onDateChange(): void {

@@ -4,14 +4,18 @@ import com.samsara.dto.PropertySamsarInviteDto;
 import com.samsara.entity.PropertySamsar;
 import com.samsara.entity.Property;
 import com.samsara.entity.User;
+import com.samsara.entity.UserRole;
 import com.samsara.repository.PropertySamsarRepository;
-import com.samsara.repository.PropertyRepository;
 import com.samsara.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -21,22 +25,13 @@ public class PropertySamsarService {
     private static final Set<Integer> ALLOWED_PRICE_INCREASES = Set.of(10, 20, 30);
 
     private final PropertySamsarRepository propertySamsarRepository;
-    private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final AccessService accessService;
 
     @Transactional(readOnly = true)
-    public List<PropertySamsar> findAll() {
-        return propertySamsarRepository.findAll();
-    }
-
-    @Transactional(readOnly = true)
-    public List<PropertySamsar> findBySamsar(Long samsarId) {
-        return propertySamsarRepository.findBySamsarId(samsarId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<PropertySamsar> findByProperty(Long propertyId) {
+    public List<PropertySamsar> findByProperty(Long propertyId, Long requesterId) {
+        accessService.requireOwner(propertyId, requesterId);
         return propertySamsarRepository.findByPropertyId(propertyId);
     }
 
@@ -52,56 +47,61 @@ public class PropertySamsarService {
 
     @Transactional
     public PropertySamsar invite(PropertySamsarInviteDto dto, Long ownerId) {
-        Property property = propertyRepository.findById(dto.getPropertyId())
-                .orElseThrow(() -> new RuntimeException("Property not found"));
-        if (!ownerId.equals(property.getCreatedBy())) {
-            throw new RuntimeException("Only the property owner can assign a samsar");
+        if (dto.getPropertyId() == null || dto.getEmail() == null || dto.getPhone() == null) {
+            throw new IllegalArgumentException("Property, email and phone are required");
         }
+        Property property = accessService.requireOwner(dto.getPropertyId(), ownerId);
 
-        User samsar = userRepository.findByEmailAndPhone(dto.getEmail(), dto.getPhone())
+        // Both email and phone must match the same account, whatever the phone formatting
+        String phone = PhoneUtils.normalize(dto.getPhone());
+        User samsar = userRepository.findByEmailIgnoreCase(dto.getEmail().trim())
+                .filter(u -> phone != null && Objects.equals(phone, PhoneUtils.normalize(u.getPhone())))
                 .orElseThrow(() -> new RuntimeException("Samsar not found with that email and phone"));
+        if (samsar.getRole() != UserRole.SAMSAR) {
+            throw new IllegalArgumentException("This account is not a samsar account");
+        }
 
         if (propertySamsarRepository.existsByPropertyIdAndSamsarId(property.getId(), samsar.getId())) {
-            throw new RuntimeException("Samsar already assigned to this property");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Samsar already assigned to this property");
         }
 
-        Integer priceIncreaseTnd = dto.getPriceIncreaseTnd();
-        if (priceIncreaseTnd != null && !ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
-            throw new RuntimeException("Allowed price increases are only 10, 20, or 30 TND");
+        Integer priceIncreaseTnd = dto.getPriceIncreaseTnd() != null ? dto.getPriceIncreaseTnd() : 10;
+        if (!ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
+            throw new IllegalArgumentException("Allowed price increases are only 10, 20, or 30 TND");
         }
 
-        PropertySamsar ps = PropertySamsar.builder()
+        PropertySamsar saved = propertySamsarRepository.save(PropertySamsar.builder()
                 .propertyId(property.getId())
                 .samsarId(samsar.getId())
                 .priceIncreaseTnd(priceIncreaseTnd)
-                .build();
-        PropertySamsar saved = propertySamsarRepository.save(ps);
-            User owner = userRepository.findById(ownerId)
+                .build());
+        User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
-            notificationService.sendPropertyAssignment(samsar.getId(), property, owner);
+        notificationService.sendPropertyAssignment(samsar.getId(), property, owner);
         return saved;
     }
 
+    /** Only the owner decides the margin granted to a samsar. */
     @Transactional
     public PropertySamsar updatePriceIncrease(Long propertyId, Long samsarId, Integer priceIncreaseTnd, Long requesterId) {
         if (priceIncreaseTnd == null || !ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
-            throw new RuntimeException("Allowed price increases are only 10, 20, or 30 TND");
+            throw new IllegalArgumentException("Allowed price increases are only 10, 20, or 30 TND");
         }
+        accessService.requireOwner(propertyId, requesterId);
 
         PropertySamsar relation = propertySamsarRepository.findByPropertyIdAndSamsarId(propertyId, samsarId)
                 .orElseThrow(() -> new RuntimeException("Shared property link not found"));
-
-        Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(() -> new RuntimeException("Property not found"));
-        if (!requesterId.equals(property.getCreatedBy()) && !requesterId.equals(samsarId)) {
-            throw new RuntimeException("Not allowed to update this price increase");
-        }
-
         relation.setPriceIncreaseTnd(priceIncreaseTnd);
         return propertySamsarRepository.save(relation);
     }
 
-    public void remove(Long propertyId, Long samsarId) {
+    /** The owner can revoke a samsar, and a samsar can leave a property himself. */
+    @Transactional
+    public void remove(Long propertyId, Long samsarId, Long requesterId) {
+        Property property = accessService.getProperty(propertyId);
+        if (!accessService.isOwner(property, requesterId) && !requesterId.equals(samsarId)) {
+            throw new AccessDeniedException("Not allowed to remove this samsar");
+        }
         propertySamsarRepository.findByPropertyIdAndSamsarId(propertyId, samsarId)
                 .ifPresent(propertySamsarRepository::delete);
     }

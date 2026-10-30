@@ -28,6 +28,33 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - Guard de redirection : un utilisateur déjà connecté (`token` présent) est redirigé de `/login` vers `/dashboard` (ne peut pas accéder à la page de connexion).
 - Endpoint backend `findByProperty` pour lister les samsars d'une propriété donnée.
 
+### Audit et corrections (31/10/2026)
+
+**Sécurité / contrôle d'accès**
+- Le hash du mot de passe n'est plus sérialisé dans les réponses (`User.password` en `@JsonIgnore`).
+- Règles de propriété centralisées dans `AccessService` : seul le propriétaire modifie/supprime sa maison, gère ses samsars, bloque des dates ; une réservation n'est visible/modifiable que par le samsar qui l'a créée ou le propriétaire de la maison ; les notifications ne sont lisibles/supprimables que par leur destinataire.
+- `GET /reservations`, `/property-samsars`, `/revenues` ne renvoient plus les données de tous les utilisateurs.
+- Jeton absent/expiré → 401 (le front redirige vers la connexion) ; accès refusé → 403 (plus de 401 parasite via `/error`).
+- Page publique : le contact du propriétaire est masqué ; le calendrier utilise `GET /properties/{id}/occupancy` (périodes occupées sans données client).
+
+**Règles métier**
+- Réservation : dates `yyyy-MM-dd` validées (fin ≥ début), acompte ≤ total, **refus des chevauchements** (réservations en attente/confirmées/en cours) et des jours bloqués (HTTP 409).
+- Montant : jours (dernier jour inclus) × prix/jour ; un samsar ne peut pas dépasser prix + sa marge (10/20/30 TND par jour).
+- Workflow strict `pending → confirmed → in-progress → completed`, annulation possible jusqu'à la fin ; tâche planifiée (toutes les 10 min + au démarrage) qui passe les séjours en cours / terminés et enregistre les revenus (`advance`, `completion`).
+- Notifications envoyées au propriétaire, au samsar de la réservation et aux autres samsars de la maison (sauf l'auteur) pour création, modification, changement de statut et suppression.
+- Suppression d'une réservation / maison : nettoyage des notifications, revenus, disponibilités, images et partages (plus d'erreur de clé étrangère) ; une maison avec des réservations actives ne peut pas être supprimée.
+- Disponibilités : upsert par jour + `POST /availabilities/range` (disponible / en attente / indisponible).
+- Partage samsar : téléphone normalisé (`+216 12 345 678` = `12345678`), email insensible à la casse, compte cible obligatoirement SAMSAR ; la marge n'est modifiable que par le propriétaire. Téléphone obligatoire à l'inscription d'un samsar.
+- Profil : `PUT /auth/profile` (nom, téléphone) et `PUT /auth/password`.
+
+**Interface**
+- Formulaire de réservation : correction du décalage de fuseau horaire des dates, jours occupés désactivés dans le calendrier, total suggéré avec marge samsar, récapitulatif financier, préremplissage depuis le calendrier d'une maison.
+- Calendriers dynamiques (mois courant + navigation) au lieu de juin–septembre codés en dur ; blocage de dates par le propriétaire depuis la fiche maison.
+- Tableau de bord traduit, revenus incluant les séjours terminés, suppression du filtre qui masquait octobre–décembre, prochaines arrivées.
+- Listes : statuts traduits et colorés, onglets corrigés (Terminée/Annulée ajoutés), recherche client/téléphone/maison.
+- Menu « Mes samsars » pour le propriétaire, changement de marge via menu (plus de `prompt`), notifications cliquables vers la réservation.
+- Traduction FR/EN/AR complète et immédiate, locale française (dates jj/mm/aaaa, montants « 1 080 TND »), mode sombre homogène, mise en page mobile (barre latérale en surimpression).
+
 ## 1. Présentation Générale
 
 **Projet :** Samsara - Application de Gestion de Locations Saisonnières pour Courtiers  

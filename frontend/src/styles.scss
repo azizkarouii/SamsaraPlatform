@@ -1,55 +1,113 @@
 html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; background: var(--bg-main); color: var(--text-primary); }
+body { margin: 0; font-family: 'Lato', Roboto, "Helvetica Neue", sans-serif; background: var(--bg-main); color: var(--text-primary); }
 
 :root {
-  --bg-main: #f5f5f5;
+  --primary: #3C91E6;
+  --primary-strong: #2563eb;
+  --primary-soft: rgba(60, 145, 230, 0.12);
+  --bg-main: #eef1f5;
   --bg-card: #ffffff;
   --bg-toolbar: #ffffff;
   --bg-sidenav: #fafafa;
   --text-primary: rgba(0,0,0,0.87);
-  --text-secondary: rgba(0,0,0,0.5);
+  --text-secondary: rgba(0,0,0,0.58);
   --border-color: rgba(0,0,0,0.08);
   --surface-hover: rgba(0,0,0,0.04);
   --surface-subtle: rgba(0,0,0,0.03);
   --surface-accent: rgba(63, 81, 181, 0.05);
+
+  /* Status palette shared by chips, calendars and charts */
+  --status-pending: #f59e0b;
+  --status-pending-bg: rgba(245, 158, 11, 0.14);
+  --status-confirmed: #2563eb;
+  --status-confirmed-bg: rgba(37, 99, 235, 0.12);
+  --status-in-progress: #16a34a;
+  --status-in-progress-bg: rgba(22, 163, 74, 0.13);
+  --status-completed: #64748b;
+  --status-completed-bg: rgba(100, 116, 139, 0.14);
+  --status-cancelled: #dc2626;
+  --status-cancelled-bg: rgba(220, 38, 38, 0.12);
+  --day-blocked: #475569;
 }
 
 html.dark-theme {
-  --bg-main: #303030;
-  --bg-card: #424242;
-  --bg-toolbar: #212121;
-  --bg-sidenav: #2c2c2c;
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255,255,255,0.72);
+  --primary-soft: rgba(60, 145, 230, 0.2);
+  --bg-main: #1c1f24;
+  --bg-card: #272b31;
+  --bg-toolbar: #202328;
+  --bg-sidenav: #202328;
+  --text-primary: #f1f3f5;
+  --text-secondary: rgba(255,255,255,0.66);
   --border-color: rgba(255,255,255,0.12);
   --surface-hover: rgba(255,255,255,0.06);
   --surface-subtle: rgba(255,255,255,0.04);
   --surface-accent: rgba(63, 81, 181, 0.16);
+  --status-confirmed: #60a5fa;
+  --status-in-progress: #4ade80;
+  --status-completed: #94a3b8;
+  --status-cancelled: #f87171;
+  --status-pending: #fbbf24;
+  --day-blocked: #94a3b8;
 
   color-scheme: dark;
 
   body {
-    background: #303030;
-    color: #ffffff;
-  }
-
-  .mat-toolbar, .mat-mdc-toolbar {
-    background: var(--bg-toolbar) !important;
-    color: #ffffff !important;
-  }
-
-  .mat-sidenav, .mat-drawer {
-    background: var(--bg-sidenav) !important;
-    color: #ffffff !important;
+    background: var(--bg-main);
+    color: var(--text-primary);
   }
 
   .mat-mdc-card {
     background: var(--bg-card) !important;
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
   }
 
-  .mat-mdc-list-item, .mdc-list-item__content {
-    color: #ffffff !important;
+  .mat-mdc-card-subtitle,
+  .mat-mdc-form-field-hint,
+  .mdc-list-item__secondary-text {
+    color: var(--text-secondary) !important;
+  }
+
+  .mat-mdc-list-item, .mdc-list-item__content, .mdc-list-item__primary-text {
+    color: var(--text-primary) !important;
+  }
+
+  .mat-mdc-table, .mat-mdc-paginator {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .mat-mdc-header-cell, .mat-mdc-cell, .mat-mdc-paginator, .mat-mdc-select-value, .mat-mdc-select-arrow {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-color) !important;
+  }
+
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-text-field__input,
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-floating-label,
+  .mat-mdc-form-field-icon-suffix, .mat-mdc-form-field-text-prefix {
+    color: var(--text-primary) !important;
+  }
+
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
+    border-color: rgba(255,255,255,0.28) !important;
+  }
+
+  .mat-mdc-select-panel, .mat-mdc-menu-panel, .mat-datepicker-content, .mat-mdc-dialog-surface {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+  }
+
+  .mat-mdc-option, .mat-mdc-menu-item, .mat-calendar-body-cell-content, .mat-calendar-table-header, .mat-calendar-period-button, .mat-calendar-arrow {
+    color: var(--text-primary) !important;
+  }
+
+  .mat-mdc-checkbox label, .mat-mdc-tab-link {
+    color: var(--text-primary) !important;
+  }
+
+  .mat-divider {
+    border-top-color: var(--border-color) !important;
   }
 }
 
@@ -64,14 +122,301 @@ html.dark-theme {
 .p-2 { padding: 1rem; }
 .p-3 { padding: 1.5rem; }
 
-mat-card {
-  border-radius: 8px !important;
+mat-card, .mat-mdc-card {
+  border-radius: 14px !important;
 }
 
 .mat-mdc-form-field {
   width: 100%;
 }
 
+/* ---------- Page scaffolding ---------- */
+.page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+/* Grid children default to min-width:auto, which lets wide tables/tabs push the page past the viewport */
+.page > *, .page mat-card, .page .mat-mdc-card {
+  min-width: 0;
+}
+
+[dir='rtl'] .ltr, .ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.page-header .subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--text-secondary);
+}
+
+.empty-state mat-icon {
+  font-size: 3.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  opacity: 0.6;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.info-item .label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.info-item .value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.pill.primary {
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---------- Reservation status chips ---------- */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-chip.status-pending { color: var(--status-pending); background: var(--status-pending-bg); }
+.status-chip.status-confirmed { color: var(--status-confirmed); background: var(--status-confirmed-bg); }
+.status-chip.status-in-progress { color: var(--status-in-progress); background: var(--status-in-progress-bg); }
+.status-chip.status-completed { color: var(--status-completed); background: var(--status-completed-bg); }
+.status-chip.status-cancelled { color: var(--status-cancelled); background: var(--status-cancelled-bg); }
+
+/* ---------- Availability calendars (property detail + availability page) ---------- */
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cal-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1px solid var(--border-color);
+}
+
+.dot.free { background: var(--bg-card); }
+.dot.pending { background: var(--status-pending); border-color: transparent; }
+.dot.reserved { background: var(--status-cancelled); border-color: transparent; }
+.dot.blocked { background: var(--day-blocked); border-color: transparent; }
+.dot.selected { background: var(--primary); border-color: transparent; }
+
+.cal-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.cal-month {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 0.75rem;
+  background: var(--bg-card);
+}
+
+.cal-month h4 {
+  margin: 0 0 0.5rem;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.cal-weekdays, .cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.cal-weekdays span {
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  padding-bottom: 0.25rem;
+}
+
+.cal-day {
+  aspect-ratio: 1 / 1;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.cal-day:hover:not(:disabled):not(.empty) { background: var(--primary-soft); }
+.cal-day.empty { background: transparent; cursor: default; }
+.cal-day.past { opacity: 0.4; cursor: not-allowed; }
+.cal-day.pending { background: var(--status-pending-bg); color: var(--status-pending); font-weight: 700; }
+.cal-day.reserved { background: var(--status-cancelled-bg); color: var(--status-cancelled); font-weight: 700; text-decoration: line-through; }
+.cal-day.blocked { background: repeating-linear-gradient(45deg, var(--surface-subtle), var(--surface-subtle) 3px, var(--status-completed-bg) 3px, var(--status-completed-bg) 6px); color: var(--day-blocked); }
+.cal-day.in-range { background: var(--primary-soft); color: var(--primary); }
+.cal-day.selected { background: var(--primary); color: #fff; font-weight: 700; }
+.cal-day.today { box-shadow: inset 0 0 0 2px var(--primary); }
+
+.cal-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--primary-soft);
+}
+
+.cal-selection .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ---------- Generic responsive form rows ---------- */
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .page-header h1 {
+    font-size: 1.35rem;
+  }
+}
+
+/* RTL adjustments for the hand-made sidebar layout */
 html.dark-theme app-main-layout {
   --light: var(--bg-toolbar);
   --grey: var(--bg-main);
@@ -82,30 +427,10 @@ html.dark-theme app-main-layout {
   --light-orange: rgba(253, 114, 56, 0.18);
 }
 
-html[dir='rtl'] app-main-layout #sidebar {
-  inset-inline-start: auto;
-  inset-inline-end: 0;
-}
-
-html[dir='rtl'] app-main-layout #content {
-  inset-inline-start: auto;
-  inset-inline-end: 280px;
-}
-
-html[dir='rtl'] app-main-layout #content.sidebar-hide {
-  inset-inline-end: 60px;
-}
-
 html[dir='rtl'] app-main-layout #sidebar .side-menu li {
   margin-inline-start: 0;
   margin-inline-end: 6px;
   border-radius: 0 48px 48px 0;
-}
-
-html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::before,
-html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::after {
-  inset-inline-end: auto;
-  inset-inline-start: 0;
 }
 
 html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::before {

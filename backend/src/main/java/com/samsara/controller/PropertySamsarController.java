@@ -4,6 +4,7 @@ import com.samsara.dto.PropertySamsarInviteDto;
 import com.samsara.dto.PropertySamsarPriceUpdateDto;
 import com.samsara.entity.PropertySamsar;
 import com.samsara.service.PropertySamsarService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -18,19 +19,11 @@ public class PropertySamsarController {
 
     private final PropertySamsarService propertySamsarService;
 
-    @GetMapping
-    public ResponseEntity<List<PropertySamsar>> findAll() {
-        return ResponseEntity.ok(propertySamsarService.findAll());
-    }
-
-    @GetMapping("/samsar/{samsarId}")
-    public ResponseEntity<List<PropertySamsar>> findBySamsar(@PathVariable Long samsarId) {
-        return ResponseEntity.ok(propertySamsarService.findBySamsar(samsarId));
-    }
-
     @GetMapping("/property/{propertyId}")
-    public ResponseEntity<List<PropertySamsar>> findByProperty(@PathVariable Long propertyId) {
-        return ResponseEntity.ok(propertySamsarService.findByProperty(propertyId));
+    public ResponseEntity<List<PropertySamsar>> findByProperty(@PathVariable Long propertyId,
+                                                               Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(propertySamsarService.findByProperty(propertyId, userId));
     }
 
     @GetMapping("/mine")
@@ -46,7 +39,7 @@ public class PropertySamsarController {
     }
 
     @PostMapping
-    public ResponseEntity<PropertySamsar> invite(@RequestBody PropertySamsarInviteDto dto,
+    public ResponseEntity<PropertySamsar> invite(@Valid @RequestBody PropertySamsarInviteDto dto,
                                                  Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(propertySamsarService.invite(dto, userId));
@@ -62,8 +55,10 @@ public class PropertySamsarController {
     }
 
     @DeleteMapping("/{propertyId}/{samsarId}")
-    public ResponseEntity<Void> remove(@PathVariable Long propertyId, @PathVariable Long samsarId) {
-        propertySamsarService.remove(propertyId, samsarId);
+    public ResponseEntity<Void> remove(@PathVariable Long propertyId, @PathVariable Long samsarId,
+                                       Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        propertySamsarService.remove(propertyId, samsarId, userId);
         return ResponseEntity.noContent().build();
     }
 

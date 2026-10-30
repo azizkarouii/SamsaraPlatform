@@ -1,9 +1,11 @@
 export type DayStatus = 'free' | 'reserved' | 'pending' | 'blocked';
+export type CalendarLanguage = 'fr' | 'en' | 'ar';
 
 export interface CalendarDay {
   date: string;
   dayNumber: number | null;
   isCurrentMonth: boolean;
+  isPast: boolean;
   status: DayStatus;
 }
 
@@ -14,18 +16,22 @@ export interface CalendarMonth {
   days: CalendarDay[];
 }
 
-const MONTH_LABELS_FR = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-];
+export interface Occupancy {
+  reservations: Array<{ startDate: string; endDate: string; status: string }>;
+  blockedDates: string[];
+}
 
-const MONTH_LABELS_AR = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
-];
+const MONTH_LABELS: Record<CalendarLanguage, string[]> = {
+  fr: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+};
 
-const WEEKDAY_LABELS_FR = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
-const WEEKDAY_LABELS_AR = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+const WEEKDAY_LABELS: Record<CalendarLanguage, string[]> = {
+  fr: ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'],
+  en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+  ar: ['ن', 'ث', 'ر', 'خ', 'ج', 'س', 'ح'],
+};
 
 export function formatIsoDate(date: Date): string {
   const year = date.getFullYear();
@@ -39,79 +45,95 @@ export function parseIsoDate(value: string): Date {
   return new Date(year, month - 1, day);
 }
 
+export function todayIso(): string {
+  return formatIsoDate(new Date());
+}
+
 export function buildCalendarMonth(
   year: number,
   monthIndex: number,
   dayStatuses: Record<string, DayStatus> = {},
-  language: 'fr' | 'en' | 'ar' = 'fr'
+  language: CalendarLanguage = 'fr'
 ): CalendarMonth {
   const firstDay = new Date(year, monthIndex, 1);
   const lastDay = new Date(year, monthIndex + 1, 0);
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = lastDay.getDate();
+  const today = todayIso();
   const days: CalendarDay[] = [];
 
   for (let i = 0; i < startOffset; i++) {
-    days.push({ date: '', dayNumber: null, isCurrentMonth: false, status: 'free' });
+    days.push({ date: '', dayNumber: null, isCurrentMonth: false, isPast: false, status: 'free' });
   }
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, monthIndex, day);
-    const iso = formatIsoDate(date);
+    const iso = formatIsoDate(new Date(year, monthIndex, day));
     days.push({
       date: iso,
       dayNumber: day,
       isCurrentMonth: true,
+      isPast: iso < today,
       status: dayStatuses[iso] || 'free',
     });
   }
 
   while (days.length % 7 !== 0) {
-    days.push({ date: '', dayNumber: null, isCurrentMonth: false, status: 'free' });
+    days.push({ date: '', dayNumber: null, isCurrentMonth: false, isPast: false, status: 'free' });
   }
 
-  return {
-    year,
-    monthIndex,
-    monthLabel: getMonthLabel(monthIndex, language),
-    days,
-  };
+  return { year, monthIndex, monthLabel: getMonthLabel(monthIndex, language), days };
 }
 
-export function getMonthLabel(monthIndex: number, language: 'fr' | 'en' | 'ar' = 'fr'): string {
-  if (language === 'ar') {
-    return MONTH_LABELS_AR[monthIndex];
+/** Builds `count` consecutive months starting at the given month. */
+export function buildCalendarMonths(
+  year: number,
+  monthIndex: number,
+  count: number,
+  dayStatuses: Record<string, DayStatus> = {},
+  language: CalendarLanguage = 'fr'
+): CalendarMonth[] {
+  return Array.from({ length: count }, (_, offset) => {
+    const date = new Date(year, monthIndex + offset, 1);
+    return buildCalendarMonth(date.getFullYear(), date.getMonth(), dayStatuses, language);
+  });
+}
+
+export function getMonthLabel(monthIndex: number, language: CalendarLanguage = 'fr'): string {
+  return (MONTH_LABELS[language] ?? MONTH_LABELS.fr)[monthIndex];
+}
+
+/** "Oct.", "Nov." … (Arabic month names are already short, so they stay whole). */
+export function getShortMonthLabel(monthIndex: number, language: CalendarLanguage = 'fr'): string {
+  const label = getMonthLabel(monthIndex, language);
+  if (language === 'ar' || label.length <= 4) {
+    return label;
   }
-  return MONTH_LABELS_FR[monthIndex];
+  return label.slice(0, 3) + '.';
 }
 
-export function getWeekdayLabels(language: 'fr' | 'en' | 'ar' = 'fr'): string[] {
-  return language === 'ar' ? WEEKDAY_LABELS_AR : WEEKDAY_LABELS_FR;
+export function getWeekdayLabels(language: CalendarLanguage = 'fr'): string[] {
+  return WEEKDAY_LABELS[language] ?? WEEKDAY_LABELS.fr;
 }
 
 export function createDayStatusMap(
   reservations: Array<{ startDate: string; endDate: string; status: string }>,
-  availabilities: Array<{ date: string; status: string }> = []
+  blockedDates: string[] = []
 ): Record<string, DayStatus> {
   const map: Record<string, DayStatus> = {};
 
-  for (const availability of availabilities) {
-    if (availability.status && availability.status !== 'available') {
-      map[availability.date] = 'blocked';
-    }
+  for (const date of blockedDates) {
+    map[date] = 'blocked';
   }
 
   for (const reservation of reservations) {
-    const status = normalizeReservationStatus(reservation.status);
+    const status = toDayStatus(reservation.status);
     if (status === 'free') {
       continue;
     }
-    const start = parseIsoDate(reservation.startDate);
+    const cursor = parseIsoDate(reservation.startDate);
     const end = parseIsoDate(reservation.endDate);
-    const cursor = new Date(start);
     while (cursor <= end) {
-      const iso = formatIsoDate(cursor);
-      map[iso] = status;
+      map[formatIsoDate(cursor)] = status;
       cursor.setDate(cursor.getDate() + 1);
     }
   }
@@ -119,25 +141,23 @@ export function createDayStatusMap(
   return map;
 }
 
-export function getMonthRange(year: number, monthIndex: number): { startDate: string; endDate: string } {
-  const start = new Date(year, monthIndex, 1);
-  const end = new Date(year, monthIndex + 1, 0);
-  return { startDate: formatIsoDate(start), endDate: formatIsoDate(end) };
+/** True when no day of [start, end] is reserved, pending or blocked. */
+export function isRangeFree(startDate: string, endDate: string, dayStatuses: Record<string, DayStatus>): boolean {
+  const cursor = parseIsoDate(startDate);
+  const end = parseIsoDate(endDate);
+  while (cursor <= end) {
+    const status = dayStatuses[formatIsoDate(cursor)];
+    if (status && status !== 'free') {
+      return false;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return true;
 }
 
-export function getSelectedRangeLabel(startDate?: string, endDate?: string, language: 'fr' | 'en' | 'ar' = 'fr'): string {
-  if (!startDate) {
-    return language === 'ar' ? 'اختر تاريخ البداية' : 'Choisissez une date de début';
-  }
-  if (!endDate) {
-    return language === 'ar' ? 'اختر تاريخ النهاية' : 'Choisissez une date de fin';
-  }
-  return `${startDate} → ${endDate}`;
-}
-
-function normalizeReservationStatus(status: string): DayStatus {
+function toDayStatus(status: string): DayStatus {
   const normalized = (status || '').trim().toLowerCase();
-  if (normalized === 'confirmed' || normalized === 'in-progress' || normalized === 'in_progress' || normalized === 'in progress' || normalized === 'reserved') {
+  if (['confirmed', 'in-progress', 'in_progress', 'in progress', 'reserved', 'active'].includes(normalized)) {
     return 'reserved';
   }
   if (normalized === 'pending') {

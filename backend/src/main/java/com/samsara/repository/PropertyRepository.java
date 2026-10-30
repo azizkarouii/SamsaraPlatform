@@ -35,6 +35,22 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
                              @Param("createdBy") Long createdBy,
                              Sort sort);
 
+    /** Properties the user can work with (owned or shared with him) that are free on the whole period. */
+    @Query("SELECT DISTINCT p FROM Property p WHERE (p.createdBy = :userId OR p.id IN (" +
+        "SELECT ps.propertyId FROM PropertySamsar ps WHERE ps.samsarId = :userId)) " +
+        "AND p.id NOT IN (" +
+        "SELECT r.propertyId FROM Reservation r " +
+        "WHERE r.status IN ('pending', 'confirmed', 'in-progress') " +
+        "AND r.startDate <= :endDate AND r.endDate >= :startDate) " +
+        "AND p.id NOT IN (" +
+        "SELECT pa.propertyId FROM PropertyAvailability pa " +
+        "WHERE pa.status <> 'available' " +
+        "AND pa.date BETWEEN :startDate AND :endDate)")
+    List<Property> findAvailableBetweenForUser(@Param("startDate") String startDate,
+                             @Param("endDate") String endDate,
+                             @Param("userId") Long userId,
+                             Sort sort);
+
     @Query("SELECT p FROM Property p WHERE p.createdBy = :createdBy AND p.id NOT IN (" +
         "SELECT r.property.id FROM Reservation r " +
         "WHERE r.status NOT IN ('cancelled', 'completed') " +

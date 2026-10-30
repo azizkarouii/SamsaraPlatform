@@ -2,10 +2,12 @@ package com.samsara.service;
 
 import com.samsara.dto.PropertyDto;
 import com.samsara.entity.Property;
-import com.samsara.repository.PropertyRepository;
-import com.samsara.repository.UserRepository;
+import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import org.springframework.data.domain.Sort;
@@ -16,6 +18,13 @@ public class PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final ReservationRepository reservationRepository;
+    private final RevenueHistoryRepository revenueHistoryRepository;
+    private final NotificationRepository notificationRepository;
+    private final PropertyAvailabilityRepository availabilityRepository;
+    private final PropertyImageRepository propertyImageRepository;
+    private final PropertySamsarRepository propertySamsarRepository;
+    private final AccessService accessService;
 
     public List<Property> findAll() {
         return propertyRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -35,14 +44,14 @@ public class PropertyService {
         return propertyRepository.findAvailableBetween(startDate, endDate, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    public List<Property> findAvailableBetweenByCreator(Long userId, String startDate, String endDate) {
+    public List<Property> findAvailableBetweenForUser(Long userId, String startDate, String endDate) {
         if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
             throw new IllegalArgumentException("Start date and end date are required");
         }
         if (startDate.compareTo(endDate) > 0) {
             throw new IllegalArgumentException("Start date must be before or equal to end date");
         }
-        return propertyRepository.findAvailableBetweenByCreatedBy(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return propertyRepository.findAvailableBetweenForUser(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     public Property findById(Long id) {
@@ -62,6 +71,7 @@ public class PropertyService {
         if (!userRepository.existsById(userId)) {
             throw new RuntimeException("Owner not found");
         }
+        validatePrices(dto);
 
         Property property = Property.builder()
                 .title(dto.getTitle())
@@ -90,8 +100,12 @@ public class PropertyService {
         return propertyRepository.save(property);
     }
 
-    public Property update(Long id, PropertyDto dto) {
-        Property property = findById(id);
+    public Property update(Long id, PropertyDto dto, Long userId) {
+        Property property = accessService.requireOwner(id, userId);
+        validatePrices(dto);
+        if (dto.getTitle() != null && dto.getTitle().isBlank()) {
+            throw new IllegalArgumentException("Title is required");
+        }
         if (dto.getTitle() != null) property.setTitle(dto.getTitle());
         if (dto.getConfiguration() != null) property.setConfiguration(dto.getConfiguration());
         if (dto.getHautStanding() != null) property.setHautStanding(dto.getHautStanding());
@@ -116,8 +130,37 @@ public class PropertyService {
         return propertyRepository.save(property);
     }
 
-    public void delete(Long id) {
-        Property property = findById(id);
+    /**
+     * Deletes a property and its history. Refused while a reservation still holds it so that
+     * no client booking silently disappears.
+     */
+    @Transactional
+    public void delete(Long id, Long userId) {
+        Property property = accessService.requireOwner(id, userId);
+        if (reservationRepository.existsActiveByPropertyId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This property still has pending, confirmed or in-progress reservations");
+        }
+        for (Long reservationId : reservationRepository.findIdsByPropertyId(id)) {
+            revenueHistoryRepository.deleteByReservationId(reservationId);
+            notificationRepository.deleteByReservationId(reservationId);
+            reservationRepository.deleteById(reservationId);
+        }
+        notificationRepository.deleteByPropertyId(id);
+        availabilityRepository.deleteByPropertyId(id);
+        propertyImageRepository.deleteByPropertyId(id);
+        propertySamsarRepository.deleteByPropertyId(id);
         propertyRepository.delete(property);
+    }
+
+    private void validatePrices(PropertyDto dto) {
+        for (Double value : new Double[]{dto.getPricePerDay(), dto.getPricePerWeek(), dto.getPricePerMonth(), dto.getDistanceBeach()}) {
+            if (value != null && value < 0) {
+                throw new IllegalArgumentException("Prices and distances cannot be negative");
+            }
+        }
+        if ((dto.getMaxCapacity() != null && dto.getMaxCapacity() < 0) || (dto.getBathrooms() != null && dto.getBathrooms() < 0)) {
+            throw new IllegalArgumentException("Capacity and bathrooms cannot be negative");
+        }
     }
 }

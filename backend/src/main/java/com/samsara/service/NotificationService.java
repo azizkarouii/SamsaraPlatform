@@ -5,16 +5,21 @@ import com.samsara.entity.Property;
 import com.samsara.entity.Reservation;
 import com.samsara.entity.User;
 import com.samsara.repository.NotificationRepository;
+import com.samsara.repository.PropertySamsarRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final PropertySamsarRepository propertySamsarRepository;
 
     public List<Notification> findByUser(Long userId) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
@@ -22,10 +27,6 @@ public class NotificationService {
 
     public long countUnread(Long userId) {
         return notificationRepository.countByUserIdAndIsReadFalse(userId);
-    }
-
-    public Notification create(Notification notification) {
-        return notificationRepository.save(notification);
     }
 
     public Notification sendPropertyAssignment(Long samsarId, Property property, User owner) {
@@ -40,72 +41,87 @@ public class NotificationService {
     }
 
     public void notifyReservationCreated(Reservation reservation, Property property, User actor) {
-        String title = "Nouvelle réservation";
         String message = actor.getName() + " a réservé " + property.getTitle()
                 + " du " + reservation.getStartDate() + " au " + reservation.getEndDate()
                 + " pour " + reservation.getClientName();
-
-        notifyUsers(reservation, property, title, message, "reservation_created");
+        notifyStakeholders(reservation, property, actor, "Nouvelle réservation", message, "reservation_created", true);
     }
 
-    public void notifyReservationConfirmed(Reservation reservation, Property property, User actor) {
-        String title = "Réservation confirmée";
-        String message = "La réservation de " + property.getTitle()
+    public void notifyReservationUpdated(Reservation reservation, Property property, User actor) {
+        String message = actor.getName() + " a modifié la réservation de " + property.getTitle()
                 + " (" + reservation.getStartDate() + " au " + reservation.getEndDate()
-                + ") pour " + reservation.getClientName() + " a été confirmée par " + actor.getName();
-
-        notifyUsers(reservation, property, title, message, "reservation_confirmed");
+                + ") pour " + reservation.getClientName();
+        notifyStakeholders(reservation, property, actor, "Réservation modifiée", message, "reservation_updated", true);
     }
 
-    public void notifyReservationCancelled(Reservation reservation, Property property, User actor) {
-        String title = "Réservation annulée";
+    public void notifyStatusChanged(Reservation reservation, Property property, User actor, String status) {
+        String title;
+        String verb;
+        switch (status) {
+            case "confirmed" -> { title = "Réservation confirmée"; verb = "confirmée"; }
+            case "in-progress" -> { title = "Séjour commencé"; verb = "passée en cours"; }
+            case "completed" -> { title = "Séjour terminé"; verb = "terminée"; }
+            case "cancelled" -> { title = "Réservation annulée"; verb = "annulée"; }
+            default -> { return; }
+        }
         String message = "La réservation de " + property.getTitle()
                 + " (" + reservation.getStartDate() + " au " + reservation.getEndDate()
-                + ") pour " + reservation.getClientName() + " a été annulée par " + actor.getName();
-
-        notifyUsers(reservation, property, title, message, "reservation_cancelled");
+                + ") pour " + reservation.getClientName() + " a été " + verb
+                + (actor != null ? " par " + actor.getName() : "");
+        notifyStakeholders(reservation, property, actor, title, message, "reservation_" + status.replace('-', '_'), true);
     }
 
     public void notifyReservationDeleted(Reservation reservation, Property property, User actor) {
-        String title = "Réservation supprimée";
         String message = "La réservation de " + property.getTitle()
                 + " (" + reservation.getStartDate() + " au " + reservation.getEndDate()
                 + ") pour " + reservation.getClientName() + " a été supprimée par " + actor.getName();
-
-        notifyUsers(reservation, property, title, message, "reservation_deleted");
+        // The reservation row no longer exists, so the notification must not reference it
+        notifyStakeholders(reservation, property, actor, "Réservation supprimée", message, "reservation_deleted", false);
     }
 
-    private void notifyUsers(Reservation reservation, Property property, String title, String message, String type) {
-        Long ownerId = property.getCreatedBy();
-        Long samsarId = reservation.getSamsarId();
+    /**
+     * Notifies the property owner, the samsar who made the reservation and every samsar the
+     * property is shared with (they share the same calendar), except the user who acted.
+     */
+    private void notifyStakeholders(Reservation reservation, Property property, User actor,
+                                    String title, String message, String type, boolean linkReservation) {
+        Set<Long> recipients = new LinkedHashSet<>();
+        recipients.add(property.getCreatedBy());
+        recipients.add(reservation.getSamsarId());
+        recipients.addAll(propertySamsarRepository.findSamsarIdsByPropertyId(property.getId()));
+        if (actor != null) {
+            recipients.remove(actor.getId());
+        }
+        recipients.remove(null);
 
-        if (!ownerId.equals(samsarId)) {
-            save(ownerId, reservation, property.getId(), title, message, type);
+        for (Long userId : recipients) {
+            notificationRepository.save(Notification.builder()
+                    .userId(userId)
+                    .propertyId(property.getId())
+                    .reservationId(linkReservation ? reservation.getId() : null)
+                    .type(type)
+                    .title(title)
+                    .message(message)
+                    .isRead(false)
+                    .build());
         }
     }
 
-    private void save(Long userId, Reservation reservation, Long propertyId, String title, String message, String type) {
-        notificationRepository.save(Notification.builder()
-                .userId(userId)
-                .propertyId(propertyId)
-                .reservationId(reservation.getId())
-                .type(type)
-                .title(title)
-                .message(message)
-                .isRead(false)
-                .build());
-    }
-
-    public Notification markAsRead(Long id) {
-        Notification notification = notificationRepository.findById(id)
+    public Notification markAsRead(Long id, Long userId) {
+        Notification notification = notificationRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
         notification.setIsRead(true);
         return notificationRepository.save(notification);
     }
 
+    @Transactional
     public void markAllAsRead(Long userId) {
-        List<Notification> notifications = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        notifications.forEach(n -> n.setIsRead(true));
-        notificationRepository.saveAll(notifications);
+        notificationRepository.markAllAsRead(userId);
+    }
+
+    public void delete(Long id, Long userId) {
+        Notification notification = notificationRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+        notificationRepository.delete(notification);
     }
 }

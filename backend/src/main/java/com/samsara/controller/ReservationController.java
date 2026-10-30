@@ -19,13 +19,15 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @GetMapping
-    public ResponseEntity<List<Reservation>> findAll() {
-        return ResponseEntity.ok(reservationService.findAll());
+    public ResponseEntity<List<Reservation>> findAll(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.findVisibleTo(userId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Reservation> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(reservationService.findById(id));
+    public ResponseEntity<Reservation> findById(@PathVariable Long id, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.findById(id, userId));
     }
 
     @GetMapping("/mine")
@@ -41,8 +43,9 @@ public class ReservationController {
     }
 
     @GetMapping("/property/{propertyId}")
-    public ResponseEntity<List<Reservation>> findByProperty(@PathVariable Long propertyId) {
-        return ResponseEntity.ok(reservationService.findByProperty(propertyId));
+    public ResponseEntity<List<Reservation>> findByProperty(@PathVariable Long propertyId, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.findByProperty(propertyId, userId));
     }
 
     @PostMapping
@@ -54,19 +57,24 @@ public class ReservationController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<Reservation> update(@PathVariable Long id,
-                                              @RequestBody ReservationDto dto) {
-        return ResponseEntity.ok(reservationService.update(id, dto));
+                                              @RequestBody ReservationDto dto,
+                                              Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.update(id, dto, userId));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<Reservation> updateStatus(@PathVariable Long id,
-                                                    @RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(reservationService.updateStatus(id, body.get("status")));
+                                                    @RequestBody Map<String, String> body,
+                                                    Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.updateStatus(id, body.get("status"), userId));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        reservationService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        reservationService.delete(id, userId);
         return ResponseEntity.noContent().build();
     }
 }

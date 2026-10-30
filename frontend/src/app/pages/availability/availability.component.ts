@@ -4,469 +4,227 @@ import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatChipsModule } from '@angular/material/chips';
 import { AuthService } from '../../services/auth.service';
 import { AvailabilityService } from '../../services/availability.service';
-import { PropertyService } from '../../services/property.service';
 import { PropertySamsarService } from '../../services/property-samsar.service';
-import { Property } from '../../models/property.model';
-import { PropertySamsar } from '../../models/property-samsar.model';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
-import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
-import { CalendarDay, CalendarMonth, buildCalendarMonth, getMonthLabel, getWeekdayLabels } from '../../shared/calendar-utils';
-
-interface MonthOption {
-  value: string;
-  year: number;
-  monthIndex: number;
-  label: string;
-}
-
-const MAX_SUMMER_MONTH_INDEX = 8;
+import { Property } from '../../models/property.model';
+import { countReservationDays } from '../../models/reservation.model';
+import { CalendarDay, CalendarMonth, buildCalendarMonths, getWeekdayLabels, todayIso } from '../../shared/calendar-utils';
+import { t } from '../../shared/translations';
 
 @Component({
   selector: 'app-availability',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatSelectModule,
-    MatFormFieldModule,
-    MatProgressSpinnerModule,
-    MatChipsModule,
-  ],
+  imports: [CommonModule, RouterModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   template: `
-    <div class="availability-page">
-      <div class="page-head">
+    <div class="page">
+      <div class="page-header">
         <div>
-          <p class="eyebrow">{{ t('availability_section') }}</p>
           <h1>{{ t('availability_section') }}</h1>
-        </div>
-        <div class="range-pill">
-          <span>{{ t('selected_period') }}:</span>
-          <strong>{{ rangeLabel }}</strong>
+          <p class="subtitle">{{ t('availability_subtitle') }}</p>
         </div>
       </div>
 
-      <div class="controls-row">
-        <mat-form-field appearance="outline" class="month-field">
-          <mat-label>{{ t('select_month') }}</mat-label>
-          <mat-select [value]="selectedMonthValue" (selectionChange)="onMonthChange($event.value)">
-            <mat-option *ngFor="let month of monthOptions" [value]="month.value">{{ month.label }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <div class="range-actions">
-          <button mat-stroked-button type="button" (click)="resetRange()">{{ t('cancel') }}</button>
-          <button mat-raised-button color="primary" type="button" (click)="searchAvailable()" [disabled]="!startDate || !endDate || loadingAvailable">
-            {{ t('search_available_houses') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="calendar-grid">
-        <div class="calendar-strip">
-          <mat-card class="calendar-card" *ngFor="let month of visibleMonths; let index = index">
-            <mat-card-header>
-              <mat-card-title>{{ month.monthLabel }} {{ month.year }}</mat-card-title>
-              <mat-card-subtitle>{{ index === 0 ? t('choose_period') : index === 2 ? t('selected_period') : t('choose_period') }}</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <div class="weekdays compact">
-                <span *ngFor="let label of weekdayLabels">{{ label }}</span>
-              </div>
-              <div class="days-grid compact">
-                <button
-                  type="button"
-                  class="day-cell"
-                  *ngFor="let day of month.days"
-                  [class.empty]="!day.dayNumber"
-                  [class.selected]="day.date === startDate || day.date === endDate"
-                  [class.in-range]="isInRange(day.date)"
-                  (click)="selectDay(day)"
-                >
-                  <span>{{ day.dayNumber }}</span>
-                </button>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-
-        <mat-card class="results-card">
-          <mat-card-header>
-            <mat-card-title>{{ t('available_houses') }}</mat-card-title>
-          </mat-card-header>
+      <div class="layout">
+        <mat-card>
           <mat-card-content>
-            <div *ngIf="!accessibleLoaded" class="loading-state">
-              <mat-spinner diameter="36"></mat-spinner>
-            </div>
-            <div *ngIf="loadingAvailable" class="loading-state">
-              <mat-spinner diameter="36"></mat-spinner>
+            <div class="cal-toolbar">
+              <div class="range">
+                <mat-icon>date_range</mat-icon>
+                <span *ngIf="!startDate">{{ t('choose_start_date') }}</span>
+                <span *ngIf="startDate && !endDate"><strong>{{ startDate | date:'dd/MM/yyyy' }}</strong> → {{ t('choose_end_date') }}</span>
+                <span *ngIf="startDate && endDate"><strong>{{ startDate | date:'dd/MM/yyyy' }}</strong> → <strong>{{ endDate | date:'dd/MM/yyyy' }}</strong> ({{ days }} {{ t('days_short') }})</span>
+              </div>
+              <div class="cal-nav">
+                <button mat-icon-button (click)="shift(-1)" [disabled]="offset === 0" [attr.aria-label]="t('previous')"><mat-icon class="flip-rtl">chevron_left</mat-icon></button>
+                <button mat-stroked-button (click)="offset = 0; rebuild()">{{ t('today') }}</button>
+                <button mat-icon-button (click)="shift(1)" [attr.aria-label]="t('next')"><mat-icon class="flip-rtl">chevron_right</mat-icon></button>
+              </div>
             </div>
 
-            <div *ngIf="accessibleLoaded && !loadingAvailable && availableProperties.length === 0" class="empty-state">
+            <div class="cal-months">
+              <div class="cal-month" *ngFor="let month of months">
+                <h4>{{ month.monthLabel }} {{ month.year }}</h4>
+                <div class="cal-weekdays"><span *ngFor="let label of weekdayLabels">{{ label }}</span></div>
+                <div class="cal-days">
+                  <button type="button" class="cal-day" *ngFor="let day of month.days"
+                          [class.empty]="!day.dayNumber"
+                          [class.past]="day.isPast"
+                          [class.today]="day.date === today"
+                          [class.selected]="day.date && (day.date === startDate || day.date === endDate)"
+                          [class.in-range]="isInRange(day.date)"
+                          [disabled]="!day.dayNumber || day.isPast"
+                          (click)="selectDay(day)">
+                    {{ day.dayNumber }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button mat-button (click)="resetRange()" [disabled]="!startDate">{{ t('clear_filter') }}</button>
+              <button mat-raised-button color="primary" (click)="searchAvailable()" [disabled]="!startDate || loading">
+                <mat-icon>search</mat-icon> {{ t('search_available_houses') }}
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="results">
+          <mat-card-content>
+            <h3>{{ t('available_houses') }} <span class="pill" *ngIf="searched">{{ results.length }}</span></h3>
+            <div *ngIf="loading" class="loading-container"><mat-spinner diameter="36"></mat-spinner></div>
+
+            <div *ngIf="!loading && !searched" class="empty-state">
+              <mat-icon>touch_app</mat-icon>
+              <p>{{ t('availability_hint') }}</p>
+            </div>
+            <div *ngIf="!loading && searched && !results.length" class="empty-state">
               <mat-icon>home_work</mat-icon>
               <p>{{ t('no_available_houses') }}</p>
             </div>
 
-            <div class="result-list" *ngIf="availableProperties.length">
-              <a class="result-item" *ngFor="let property of availableProperties" [routerLink]="['/public/properties', property.id]">
-                <div>
-                  <h3>{{ property.title }}</h3>
-                  <p>{{ property.address || '-' }}</p>
+            <div class="result-list" *ngIf="!loading && results.length">
+              <div class="result" *ngFor="let property of results">
+                <a class="result-main" [routerLink]="['/properties', property.id]">
+                  <strong>{{ property.title }}</strong>
+                  <span>{{ property.address || property.configuration || '-' }}</span>
+                </a>
+                <div class="result-side">
+                  <span class="price" *ngIf="property.pricePerDay">
+                    {{ priceFor(property) | number:'1.0-0' }} TND
+                    <small *ngIf="days">· {{ priceFor(property) * days | number:'1.0-0' }} TND {{ t('total_short') }}</small>
+                  </span>
+                  <a mat-stroked-button color="primary" [routerLink]="['/reservations/add']"
+                     [queryParams]="{ propertyId: property.id, start: startDate, end: endDate || startDate }">
+                    {{ t('book') }}
+                  </a>
                 </div>
-                <mat-chip-set>
-                  <mat-chip color="primary" selected>{{ property.pricePerDay | currency:'TND':'symbol':'1.0-0' }}/day</mat-chip>
-                </mat-chip-set>
-              </a>
+              </div>
             </div>
           </mat-card-content>
         </mat-card>
       </div>
-
-      <mat-card class="legend-card">
-        <mat-card-content>
-          <div class="legend-line">
-            <span class="legend-dot outline"></span>
-            <span>{{ t('choose_period') }}</span>
-          </div>
-          <div class="legend-line">
-            <span class="legend-dot primary"></span>
-            <span>{{ t('selected_period') }}</span>
-          </div>
-        </mat-card-content>
-      </mat-card>
     </div>
   `,
   styles: [`
-    .availability-page {
-      display: grid;
-      gap: 1.25rem;
-      padding: 1.5rem;
+    .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 1.25rem; align-items: start; }
+    .range { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .range mat-icon { color: var(--primary); }
+    .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+    h3 { margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; }
+    .results { position: sticky; top: 72px; }
+    .result-list { display: grid; gap: 0.6rem; }
+    .result {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+      padding: 0.75rem; border-radius: 12px; border: 1px solid var(--border-color); background: var(--surface-subtle);
     }
-    .page-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    .eyebrow {
-      margin: 0 0 0.25rem;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 0.75rem;
-      opacity: 0.65;
-    }
-    h1 {
-      margin: 0;
-      font-size: 1.8rem;
-    }
-    .range-pill {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      padding: 0.75rem 1rem;
-      border-radius: 16px;
-      background: var(--bg-card);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    }
-    .controls-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    .month-field {
-      min-width: 240px;
-      flex: 1;
-    }
-    .range-actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
-      gap: 1rem;
-    }
-    .calendar-strip {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1rem;
-      align-items: start;
-    }
-    .calendar-card, .results-card, .legend-card {
-      border-radius: 20px;
-    }
-    .weekdays, .days-grid {
-      display: grid;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 0.5rem;
-    }
-    .weekdays.compact span {
-      font-size: 0.68rem;
-    }
-    .weekdays {
-      margin-bottom: 0.5rem;
-    }
-    .weekdays span {
-      text-align: center;
-      font-size: 0.75rem;
-      opacity: 0.7;
-    }
-    .day-cell {
-      aspect-ratio: 1 / 1;
-      border: 1px solid var(--border-color);
-      border-radius: 14px;
-      background: transparent;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.9rem;
-      transition: transform 0.15s ease, background 0.15s ease;
-    }
-    .day-cell:hover {
-      transform: translateY(-1px);
-      background: var(--surface-hover);
-    }
-    .day-cell.empty {
-      border: none;
-      background: transparent;
-      cursor: default;
-    }
-    .day-cell.selected {
-      outline: 2px solid var(--blue);
-      outline-offset: 1px;
-    }
-    .day-cell.in-range {
-      box-shadow: inset 0 0 0 999px rgba(59, 130, 246, 0.08);
-    }
-    .result-list {
-      display: grid;
-      gap: 0.75rem;
-    }
-    .result-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      padding: 0.9rem 1rem;
-      border-radius: 16px;
-      text-decoration: none;
-      color: inherit;
-      background: var(--surface-subtle);
-      border: 1px solid var(--border-color);
-    }
-    .result-item h3 {
-      margin: 0 0 0.25rem;
-      font-size: 1rem;
-    }
-    .result-item p {
-      margin: 0;
-      opacity: 0.75;
-      font-size: 0.85rem;
-    }
-    .loading-state, .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 220px;
-      gap: 0.75rem;
-    }
-    .empty-state mat-icon {
-      font-size: 3rem;
-      width: 3rem;
-      height: 3rem;
-      opacity: 0.5;
-    }
-    .legend-line {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin: 0.25rem 0;
-    }
-    .legend-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 1px solid var(--border-color);
-      display: inline-block;
-    }
-    .legend-dot.primary {
-      background: rgba(60, 145, 230, 0.2);
-      border-color: rgba(60, 145, 230, 0.5);
-    }
-    .hint {
-      opacity: 0.7;
-    }
+    .result-main { display: flex; flex-direction: column; min-width: 0; flex: 1; color: inherit; text-decoration: none; }
+    .result-main span { font-size: 0.8rem; color: var(--text-secondary); }
+    .result-side { display: flex; align-items: center; gap: 0.6rem; }
+    .price { font-weight: 700; font-size: 0.9rem; display: flex; flex-direction: column; align-items: flex-end; }
+    .price small { font-weight: 400; color: var(--text-secondary); }
+    :host-context(html[dir='rtl']) .flip-rtl { transform: scaleX(-1); }
     @media (max-width: 960px) {
-      .calendar-grid {
-        grid-template-columns: 1fr;
-      }
-      .calendar-strip {
-        grid-template-columns: 1fr;
-      }
+      .layout { grid-template-columns: 1fr; }
+      .results { position: static; }
     }
   `]
 })
 export class AvailabilityComponent implements OnInit {
-  language: AppLanguage = 'fr';
-  monthOptions: MonthOption[] = [];
-  selectedMonthValue = '';
-  calendar!: CalendarMonth;
-  visibleMonths: CalendarMonth[] = [];
-  weekdayLabels = getWeekdayLabels('fr');
+  months: CalendarMonth[] = [];
+  offset = 0;
   startDate = '';
   endDate = '';
-  rangeLabel = '';
-  loadingAvailable = false;
-  accessibleLoaded = false;
-  availableProperties: Property[] = [];
-  private accessiblePropertyIds = new Set<number>();
+  loading = false;
+  searched = false;
+  results: Property[] = [];
+  readonly today = todayIso();
+  private margins = new Map<number, number>();
 
   constructor(
     private authService: AuthService,
     private availabilityService: AvailabilityService,
-    private propertyService: PropertyService,
     private propertySamsarService: PropertySamsarService,
     private uiPrefs: UiPreferencesService,
-  ) {
-    this.language = this.uiPrefs.getLanguage() as AppLanguage;
-    const year = new Date().getFullYear();
-    this.monthOptions = [5, 6, 7, 8].map(monthIndex => ({
-      value: `${year}-${monthIndex}`,
-      year,
-      monthIndex,
-      label: getMonthLabel(monthIndex, this.language),
-    }));
-    this.selectedMonthValue = this.monthOptions[1].value;
-    this.rebuildVisibleMonths();
-    this.weekdayLabels = getWeekdayLabels(this.language);
-    this.rangeLabel = this.t('choose_period');
-  }
+  ) {}
 
   ngOnInit(): void {
-    this.loadAccessibleProperties();
+    this.rebuild();
+    if (this.authService.getCurrentUser()?.role === 'SAMSAR') {
+      this.propertySamsarService.findMine().subscribe(rels =>
+        rels.forEach(r => this.margins.set(r.propertyId, r.priceIncreaseTnd || 0)));
+    }
   }
 
   t(key: string): string {
-    return TRANSLATIONS[key]?.[this.language] ?? key;
+    return t(key, this.uiPrefs.getLanguage());
   }
 
-  onMonthChange(value: string): void {
-    this.selectedMonthValue = value;
-    this.rebuildVisibleMonths();
-    this.startDate = '';
-    this.endDate = '';
-    this.rangeLabel = this.t('choose_period');
-    this.availableProperties = [];
+  get weekdayLabels(): string[] {
+    return getWeekdayLabels(this.uiPrefs.getLanguage());
+  }
+
+  get days(): number {
+    return countReservationDays(this.startDate, this.endDate || this.startDate);
+  }
+
+  priceFor(property: Property): number {
+    return (property.pricePerDay || 0) + (this.margins.get(property.id) || 0);
+  }
+
+  rebuild(): void {
+    const now = new Date();
+    this.months = buildCalendarMonths(now.getFullYear(), now.getMonth() + this.offset, 2, {}, this.uiPrefs.getLanguage());
+  }
+
+  shift(delta: number): void {
+    this.offset = Math.max(0, this.offset + delta * 2);
+    this.rebuild();
   }
 
   selectDay(day: CalendarDay): void {
-    if (!day.dayNumber) {
-      return;
-    }
+    if (!day.dayNumber || day.isPast) return;
     if (!this.startDate || this.endDate) {
       this.startDate = day.date;
       this.endDate = '';
-      this.rangeLabel = day.date;
-      return;
-    }
-    if (day.date < this.startDate) {
+    } else if (day.date < this.startDate) {
       this.endDate = this.startDate;
       this.startDate = day.date;
     } else {
       this.endDate = day.date;
     }
-    this.rangeLabel = `${this.startDate} → ${this.endDate}`;
-    this.rebuildVisibleMonths();
+    this.searched = false;
+    this.results = [];
+  }
+
+  isInRange(date: string): boolean {
+    return !!date && !!this.startDate && !!this.endDate && date > this.startDate && date < this.endDate;
   }
 
   resetRange(): void {
     this.startDate = '';
     this.endDate = '';
-    this.availableProperties = [];
-    this.rangeLabel = this.t('choose_period');
+    this.searched = false;
+    this.results = [];
   }
 
   searchAvailable(): void {
-    if (!this.startDate || !this.endDate) {
-      return;
-    }
-    this.loadingAvailable = true;
-    this.availabilityService.findAvailable(this.startDate, this.endDate).subscribe({
+    if (!this.startDate) return;
+    this.loading = true;
+    this.availabilityService.findAvailable(this.startDate, this.endDate || this.startDate).subscribe({
       next: (properties) => {
-        this.availableProperties = properties.filter(property => this.accessiblePropertyIds.has(property.id));
-        this.loadingAvailable = false;
+        this.results = properties;
+        this.loading = false;
+        this.searched = true;
       },
       error: () => {
-        this.availableProperties = [];
-        this.loadingAvailable = false;
+        this.results = [];
+        this.loading = false;
+        this.searched = true;
       },
     });
-  }
-
-  private resolveMonthValue(value: string): { year: number; monthIndex: number } {
-    const [year, monthIndex] = value.split('-').map(Number);
-    return { year, monthIndex };
-  }
-
-  private loadAccessibleProperties(): void {
-    const user = this.authService.getCurrentUser();
-    if (!user) {
-      this.accessibleLoaded = true;
-      return;
-    }
-
-    if (user.role === 'PROPRIETAIRE') {
-      this.propertyService.findMine().subscribe({
-        next: (properties) => {
-          this.accessiblePropertyIds = new Set(properties.map(property => property.id));
-          this.accessibleLoaded = true;
-        },
-        error: () => {
-          this.accessibleLoaded = true;
-        },
-      });
-      return;
-    }
-
-    this.propertySamsarService.findMine().subscribe({
-      next: (relations: PropertySamsar[]) => {
-        this.accessiblePropertyIds = new Set(relations.map(relation => relation.propertyId));
-        this.accessibleLoaded = true;
-      },
-      error: () => {
-        this.accessibleLoaded = true;
-      },
-    });
-  }
-
-  private rebuildVisibleMonths(): void {
-    const base = this.resolveMonthValue(this.selectedMonthValue);
-    const remainingMonths = Math.max(1, MAX_SUMMER_MONTH_INDEX - base.monthIndex + 1);
-    this.visibleMonths = Array.from({ length: Math.min(3, remainingMonths) }, (_, offset) => {
-      const date = new Date(base.year, base.monthIndex + offset, 1);
-      return buildCalendarMonth(date.getFullYear(), date.getMonth(), {}, this.language);
-    });
-    this.calendar = this.visibleMonths[0];
-  }
-
-  isInRange(date: string): boolean {
-    if (!this.startDate || !this.endDate || !date) {
-      return false;
-    }
-    return date > this.startDate && date < this.endDate;
   }
 }

@@ -10,7 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
+import { TRANSLATIONS } from '../../../shared/translations';
 
 @Component({
   selector: 'app-share-dialog',
@@ -29,16 +29,18 @@ import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
   template: `
     <h2 mat-dialog-title>{{ t('invite_samsar') }}</h2>
     <mat-dialog-content>
-      <p class="dialog-subtitle">{{ t('invite_samsar_sub') }}</p>
+      <p class="dialog-subtitle"><strong>{{ data.propertyTitle }}</strong> — {{ t('invite_samsar_sub') }}</p>
       <form [formGroup]="form">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>{{ t('samsar_email') }}</mat-label>
           <input matInput type="email" formControlName="email" />
+          <mat-error>{{ t('email_invalid') }}</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline" class="full-width phone-field">
           <mat-label>{{ t('samsar_phone') }}</mat-label>
           <span matTextPrefix>+216&nbsp;</span>
-          <input matInput formControlName="phone" placeholder="12345678" />
+          <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
+          <mat-error>{{ t('phone_invalid') }}</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>{{ t('allowed_increase') }}</mat-label>
@@ -47,6 +49,7 @@ import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
             <mat-option [value]="20">20 TND</mat-option>
             <mat-option [value]="30">30 TND</mat-option>
           </mat-select>
+          <mat-hint>{{ t('margin_explained') }}</mat-hint>
         </mat-form-field>
       </form>
     </mat-dialog-content>
@@ -58,18 +61,17 @@ import { TRANSLATIONS, AppLanguage } from '../../../shared/translations';
     </mat-dialog-actions>
   `,
   styles: [`
-    .dialog-subtitle { color: rgba(0,0,0,0.6); font-size: 0.9rem; margin-bottom: 1rem; }
+    .dialog-subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem; }
     .full-width { width: 100%; margin-bottom: 0.5rem; }
   `]
 })
 export class ShareDialogComponent {
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
-    phone: ['', Validators.required],
+    phone: ['', [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]],
     priceIncreaseTnd: [10, Validators.required],
   });
   submitting = false;
-  language: AppLanguage = 'fr';
 
   constructor(
     public dialogRef: MatDialogRef<ShareDialogComponent>,
@@ -79,7 +81,6 @@ export class ShareDialogComponent {
     private snackBar: MatSnackBar,
     private uiPrefs: UiPreferencesService,
   ) {
-    this.language = this.uiPrefs.getLanguage() as AppLanguage;
   }
 
   submit(): void {
@@ -98,12 +99,12 @@ export class ShareDialogComponent {
       },
       error: (err) => {
         this.submitting = false;
-        this.snackBar.open(err.error?.message || 'Error', this.t('close'), { duration: 4000 });
+        this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
       },
     });
   }
 
   t(key: string): string {
-    return TRANSLATIONS[key]?.[this.language] ?? key;
+    return TRANSLATIONS[key]?.[this.uiPrefs.getLanguage()] ?? key;
   }
 }

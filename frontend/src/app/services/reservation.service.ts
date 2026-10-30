@@ -10,7 +10,6 @@ export interface CreateReservationDto {
   endDate: string;
   checkInTime: string;
   checkOutTime: string;
-  status: string;
   clientName: string;
   clientPhone?: string;
   advanceAmount: number;
