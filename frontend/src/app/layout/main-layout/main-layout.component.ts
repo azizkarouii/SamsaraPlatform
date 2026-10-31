@@ -26,401 +26,195 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     MatTooltipModule,
   ],
   template: `
+    <a class="skip-link" href="#main-content" (click)="focusMain($event)">{{ t('skip_to_content') }}</a>
     <div class="sidebar-backdrop" *ngIf="isMobile && !sidebarHidden" (click)="sidebarHidden = true"></div>
-    <section id="sidebar" [class.hide]="sidebarHidden" [class.mobile]="isMobile" (click)="onSidebarClick($event)">
-      <a class="brand">
-        <i class='bx bxs-building-house'></i>
-        <span class="text">{{ t('app_title') }}</span>
+
+    <aside id="sidebar" [class.hide]="sidebarHidden" [class.mobile]="isMobile" (click)="onSidebarClick($event)">
+      <a class="brand" routerLink="/dashboard">
+        <span class="brand-mark"><mat-icon>holiday_village</mat-icon></span>
+        <span class="text auth-brand">{{ t('app_title') }}</span>
       </a>
-      <ul class="side-menu top">
-        <li [class.active]="router.url === '/dashboard'">
-          <a routerLink="/dashboard">
-            <i class='bx bxs-dashboard'></i>
-            <span class="text">{{ t('dashboard') }}</span>
-          </a>
-        </li>
-        <li *ngIf="user?.role === 'PROPRIETAIRE'" [class.active]="router.url.startsWith('/properties')">
-          <a routerLink="/properties">
-            <i class='bx bxs-home'></i>
-            <span class="text">{{ t('my_houses') }}</span>
-          </a>
-        </li>
-        <li [class.active]="router.url.startsWith('/shared-houses')">
-          <a routerLink="/shared-houses">
-            <i class='bx' [ngClass]="user?.role === 'PROPRIETAIRE' ? 'bxs-group' : 'bxs-hotel'"></i>
-            <span class="text">{{ user?.role === 'PROPRIETAIRE' ? t('my_samsars') : t('shared_houses') }}</span>
-          </a>
-        </li>
-        <li [class.active]="router.url.startsWith('/reservations')">
-          <a routerLink="/reservations">
-            <i class='bx bxs-calendar-check'></i>
-            <span class="text">{{ t('reservations') }}</span>
-          </a>
-        </li>
-        <li [class.active]="router.url.startsWith('/availability')">
-          <a routerLink="/availability">
-            <i class='bx bxs-calendar'></i>
-            <span class="text">{{ t('availability') }}</span>
-          </a>
-        </li>
-        <li [class.active]="router.url.startsWith('/notifications')">
-          <a routerLink="/notifications">
-            <i class='bx bxs-bell'></i>
-            <span class="text">{{ t('notifications') }}</span>
-          </a>
-        </li>
-      </ul>
-      <ul class="side-menu">
-        <li [class.active]="router.url.startsWith('/profile')">
-          <a routerLink="/profile">
-            <i class='bx bxs-user'></i>
-            <span class="text">{{ t('profile') }}</span>
-          </a>
-        </li>
-        <li>
-          <a class="logout" (click)="logout()">
-            <i class='bx bxs-log-out-circle'></i>
-            <span class="text">{{ t('logout') }}</span>
-          </a>
-        </li>
-      </ul>
-    </section>
+
+      <nav class="side-nav" [attr.aria-label]="t('main_navigation')">
+        <ul class="side-menu">
+          <li *ngFor="let item of navItems" routerLinkActive="active" #rla="routerLinkActive">
+            <a [routerLink]="item.path"
+               [attr.aria-current]="rla.isActive ? 'page' : null"
+               [matTooltip]="sidebarHidden && !isMobile ? t(item.label) : ''" matTooltipPosition="after">
+              <mat-icon aria-hidden="true">{{ item.icon }}</mat-icon>
+              <span class="text">{{ t(item.label) }}</span>
+              <span class="count" *ngIf="item.path === '/notifications' && unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </a>
+          </li>
+        </ul>
+
+        <ul class="side-menu bottom">
+          <li routerLinkActive="active" #rlp="routerLinkActive">
+            <a routerLink="/profile"
+               [attr.aria-current]="rlp.isActive ? 'page' : null"
+               [matTooltip]="sidebarHidden && !isMobile ? t('profile') : ''" matTooltipPosition="after">
+              <mat-icon aria-hidden="true">person</mat-icon>
+              <span class="text">{{ t('profile') }}</span>
+            </a>
+          </li>
+          <li>
+            <button type="button" class="logout" (click)="logout()"
+                    [matTooltip]="sidebarHidden && !isMobile ? t('logout') : ''" matTooltipPosition="after">
+              <mat-icon aria-hidden="true">logout</mat-icon>
+              <span class="text">{{ t('logout') }}</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+    </aside>
 
     <section id="content" [class.sidebar-hide]="sidebarHidden">
-      <nav>
-        <i (click)="toggleSidebar()" class='bx bx-menu'></i>
+      <header class="topbar">
+        <button mat-icon-button type="button" class="nav-btn" (click)="toggleSidebar()"
+                [attr.aria-label]="t('toggle_menu')" [attr.aria-expanded]="!sidebarHidden" aria-controls="sidebar">
+          <mat-icon>menu</mat-icon>
+        </button>
         <div class="nav-spacer"></div>
 
-        <a class="notification" routerLink="/notifications">
-          <i class='bx bxs-bell'></i>
-          <span class="num" *ngIf="unreadCount > 0">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        <a mat-icon-button class="nav-btn" routerLink="/notifications"
+           [attr.aria-label]="t('notifications') + (unreadCount ? ' (' + unreadCount + ' ' + t('unread') + ')' : '')"
+           [matTooltip]="t('notifications')">
+          <mat-icon [matBadge]="unreadCount > 99 ? '99+' : unreadCount" [matBadgeHidden]="!unreadCount"
+                    matBadgeColor="warn" matBadgeSize="small">notifications</mat-icon>
         </a>
 
-        <button mat-icon-button [matMenuTriggerFor]="languageMenu" [matTooltip]="t('language')" class="nav-btn">
+        <button mat-icon-button type="button" [matMenuTriggerFor]="languageMenu" [matTooltip]="t('language')"
+                [attr.aria-label]="t('language')" class="nav-btn">
           <mat-icon>translate</mat-icon>
         </button>
         <mat-menu #languageMenu="matMenu">
-          <button mat-menu-item *ngFor="let lang of languages" (click)="setLanguage(lang.code)">
+          <button mat-menu-item *ngFor="let lang of languages" (click)="setLanguage(lang.code)"
+                  role="menuitemradio" [attr.aria-checked]="language === lang.code">
             <mat-icon>{{ language === lang.code ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
             <span>{{ lang.label }}</span>
           </button>
         </mat-menu>
 
-        <button mat-icon-button (click)="toggleTheme()" [matTooltip]="t(themeMode === 'dark' ? 'light_mode' : 'dark_mode')" class="nav-btn">
+        <button mat-icon-button type="button" (click)="toggleTheme()" class="nav-btn"
+                [matTooltip]="t(themeMode === 'dark' ? 'light_mode' : 'dark_mode')"
+                [attr.aria-label]="t(themeMode === 'dark' ? 'light_mode' : 'dark_mode')">
           <mat-icon>{{ themeMode === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
 
         <a class="profile" *ngIf="user" routerLink="/profile">
-          <span class="avatar">{{ initials }}</span>
-          <span class="username">{{ user.name }}</span>
-          <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
+          <span class="avatar" aria-hidden="true">{{ initials }}</span>
+          <span class="identity">
+            <span class="username">{{ user.name }}</span>
+            <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
+          </span>
         </a>
+      </header>
 
-      </nav>
-
-      <main>
+      <main id="main-content" tabindex="-1">
         <router-outlet></router-outlet>
       </main>
     </section>
   `,
   styles: [`
-    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
-
-    :host * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    :host {
-      --light: #F9F9F9;
-      --blue: #3C91E6;
-      --light-blue: #CFE8FF;
-      --grey: #eee;
-      --dark-grey: #AAAAAA;
-      --dark: #342E37;
-      --red: #DB504A;
-      --yellow: #FFCE26;
-      --light-yellow: #FFF2C6;
-      --orange: #FD7238;
-      --light-orange: #FFE0D3;
-      display: flex;
-      font-family: 'Lato', sans-serif;
-    }
-
+    :host { display: flex; --sidebar-w: 264px; --sidebar-w-collapsed: 72px; --topbar-h: 60px; }
     a { text-decoration: none; }
-    li { list-style: none; }
+    ul { list-style: none; margin: 0; padding: 0; }
 
     /* SIDEBAR */
     #sidebar {
-      position: fixed;
-      top: 0;
-      inset-inline-start: 0;
-      width: 280px;
-      height: 100%;
-      background: var(--light);
-      z-index: 2000;
-      font-family: 'Lato', sans-serif;
-      transition: .3s ease;
-      overflow-x: hidden;
-      scrollbar-width: none;
-      display: flex;
-      flex-direction: column;
+      position: fixed; top: 0; inset-inline-start: 0; z-index: 2000;
+      width: var(--sidebar-w); height: 100dvh; display: flex; flex-direction: column;
+      background: var(--bg-sidenav);
+      overflow-x: hidden; scrollbar-width: none;
+      transition: width var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
     }
-    #sidebar::-webkit-scrollbar { display: none; }
-    #sidebar.hide {
-      width: 60px;
+    #sidebar.hide { width: var(--sidebar-w-collapsed); }
+    .brand {
+      display: flex; align-items: center; gap: 0.75rem; height: var(--topbar-h); flex-shrink: 0;
+      padding-inline: 16px; color: var(--primary); font-size: 1.3rem; white-space: nowrap;
     }
-    #sidebar .brand {
-      font-size: 22px;
-      font-weight: 700;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      color: var(--blue);
-      position: sticky;
-      top: 0;
-      inset-inline-start: 0;
-      background: var(--light);
-      z-index: 500;
-      padding-bottom: 20px;
-      box-sizing: content-box;
-      white-space: nowrap;
-      overflow: hidden;
+    .brand-mark {
+      min-width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--primary); color: var(--on-primary);
     }
-    #sidebar .brand i {
-      min-width: 60px;
-      display: flex;
-      justify-content: center;
-      font-size: 1.5rem;
+    .side-nav { flex: 1; display: flex; flex-direction: column; padding: 12px; padding-inline-end: 0; }
+    .side-menu { display: grid; gap: 4px; }
+    .side-menu li { position: relative; }
+    .side-menu.bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); }
+    .side-menu a, .side-menu button {
+      position: relative; width: calc(100% - 12px); height: 44px; display: flex; align-items: center; gap: 12px;
+      padding-inline: 12px; border: 0; border-radius: 22px; background: transparent;
+      color: var(--text-secondary); font: inherit; font-size: 0.95rem; font-weight: 500;
+      white-space: nowrap; overflow: hidden;
+      transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
     }
-    #sidebar .side-menu {
-      width: 100%;
-      margin-top: 24px;
-      padding: 0;
+    .side-menu a:hover, .side-menu button:hover { background: var(--surface-hover); color: var(--text-primary); }
+    /* Active item = a tab that merges into the page background, with inverted rounded corners */
+    .side-menu li.active a {
+      width: 100%; padding-inline-end: 24px; background: var(--bg-main); color: var(--primary); font-weight: 600;
+      border-start-end-radius: 0; border-end-end-radius: 0;
+      border-start-start-radius: 22px; border-end-start-radius: 22px;
     }
-    #sidebar .side-menu.top {
-      flex: 1;
+    .side-menu li.active::before, .side-menu li.active::after {
+      --x: 0; content: ''; position: absolute; inset-inline-end: 0; width: 20px; height: 20px; pointer-events: none;
     }
-    #sidebar .side-menu li {
-      height: 48px;
-      background: transparent;
-      margin-inline-start: 6px;
-      border-radius: 48px 0 0 48px;
-      padding: 4px;
+    .side-menu li.active::before { top: -20px; background: radial-gradient(circle at var(--x) 0, transparent 20px, var(--bg-main) 20.5px); }
+    .side-menu li.active::after { bottom: -20px; background: radial-gradient(circle at var(--x) 100%, transparent 20px, var(--bg-main) 20.5px); }
+    :host-context([dir='rtl']) .side-menu li.active::before, :host-context([dir='rtl']) .side-menu li.active::after { --x: 100%; }
+    .side-menu mat-icon { flex-shrink: 0; }
+    .count {
+      margin-inline-start: auto; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+      background: #DC2626; color: #fff; font-size: 0.72rem; font-weight: 700;
+      line-height: 20px; text-align: center; font-variant-numeric: tabular-nums;
     }
-    #sidebar .side-menu li.active {
-      background: var(--grey);
-      position: relative;
-    }
-    #sidebar .side-menu li.active::before {
-      content: '';
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      top: -40px;
-      inset-inline-end: 0;
-      box-shadow: 20px 20px 0 var(--grey);
-      z-index: -1;
-    }
-    #sidebar .side-menu li.active::after {
-      content: '';
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      bottom: -40px;
-      inset-inline-end: 0;
-      box-shadow: 20px -20px 0 var(--grey);
-      z-index: -1;
-    }
-    #sidebar .side-menu li a {
-      width: 100%;
-      height: 100%;
-      background: var(--light);
-      display: flex;
-      align-items: center;
-      border-radius: 48px;
-      font-size: 16px;
-      color: var(--dark);
-      white-space: nowrap;
-      overflow-x: hidden;
-      cursor: pointer;
-    }
-    #sidebar .side-menu li.active a {
-      color: var(--blue);
-    }
-    #sidebar.hide .side-menu li a {
-      width: calc(48px - (4px * 2));
-      transition: width .3s ease;
-    }
-    #sidebar .side-menu li a.logout {
-      color: var(--red);
-    }
-    #sidebar .side-menu.top li a:hover {
-      color: var(--blue);
-    }
-    #sidebar .side-menu li a i {
-      min-width: calc(60px - ((4px + 6px) * 2));
-      display: flex;
-      justify-content: center;
-      font-size: 1.3rem;
-    }
-    #sidebar .side-menu .settings a:hover {
-      color: var(--blue);
-    }
-    /* SIDEBAR */
+    .side-menu .logout { color: var(--status-cancelled); }
+    .side-menu .logout:hover { background: var(--status-cancelled-bg); color: var(--status-cancelled); }
+    #sidebar.hide .text, #sidebar.hide .count { opacity: 0; }
 
     /* CONTENT */
     #content {
-      position: relative;
-      width: calc(100% - 280px);
-      margin-inline-start: 280px;
-      transition: .3s ease;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
+      position: relative; display: flex; flex-direction: column; min-height: 100dvh; min-width: 0;
+      width: calc(100% - var(--sidebar-w)); margin-inline-start: var(--sidebar-w);
+      transition: margin var(--duration-base) var(--ease-out), width var(--duration-base) var(--ease-out);
     }
-    #content.sidebar-hide {
-      width: calc(100% - 60px);
-      margin-inline-start: 60px;
-    }
-    .sidebar-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      z-index: 1999;
-    }
-    @media (max-width: 768px) {
-      #sidebar.mobile.hide {
-        width: 0;
-      }
-      #content, #content.sidebar-hide {
-        width: 100%;
-        margin-inline-start: 0;
-      }
-      #content nav {
-        padding: 0 12px;
-        gap: 8px;
-      }
-      #content main {
-        padding: 1rem;
-      }
-    }
+    #content.sidebar-hide { width: calc(100% - var(--sidebar-w-collapsed)); margin-inline-start: var(--sidebar-w-collapsed); }
+    .sidebar-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.45); z-index: 1999; }
 
-    /* NAVBAR */
-    #content nav {
-      height: 56px;
-      background: var(--light);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-family: 'Lato', sans-serif;
-      position: sticky;
-      top: 0;
-      z-index: 1000;
+    /* TOPBAR (frosted glass) */
+    .topbar {
+      position: sticky; top: 0; z-index: 1000; height: var(--topbar-h);
+      display: flex; align-items: center; gap: 8px; padding: 0 24px;
+      background: color-mix(in srgb, var(--bg-toolbar) 80%, transparent);
+      backdrop-filter: saturate(160%) blur(14px);
       border-bottom: 1px solid var(--border-color);
     }
-    #content nav .bx-menu {
-      cursor: pointer;
-      color: var(--dark);
-      font-size: 1.5rem;
+    .nav-spacer { flex: 1; }
+    .nav-btn { color: var(--text-secondary); }
+    .profile {
+      display: flex; align-items: center; gap: 10px; margin-inline-start: 8px;
+      padding: 4px 12px 4px 4px; border-radius: 999px; color: var(--text-primary);
+      transition: background var(--duration-fast) ease;
     }
-    #content nav .bx-menu:hover {
-      color: var(--blue);
+    .profile:hover { background: var(--surface-hover); }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--primary); color: var(--on-primary); font-size: 0.8rem; font-weight: 700;
     }
-    #content nav .notification {
-      font-size: 1.3rem;
-      position: relative;
-      color: var(--dark);
-      display: flex;
-      align-items: center;
-    }
-    #content nav .notification .num {
-      position: absolute;
-      top: -6px;
-      inset-inline-end: -6px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--red);
-      color: white;
-      font-weight: 700;
-      font-size: 11px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      line-height: 1;
-    }
-    #content nav .profile {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      color: var(--dark);
-    }
-    #content nav .profile .username {
-      font-size: 0.9rem;
-    }
-    #content nav .profile .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--blue);
-      color: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      font-weight: 700;
-    }
-    #content nav .profile .role-badge {
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 2px 8px;
-      border-radius: 10px;
-      background: var(--light-blue);
-      color: var(--blue);
-    }
-    .nav-spacer {
-      flex: 1;
-    }
-    .nav-btn {
-      width: 36px;
-      height: 36px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .nav-btn mat-icon {
-      font-size: 20px;
-      line-height: 1;
-    }
-    @media (max-width: 768px) {
-      #content nav .profile .username,
-      #content nav .profile .role-badge {
-        display: none;
-      }
-    }
-    /* NAVBAR */
+    .identity { display: flex; flex-direction: column; line-height: 1.2; }
+    .username { font-size: 0.875rem; font-weight: 600; }
+    .role-badge { font-size: 0.72rem; color: var(--text-secondary); }
 
-    #content main {
-      flex: 1;
-      padding: 1.5rem;
-      background: var(--grey);
-      color: var(--text-primary);
-      min-width: 0;
-    }
-    @media (max-width: 768px) {
-      #content main {
-        padding: 1rem;
-      }
-    }
+    main { flex: 1; width: 100%; max-width: 1440px; margin-inline: auto; padding: 1.5rem; box-sizing: border-box; min-width: 0; }
 
+    @media (max-width: 768px) {
+      #sidebar.mobile.hide { width: var(--sidebar-w); transform: translateX(-100%); visibility: hidden; }
+      :host-context([dir='rtl']) #sidebar.mobile.hide { transform: translateX(100%); }
+      #content, #content.sidebar-hide { width: 100%; margin-inline-start: 0; }
+      .topbar { padding: 0 8px 0 4px; gap: 2px; }
+      .identity { display: none; }
+      .profile { padding: 2px; }
+      main { padding: 1rem; }
+    }
   `]
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -443,6 +237,26 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     private uiPreferencesService: UiPreferencesService,
     public router: Router
   ) {}
+
+  navItems: { path: string; icon: string; label: string }[] = [];
+
+  private buildNavItems(): { path: string; icon: string; label: string }[] {
+    const isOwner = this.user?.role === 'PROPRIETAIRE';
+    return [
+      { path: '/dashboard', icon: 'space_dashboard', label: 'dashboard' },
+      ...(isOwner ? [{ path: '/properties', icon: 'home_work', label: 'my_houses' }] : []),
+      { path: '/shared-houses', icon: isOwner ? 'groups' : 'apartment', label: isOwner ? 'my_samsars' : 'shared_houses' },
+      { path: '/reservations', icon: 'event_available', label: 'reservations' },
+      { path: '/availability', icon: 'calendar_month', label: 'availability' },
+      { path: '/notifications', icon: 'notifications', label: 'notifications' },
+    ];
+  }
+
+  /** Skip link: move keyboard focus past the navigation without changing the route. */
+  focusMain(event: Event): void {
+    event.preventDefault();
+    document.getElementById('main-content')?.focus();
+  }
 
   get initials(): string {
     return (this.user?.name || '?')
@@ -472,6 +286,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.onResize();
     this.user = this.authService.getCurrentUser();
+    this.navItems = this.buildNavItems();
     this.language = this.uiPreferencesService.getLanguage();
     this.themeMode = this.uiPreferencesService.getTheme();
     this.loadUnreadCount();

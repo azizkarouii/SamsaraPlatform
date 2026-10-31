@@ -52,7 +52,7 @@ import { todayIso } from '../../../shared/calendar-utils';
           <a mat-stroked-button *ngIf="editable" [routerLink]="['/reservations', r.id, 'edit']">
             <mat-icon>edit</mat-icon> {{ t('edit') }}
           </a>
-          <button mat-stroked-button color="warn" (click)="deleteReservation()">
+          <button mat-stroked-button color="warn" *ngIf="canManage" (click)="deleteReservation()">
             <mat-icon>delete</mat-icon> {{ t('delete') }}
           </button>
         </div>
@@ -68,11 +68,12 @@ import { todayIso } from '../../../shared/calendar-utils';
               <span class="step-label">{{ t(statusKey(s)) }}</span>
             </div>
           </div>
+          <p class="read-only" *ngIf="!canManage"><mat-icon inline>visibility</mat-icon> {{ t('reservation_read_only') }}</p>
           <ng-template #cancelledBanner>
             <div class="cancelled-banner"><mat-icon>cancel</mat-icon> {{ t('reservation_cancelled_banner') }}</div>
           </ng-template>
 
-          <div class="status-actions" *ngIf="nextStatuses.length">
+          <div class="status-actions" *ngIf="canManage && nextStatuses.length">
             <span class="hint">{{ t('next_step') }}</span>
             <button mat-raised-button *ngFor="let next of nextStatuses"
                     [color]="next === 'cancelled' ? 'warn' : 'primary'"
@@ -172,6 +173,7 @@ import { todayIso } from '../../../shared/calendar-utils';
       width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
       font-size: 0.8rem; font-weight: 700; background: var(--surface-subtle); border: 2px solid var(--border-color); flex-shrink: 0;
     }
+    .read-only { display: flex; align-items: center; gap: 0.4rem; margin: 0.75rem 0 0; font-size: 0.85rem; color: var(--text-secondary); }
     .step.done .bullet { background: var(--status-in-progress); border-color: var(--status-in-progress); color: #fff; }
     .step.current { color: var(--text-primary); font-weight: 700; }
     .step.current .bullet { border-color: var(--primary); color: var(--primary); }
@@ -238,8 +240,14 @@ export class ReservationDetailComponent implements OnInit {
     return (STATUS_TRANSITIONS[this.status] ?? []).filter(s => !(s === 'in-progress' && this.startsLater));
   }
 
+  /** Only the samsar who booked it and the owner of the house manage a reservation; other samsars just read it. */
+  get canManage(): boolean {
+    const r = this.reservation;
+    return !!r && (r.samsarId === this.currentUserId || r.property?.createdBy === this.currentUserId);
+  }
+
   get editable(): boolean {
-    return this.status !== 'completed' && this.status !== 'cancelled';
+    return this.canManage && this.status !== 'completed' && this.status !== 'cancelled';
   }
 
   get days(): number {

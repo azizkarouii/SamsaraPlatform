@@ -90,7 +90,7 @@ import { t } from '../../../shared/translations';
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('property_label') }}</th>
                 <td mat-cell *matCellDef="let res">
                   {{ res.property?.title || '#' + res.propertyId }}
-                  <div class="by" *ngIf="isOwner && res.samsar && res.samsarId !== currentUserId">{{ t('by') }} {{ res.samsar.name }}</div>
+                  <div class="by" *ngIf="res.samsar && res.samsarId !== currentUserId">{{ t('by') }} {{ res.samsar.name }}</div>
                 </td>
               </ng-container>
 
@@ -245,7 +245,8 @@ export class ReservationListComponent implements OnInit, AfterViewInit {
 
   canEdit(res: Reservation): boolean {
     const status = normalizeReservationStatus(res.status);
-    return status !== 'completed' && status !== 'cancelled';
+    const manager = res.samsarId === this.currentUserId || res.property?.createdBy === this.currentUserId;
+    return manager && status !== 'completed' && status !== 'cancelled';
   }
 
   open(res: Reservation): void {

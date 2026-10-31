@@ -125,7 +125,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     .narrow { max-width: 960px; }
     .identity mat-card-content { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding-top: 1rem !important; }
     .avatar {
-      width: 72px; height: 72px; border-radius: 50%; background: var(--primary); color: #fff;
+      width: 72px; height: 72px; border-radius: 50%; background: var(--primary); color: var(--on-primary);
       display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 700;
     }
     .who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; flex: 1; min-width: 200px; }
@@ -197,7 +197,9 @@ export class ProfileComponent implements OnInit {
     forkJoin({
       count: houses$.pipe(catchError(() => of([]))),
       reservations: (isSamsar ? this.reservationService.findMine() : this.reservationService.findByOwner()).pipe(catchError(() => of([] as Reservation[]))),
-    }).subscribe(({ count, reservations }) => {
+    }).subscribe(({ count, reservations: all }) => {
+      // A samsar also reads the other bookings of his houses, but his figures only count his own
+      const reservations = isSamsar ? all.filter(r => r.samsarId === this.user?.id) : all;
       this.propertyCount = count.length;
       this.reservationCount = reservations.length;
       this.totalRevenue = reservations.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + (r.totalAmount || 0), 0);

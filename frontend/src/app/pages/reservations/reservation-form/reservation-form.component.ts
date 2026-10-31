@@ -20,7 +20,8 @@ import { AvailabilityService } from '../../../services/availability.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { Property } from '../../../models/property.model';
 import { countReservationDays } from '../../../models/reservation.model';
-import { DayStatus, createDayStatusMap, formatIsoDate, isRangeFree, parseIsoDate, todayIso } from '../../../shared/calendar-utils';
+import { DayStatus, createDayStatusMap, formatIsoDate, isDayBookable, isRangeFree, parseIsoDate, rangeHasPending, todayIso } from '../../../shared/calendar-utils';
+import { MatCalendarCellClassFunction } from '@angular/material/datepicker';
 import { t } from '../../../shared/translations';
 
 interface BookableProperty { property: Property; margin: number; }
@@ -90,19 +91,20 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
                 <mat-label>{{ t('start_date_label') }}</mat-label>
                 <input matInput [matDatepicker]="startPicker" [matDatepickerFilter]="dateFilter" [min]="minDate" formControlName="startDate" />
                 <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
-                <mat-datepicker #startPicker></mat-datepicker>
+                <mat-datepicker #startPicker [dateClass]="dateClass"></mat-datepicker>
                 <mat-error>{{ t('start_date_required') }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('end_date_label') }}</mat-label>
                 <input matInput [matDatepicker]="endPicker" [matDatepickerFilter]="dateFilter" [min]="form.value.startDate ?? minDate" formControlName="endDate" />
                 <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
-                <mat-datepicker #endPicker [startAt]="form.value.startDate ?? null"></mat-datepicker>
+                <mat-datepicker #endPicker [startAt]="form.value.startDate ?? null" [dateClass]="dateClass"></mat-datepicker>
                 <mat-error>{{ t('end_date_required') }}</mat-error>
               </mat-form-field>
             </div>
             <div class="inline-error" *ngIf="form.hasError('dateRange')"><mat-icon>error</mat-icon>{{ t('end_before_start') }}</div>
             <div class="inline-error" *ngIf="rangeConflict"><mat-icon>event_busy</mat-icon>{{ t('dates_unavailable') }}</div>
+            <div class="inline-warning" *ngIf="!rangeConflict && rangeOverridesPending"><mat-icon>hourglass_top</mat-icon>{{ t('dates_have_pending') }}</div>
 
             <div class="form-row">
               <mat-form-field appearance="outline">
@@ -168,6 +170,7 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
               <mat-label>{{ t('advance_amount_label') }}</mat-label>
               <input matInput type="number" min="0" formControlName="advanceAmount" />
               <span matTextSuffix>TND</span>
+              <mat-hint *ngIf="!isEdit">{{ t('advance_confirms_hint') }}</mat-hint>
             </mat-form-field>
             <div class="inline-error" *ngIf="form.hasError('advanceTooHigh')"><mat-icon>error</mat-icon>{{ t('advance_above_total') }}</div>
 
@@ -198,6 +201,8 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
     .submit { width: 100%; height: 44px; }
     .submit mat-spinner { margin: 0 auto; }
     .inline-error { display: flex; align-items: center; gap: 0.35rem; color: var(--status-cancelled); font-size: 0.82rem; margin: -0.5rem 0 0.75rem; }
+    .inline-warning { display: flex; align-items: flex-start; gap: 0.35rem; color: var(--status-pending); font-size: 0.82rem; margin: -0.5rem 0 0.75rem; }
+    .inline-warning mat-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
     .inline-error mat-icon { font-size: 18px; width: 18px; height: 18px; }
     @media (max-width: 960px) {
       .layout { grid-template-columns: 1fr; }
@@ -374,11 +379,20 @@ export class ReservationFormComponent implements OnInit {
       && !isRangeFree(this.startIso, this.endIso, this.dayStatuses);
   }
 
+  /** Selected dates cover a pending request: allowed, it is overridden if this booking is confirmed first. */
+  get rangeOverridesPending(): boolean {
+    return !!this.startIso && !!this.endIso && this.endIso >= this.startIso
+      && rangeHasPending(this.startIso, this.endIso, this.dayStatuses);
+  }
+
   dateFilter = (date: Date | null): boolean => {
     if (!date) return true;
-    const status = this.dayStatuses[formatIsoDate(date)];
-    return !status || status === 'free';
+    return isDayBookable(this.dayStatuses[formatIsoDate(date)]);
   };
+
+  /** Pending requests stay visible (orange) in the pickers even though their dates remain bookable. */
+  dateClass: MatCalendarCellClassFunction<Date> = (date, view) =>
+    view === 'month' && this.dayStatuses[formatIsoDate(date)] === 'pending' ? 'date-pending' : '';
 
   onPropertyChange(): void {
     const propertyId = this.form.getRawValue().propertyId;

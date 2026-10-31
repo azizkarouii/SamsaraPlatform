@@ -28,6 +28,11 @@ export class PropertySamsarService {
     return this.http.post<PropertySamsar>(this.apiUrl, dto);
   }
 
+  /** Shares every house of the connected owner with the samsar (already shared houses are skipped). */
+  inviteToAllProperties(dto: Omit<PropertySamsarInviteDto, 'propertyId'>): Observable<PropertySamsar[]> {
+    return this.http.post<PropertySamsar[]>(`${this.apiUrl}/all-properties`, dto);
+  }
+
   updatePriceIncrease(propertyId: number, samsarId: number, priceIncreaseTnd: number): Observable<PropertySamsar> {
     return this.http.patch<PropertySamsar>(`${this.apiUrl}/${propertyId}/${samsarId}/price-increase`, { priceIncreaseTnd });
   }

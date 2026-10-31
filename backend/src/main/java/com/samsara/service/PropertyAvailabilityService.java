@@ -82,6 +82,10 @@ public class PropertyAvailabilityService {
         if (!reservationRepository.findOverlapping(propertyId, startDate, endDate, -1L).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Some of these dates are already reserved");
         }
+        // Blocking dates under a pending request would leave it impossible to honour: cancel it first
+        if (!reservationRepository.findPendingOverlapping(propertyId, startDate, endDate, -1L).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A pending reservation uses some of these dates: cancel it first");
+        }
 
         List<PropertyAvailability> result = new ArrayList<>();
         for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {

@@ -27,6 +27,7 @@ import {
   createDayStatusMap,
   getWeekdayLabels,
   isRangeFree,
+  rangeHasPending,
   todayIso,
 } from '../../../shared/calendar-utils';
 import { t } from '../../../shared/translations';
@@ -50,7 +51,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
   ],
   template: `
     <div [class.public-shell]="publicView">
-      <div *ngIf="publicView" class="public-brand"><i class='bx bxs-building-house'></i> Samsara</div>
+      <div *ngIf="publicView" class="public-brand"><mat-icon aria-hidden="true">holiday_village</mat-icon> <span class="auth-brand">Samsara</span></div>
 
       <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
@@ -165,6 +166,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
                     <button mat-button (click)="clearSelection()">{{ t('cancel') }}</button>
                   </div>
                   <div class="selection-warning" *ngIf="endDate && !rangeFree"><mat-icon inline>warning</mat-icon> {{ t('dates_unavailable') }}</div>
+                  <div class="selection-warning pending" *ngIf="endDate && rangeFree && rangeOverridesPending"><mat-icon inline>hourglass_top</mat-icon> {{ t('dates_have_pending') }}</div>
                 </div>
               </mat-card-content>
             </mat-card>
@@ -238,6 +240,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
     .equipment { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .cal-legend { margin-top: 0.5rem; }
     .selection-warning { width: 100%; color: var(--status-cancelled); font-size: 0.85rem; }
+    .selection-warning.pending { color: var(--status-pending); }
     .price-main { margin: 0.75rem 0 0.25rem; font-size: 1rem; }
     .price-main strong { font-size: 2rem; }
     .margin-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
@@ -312,6 +315,10 @@ export class PropertyDetailComponent implements OnInit {
 
   get canGoBack(): boolean {
     return this.monthOffset > 0;
+  }
+
+  get rangeOverridesPending(): boolean {
+    return !!this.startDate && !!this.endDate && rangeHasPending(this.startDate, this.endDate, this.dayStatuses);
   }
 
   get rangeFree(): boolean {

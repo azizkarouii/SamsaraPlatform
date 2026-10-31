@@ -141,18 +141,35 @@ export function createDayStatusMap(
   return map;
 }
 
-/** True when no day of [start, end] is reserved, pending or blocked. */
+/**
+ * A pending reservation (no advance yet) does not hold its dates: they stay bookable, shown in orange,
+ * and the pending request is cancelled once another booking of those dates is confirmed.
+ */
+export function isDayBookable(status: DayStatus | undefined): boolean {
+  return status !== 'reserved' && status !== 'blocked';
+}
+
+/** True when no day of [start, end] is reserved (confirmed / in progress) or blocked by the owner. */
 export function isRangeFree(startDate: string, endDate: string, dayStatuses: Record<string, DayStatus>): boolean {
+  return !rangeHasStatus(startDate, endDate, dayStatuses, status => !isDayBookable(status));
+}
+
+/** True when some day of [start, end] carries a pending request that a confirmed booking would override. */
+export function rangeHasPending(startDate: string, endDate: string, dayStatuses: Record<string, DayStatus>): boolean {
+  return rangeHasStatus(startDate, endDate, dayStatuses, status => status === 'pending');
+}
+
+function rangeHasStatus(startDate: string, endDate: string, dayStatuses: Record<string, DayStatus>,
+                        predicate: (status: DayStatus | undefined) => boolean): boolean {
   const cursor = parseIsoDate(startDate);
   const end = parseIsoDate(endDate);
   while (cursor <= end) {
-    const status = dayStatuses[formatIsoDate(cursor)];
-    if (status && status !== 'free') {
-      return false;
+    if (predicate(dayStatuses[formatIsoDate(cursor)])) {
+      return true;
     }
     cursor.setDate(cursor.getDate() + 1);
   }
-  return true;
+  return false;
 }
 
 function toDayStatus(status: string): DayStatus {

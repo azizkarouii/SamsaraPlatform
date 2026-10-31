@@ -20,11 +20,18 @@ import { PropertySamsar } from '../../models/property-samsar.model';
 import { Property } from '../../models/property.model';
 import { User } from '../../models/auth.model';
 import { t } from '../../shared/translations';
+import { forkJoin, map } from 'rxjs';
 
-interface GroupedSamsars {
-  propertyTitle: string;
-  propertyId: number;
-  samsars: PropertySamsar[];
+interface SamsarGroup {
+  samsarId: number;
+  name: string;
+  email: string;
+  phone: string;
+  relations: PropertySamsar[];
+  /** True when the samsar has access to every house of the owner. */
+  allHouses: boolean;
+  /** Margin shared by all his houses, or null when they differ. */
+  commonMargin: number | null;
 }
 
 @Component({
@@ -74,6 +81,9 @@ interface GroupedSamsars {
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('property_label') }}</mat-label>
                 <mat-select formControlName="propertyId">
+                  <mat-option [value]="ALL">
+                    <strong>{{ t('all_my_houses') }}</strong> ({{ ownedProperties.length }})
+                  </mat-option>
                   <mat-option *ngFor="let property of ownedProperties" [value]="property.id">{{ property.title }}</mat-option>
                 </mat-select>
               </mat-form-field>
@@ -104,39 +114,70 @@ interface GroupedSamsars {
         </mat-card>
 
         <h2 class="section-title">{{ t('invited_samsars') }}</h2>
-        <mat-card *ngIf="!groupedSamsars.length">
+        <mat-card *ngIf="!samsarGroups.length">
           <mat-card-content>
             <div class="empty-state"><mat-icon>group_off</mat-icon><p>{{ t('no_samsar_yet') }}</p></div>
           </mat-card-content>
         </mat-card>
 
-        <mat-card *ngFor="let group of groupedSamsars">
-          <mat-card-header>
-            <mat-card-title><a class="link" [routerLink]="['/properties', group.propertyId]">{{ group.propertyTitle }}</a></mat-card-title>
-            <mat-card-subtitle>{{ group.samsars.length }} samsar(s)</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="samsar-row" *ngFor="let rel of group.samsars">
-              <div class="avatar">{{ (rel.samsar?.name || '?')[0] | uppercase }}</div>
-              <div class="samsar-info">
-                <strong>{{ rel.samsar?.name || '#' + rel.samsarId }}</strong>
-                <span>{{ rel.samsar?.email }}<ng-container *ngIf="rel.samsar?.phone"> · +216 {{ rel.samsar?.phone }}</ng-container></span>
-              </div>
+        <mat-card *ngFor="let group of samsarGroups; trackBy: trackSamsar" class="samsar-card">
+          <div class="samsar-head">
+            <div class="avatar" aria-hidden="true">{{ (group.name || '?')[0] | uppercase }}</div>
+            <div class="samsar-info">
+              <strong>{{ group.name }}</strong>
+              <span>{{ group.email }}<ng-container *ngIf="group.phone"> · <span class="ltr">+216 {{ group.phone }}</span></ng-container></span>
+            </div>
+            <span class="pill" [class.primary]="group.allHouses">
+              <mat-icon inline aria-hidden="true">{{ group.allHouses ? 'done_all' : 'home' }}</mat-icon>
+              {{ group.allHouses ? t('all_houses') : t('houses_count').replace('{{n}}', '' + group.relations.length) }}
+            </span>
+            <button mat-icon-button [matMenuTriggerFor]="samsarMenu" [attr.aria-label]="t('remove_access') + ' — ' + group.name">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #samsarMenu="matMenu">
+              <button mat-menu-item *ngIf="!group.allHouses" (click)="addToAllHouses(group)">
+                <mat-icon>done_all</mat-icon>{{ t('add_to_all_houses') }}
+              </button>
+              <button mat-menu-item class="danger" (click)="removeFromAll(group)">
+                <mat-icon>person_remove</mat-icon>{{ t('remove_from_all_properties') }}
+              </button>
+            </mat-menu>
+          </div>
+
+          <!-- Access to every house: one summary line with a shared margin, detail on demand -->
+          <div class="house-row summary" *ngIf="group.allHouses">
+            <mat-icon class="house-icon" aria-hidden="true">holiday_village</mat-icon>
+            <span class="house-title">{{ t('all_houses') }} ({{ group.relations.length }})</span>
+            <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="allMarginMenu" [matTooltip]="t('margin_all_houses')">
+              {{ group.commonMargin != null ? '+' + group.commonMargin + ' TND' : t('mixed_margins') }}
+            </button>
+            <mat-menu #allMarginMenu="matMenu">
+              <button mat-menu-item *ngFor="let m of margins" (click)="updateMarginForAll(group, m)">
+                <mat-icon>{{ group.commonMargin === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
+              </button>
+            </mat-menu>
+            <button mat-button class="details-btn" (click)="toggleDetails(group.samsarId)" [attr.aria-expanded]="expanded.has(group.samsarId)">
+              {{ expanded.has(group.samsarId) ? t('hide_details') : t('show_details') }}
+              <mat-icon iconPositionEnd>{{ expanded.has(group.samsarId) ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+          </div>
+
+          <ng-container *ngIf="!group.allHouses || expanded.has(group.samsarId)">
+            <div class="house-row" *ngFor="let rel of group.relations">
+              <mat-icon class="house-icon" aria-hidden="true">home</mat-icon>
+              <a class="house-title link" [routerLink]="['/properties', rel.propertyId]">{{ rel.property?.title || '#' + rel.propertyId }}</a>
               <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">+{{ rel.priceIncreaseTnd || 0 }} TND</button>
               <mat-menu #marginMenu="matMenu">
                 <button mat-menu-item *ngFor="let m of margins" (click)="updateMargin(rel, m)">
                   <mat-icon>{{ rel.priceIncreaseTnd === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
                 </button>
               </mat-menu>
-              <button mat-icon-button [matMenuTriggerFor]="removeMenu" color="warn" [matTooltip]="t('remove_access')">
-                <mat-icon>person_remove</mat-icon>
+              <button mat-icon-button color="warn" (click)="remove(rel)"
+                      [matTooltip]="t('remove_from_this_property')" [attr.aria-label]="t('remove_from_this_property')">
+                <mat-icon>close</mat-icon>
               </button>
-              <mat-menu #removeMenu="matMenu">
-                <button mat-menu-item (click)="remove(rel)"><mat-icon>home</mat-icon>{{ t('remove_from_this_property') }}</button>
-                <button mat-menu-item (click)="removeFromAll(rel)"><mat-icon>delete_sweep</mat-icon>{{ t('remove_from_all_properties') }}</button>
-              </mat-menu>
             </div>
-          </mat-card-content>
+          </ng-container>
         </mat-card>
       </ng-container>
 
@@ -189,8 +230,14 @@ interface GroupedSamsars {
     .invite-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
     .link { color: inherit; text-decoration: none; }
     .link:hover { color: var(--primary); }
-    .samsar-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border-color); }
-    .samsar-row:last-child { border-bottom: none; }
+    .samsar-card { padding: 0.5rem 1rem; }
+    .samsar-head { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0 0.75rem; }
+    .house-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0 0.4rem 0.5rem; border-top: 1px solid var(--border-color); }
+    .house-row.summary { background: var(--primary-soft); border-radius: 10px; border-top: 0; margin-bottom: 0.25rem; }
+    .house-icon { color: var(--text-secondary); flex-shrink: 0; }
+    .house-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .details-btn { font-size: 0.8rem; }
+    .danger { color: var(--status-cancelled); }
     .avatar {
       width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
       background: var(--primary-soft); color: var(--primary); font-weight: 700;
@@ -211,16 +258,19 @@ interface GroupedSamsars {
   `]
 })
 export class SharedHousesComponent implements OnInit {
+  readonly ALL = 'all' as const;
   relations: PropertySamsar[] = [];
-  groupedSamsars: GroupedSamsars[] = [];
+  samsarGroups: SamsarGroup[] = [];
   ownedProperties: Property[] = [];
+  /** Samsars whose per-house detail is unfolded (only relevant when they have every house). */
+  expanded = new Set<number>();
   loading = true;
   submitting = false;
   user: User | null = null;
   readonly margins = [10, 20, 30];
 
   inviteForm = this.fb.group({
-    propertyId: [null as number | null, Validators.required],
+    propertyId: ['all' as number | 'all', Validators.required],
     email: ['', [Validators.required, Validators.email]],
     phone: ['', [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]],
     priceIncreaseTnd: [10, Validators.required],
@@ -242,8 +292,7 @@ export class SharedHousesComponent implements OnInit {
   ngOnInit(): void {
     this.user = this.authService.getCurrentUser();
     if (this.isOwner) {
-      this.loadOwnedProperties();
-      this.loadInvitedSamsars();
+      this.loadOwnerData();
     } else {
       this.loadMine();
     }
@@ -253,36 +302,66 @@ export class SharedHousesComponent implements OnInit {
     return t(key, this.uiPrefs.getLanguage());
   }
 
-  private loadOwnedProperties(): void {
-    this.propertyService.findMine().subscribe({
-      next: (properties) => {
-        this.ownedProperties = properties;
-        if (!this.inviteForm.value.propertyId && properties.length) {
-          this.inviteForm.patchValue({ propertyId: properties[0].id });
-        }
-      },
-    });
+  trackSamsar(_: number, group: SamsarGroup): number {
+    return group.samsarId;
   }
 
-  private loadInvitedSamsars(): void {
-    this.propertySamsarService.findByOwner().subscribe({
-      next: (relations) => {
-        this.groupedSamsars = this.groupByProperty(relations);
+  /** Houses and invitations are loaded together: "all houses" is only known once both are there. */
+  private loadOwnerData(): void {
+    forkJoin({
+      properties: this.propertyService.findMine(),
+      relations: this.propertySamsarService.findByOwner(),
+    }).subscribe({
+      next: ({ properties, relations }) => {
+        this.ownedProperties = properties;
+        this.samsarGroups = this.groupBySamsar(relations);
         this.loading = false;
       },
       error: () => this.loading = false,
     });
   }
 
-  private groupByProperty(relations: PropertySamsar[]): GroupedSamsars[] {
-    const map = new Map<number, GroupedSamsars>();
+  private reloadInvitedSamsars(): void {
+    this.propertySamsarService.findByOwner().subscribe({
+      next: (relations) => this.samsarGroups = this.groupBySamsar(relations),
+    });
+  }
+
+  private groupBySamsar(relations: PropertySamsar[]): SamsarGroup[] {
+    const map = new Map<number, SamsarGroup>();
     for (const rel of relations) {
-      if (!map.has(rel.propertyId)) {
-        map.set(rel.propertyId, { propertyId: rel.propertyId, propertyTitle: rel.property?.title || '#' + rel.propertyId, samsars: [] });
+      if (!map.has(rel.samsarId)) {
+        map.set(rel.samsarId, {
+          samsarId: rel.samsarId,
+          name: rel.samsar?.name || '#' + rel.samsarId,
+          email: rel.samsar?.email || '',
+          phone: rel.samsar?.phone || '',
+          relations: [],
+          allHouses: false,
+          commonMargin: null,
+        });
       }
-      map.get(rel.propertyId)!.samsars.push(rel);
+      map.get(rel.samsarId)!.relations.push(rel);
     }
-    return Array.from(map.values()).sort((a, b) => a.propertyTitle.localeCompare(b.propertyTitle));
+    const groups = Array.from(map.values());
+    groups.forEach(group => this.refreshGroup(group));
+    return groups.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private refreshGroup(group: SamsarGroup): void {
+    group.relations.sort((a, b) => (a.property?.title || '').localeCompare(b.property?.title || ''));
+    const ownedIds = new Set(this.ownedProperties.map(p => p.id));
+    group.allHouses = ownedIds.size > 0 && [...ownedIds].every(id => group.relations.some(rel => rel.propertyId === id));
+    const margins = new Set(group.relations.map(rel => rel.priceIncreaseTnd || 0));
+    group.commonMargin = margins.size === 1 ? [...margins][0] : null;
+  }
+
+  toggleDetails(samsarId: number): void {
+    if (this.expanded.has(samsarId)) {
+      this.expanded.delete(samsarId);
+    } else {
+      this.expanded.add(samsarId);
+    }
   }
 
   private loadMine(): void {
@@ -306,7 +385,7 @@ export class SharedHousesComponent implements OnInit {
     this.propertySamsarService.remove(relation.propertyId, relation.samsarId).subscribe({
       next: () => {
         this.snackBar.open(this.t('access_removed'), this.t('close'), { duration: 2500 });
-        this.loadInvitedSamsars();
+        this.reloadInvitedSamsars();
       },
       error: (err) => this.showError(err),
     });
@@ -323,13 +402,27 @@ export class SharedHousesComponent implements OnInit {
     });
   }
 
-  removeFromAll(relation: PropertySamsar): void {
-    const name = relation.samsar?.name || '#' + relation.samsarId;
-    if (!confirm(this.t('remove_from_all_confirm').replace('{{name}}', name))) return;
-    this.propertySamsarService.removeSamsarFromAll(relation.samsarId).subscribe({
+  removeFromAll(group: SamsarGroup): void {
+    if (!confirm(this.t('remove_from_all_confirm').replace('{{name}}', group.name))) return;
+    this.propertySamsarService.removeSamsarFromAll(group.samsarId).subscribe({
       next: () => {
-        this.snackBar.open(this.t('remove_from_all_success').replace('{{name}}', name), this.t('close'), { duration: 2500 });
-        this.loadInvitedSamsars();
+        this.snackBar.open(this.t('remove_from_all_success').replace('{{name}}', group.name), this.t('close'), { duration: 2500 });
+        this.reloadInvitedSamsars();
+      },
+      error: (err) => this.showError(err),
+    });
+  }
+
+  /** Extends an existing samsar to the houses he does not have yet, keeping his current margin when uniform. */
+  addToAllHouses(group: SamsarGroup): void {
+    this.propertySamsarService.inviteToAllProperties({
+      email: group.email,
+      phone: group.phone,
+      priceIncreaseTnd: group.commonMargin ?? 10,
+    }).subscribe({
+      next: (added) => {
+        this.snackBar.open(this.t('invite_all_success').replace('{{n}}', '' + added.length), this.t('close'), { duration: 3000 });
+        this.reloadInvitedSamsars();
       },
       error: (err) => this.showError(err),
     });
@@ -340,29 +433,54 @@ export class SharedHousesComponent implements OnInit {
     this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, margin).subscribe({
       next: () => {
         relation.priceIncreaseTnd = margin;
+        const group = this.samsarGroups.find(g => g.samsarId === relation.samsarId);
+        if (group) this.refreshGroup(group);
         this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
       },
       error: (err) => this.showError(err),
     });
   }
 
+  updateMarginForAll(group: SamsarGroup, margin: number): void {
+    const toUpdate = group.relations.filter(rel => rel.priceIncreaseTnd !== margin);
+    if (!toUpdate.length) return;
+    forkJoin(toUpdate.map(rel => this.propertySamsarService.updatePriceIncrease(rel.propertyId, rel.samsarId, margin))).subscribe({
+      next: () => {
+        toUpdate.forEach(rel => rel.priceIncreaseTnd = margin);
+        this.refreshGroup(group);
+        this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
+      },
+      error: (err) => {
+        this.showError(err);
+        this.reloadInvitedSamsars();
+      },
+    });
+  }
+
   submitInvite(): void {
     if (this.inviteForm.invalid) return;
     const value = this.inviteForm.getRawValue();
-    this.submitting = true;
-    this.propertySamsarService.invite({
-      propertyId: value.propertyId!,
+    const dto = {
       email: value.email!.trim(),
       phone: value.phone!.trim(),
       priceIncreaseTnd: value.priceIncreaseTnd || 10,
-    }).subscribe({
-      next: () => {
+    };
+    const request = value.propertyId === this.ALL
+      ? this.propertySamsarService.inviteToAllProperties(dto)
+      : this.propertySamsarService.invite({ ...dto, propertyId: value.propertyId as number }).pipe(map(rel => [rel]));
+
+    this.submitting = true;
+    request.subscribe({
+      next: (added) => {
         this.submitting = false;
-        this.snackBar.open(this.t('invite_success'), this.t('close'), { duration: 3000 });
+        const message = value.propertyId === this.ALL
+          ? this.t('invite_all_success').replace('{{n}}', '' + added.length)
+          : this.t('invite_success');
+        this.snackBar.open(message, this.t('close'), { duration: 3000 });
         this.inviteForm.patchValue({ email: '', phone: '' });
         this.inviteForm.get('email')?.markAsUntouched();
         this.inviteForm.get('phone')?.markAsUntouched();
-        this.loadInvitedSamsars();
+        this.reloadInvitedSamsars();
       },
       error: (err) => {
         this.submitting = false;

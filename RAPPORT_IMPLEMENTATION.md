@@ -55,6 +55,14 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - Menu « Mes samsars » pour le propriétaire, changement de marge via menu (plus de `prompt`), notifications cliquables vers la réservation.
 - Traduction FR/EN/AR complète et immédiate, locale française (dates jj/mm/aaaa, montants « 1 080 TND »), mode sombre homogène, mise en page mobile (barre latérale en surimpression).
 
+**Tests avec comptes réels (31/10/2026)**
+- Correction : la liste des réservations du propriétaire échouait (proxy Hibernate non sérialisable) dès qu'il avait lui-même réservé.
+- Les anciennes réservations (dates `2026-06-26T23:00:00.000Z`, statut `in_progress`) sont normalisées au démarrage.
+- Une réservation ne peut plus commencer dans le passé ; un séjour ne peut pas passer « En cours » avant la date d'arrivée.
+- Une réservation encore « En attente » après sa date de fin est annulée automatiquement.
+- L'historique des revenus est resynchronisé quand l'acompte ou le total est modifié.
+- Les dates saisies au clavier (jj/mm/aaaa) sont reconnues et recalculent le total suggéré.
+
 ## 1. Présentation Générale
 
 **Projet :** Samsara - Application de Gestion de Locations Saisonnières pour Courtiers  

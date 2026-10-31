@@ -45,6 +45,13 @@ public class PropertySamsarController {
         return ResponseEntity.ok(propertySamsarService.invite(dto, userId));
     }
 
+    @PostMapping("/all-properties")
+    public ResponseEntity<List<PropertySamsar>> inviteToAllProperties(@Valid @RequestBody PropertySamsarInviteDto dto,
+                                                                      Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(propertySamsarService.inviteToAllProperties(dto, userId));
+    }
+
     @PatchMapping("/{propertyId}/{samsarId}/price-increase")
     public ResponseEntity<PropertySamsar> updatePriceIncrease(@PathVariable Long propertyId,
                                                               @PathVariable Long samsarId,

@@ -12,7 +12,8 @@ import org.springframework.stereotype.Service;
  * Central ownership rules:
  * - a property is managed by its creator (PROPRIETAIRE);
  * - a samsar works on a property only once the owner shared it with him;
- * - a reservation is handled by the samsar who created it or the owner of the property.
+ * - a reservation is handled by the samsar who created it or the owner of the property;
+ * - every samsar the property is shared with can read its reservations (he is notified about them).
  */
 @Service
 @RequiredArgsConstructor
@@ -51,6 +52,20 @@ public class AccessService {
         return property;
     }
 
+    /** Read access: the manager of the reservation, or any samsar working on the property. */
+    public void requireReservationView(Reservation reservation, Long userId) {
+        if (userId.equals(reservation.getSamsarId())) {
+            return;
+        }
+        Property property = reservation.getProperty() != null
+                ? reservation.getProperty()
+                : getProperty(reservation.getPropertyId());
+        if (!canWorkOn(property, userId)) {
+            throw new AccessDeniedException("You do not have access to this reservation");
+        }
+    }
+
+    /** Write access (edit, status, delete): the samsar who created it or the owner of the property. */
     public void requireReservationAccess(Reservation reservation, Long userId) {
         if (userId.equals(reservation.getSamsarId())) {
             return;

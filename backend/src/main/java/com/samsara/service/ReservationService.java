@@ -57,7 +57,7 @@ public class ReservationService {
 
     public Reservation findById(Long id, Long userId) {
         Reservation reservation = getReservation(id);
-        accessService.requireReservationAccess(reservation, userId);
+        accessService.requireReservationView(reservation, userId);
         return reservation;
     }
 
@@ -71,10 +71,7 @@ public class ReservationService {
             return reservationRepository.findByPropertyId(propertyId);
         }
         accessService.requireWorkOn(propertyId, userId);
-        // A samsar only sees the details of his own reservations; the calendar uses /occupancy
-        return reservationRepository.findByPropertyId(propertyId).stream()
-                .filter(r -> userId.equals(r.getSamsarId()))
-                .toList();
+        return reservationRepository.findByPropertyId(propertyId);
     }
 
     public List<Reservation> findByPropertyCreator(Long ownerId) {
@@ -175,7 +172,8 @@ public class ReservationService {
                 .endDate(dto.getEndDate())
                 .checkInTime(dto.getCheckInTime() != null && !dto.getCheckInTime().isBlank() ? dto.getCheckInTime() : "14:00")
                 .checkOutTime(dto.getCheckOutTime() != null && !dto.getCheckOutTime().isBlank() ? dto.getCheckOutTime() : "12:00")
-                .status(PENDING)
+                // An advance already paid means the client committed: the booking is confirmed straight away
+                .status(dto.getAdvanceAmount() != null && dto.getAdvanceAmount() > 0 ? CONFIRMED : PENDING)
                 .clientName(dto.getClientName() != null ? dto.getClientName().trim() : null)
                 .clientPhone(dto.getClientPhone())
                 .advanceAmount(dto.getAdvanceAmount() != null ? dto.getAdvanceAmount() : 0.0)
@@ -186,9 +184,11 @@ public class ReservationService {
         validate(reservation, property, userId);
         requireNotInPast(reservation.getStartDate());
         Reservation saved = reservationRepository.save(reservation);
+        syncRevenue(saved);
 
         userRepository.findById(userId)
                 .ifPresent(actor -> notificationService.notifyReservationCreated(saved, property, actor));
+        overridePendingOverlaps(saved, property);
         return saved;
     }
 
@@ -212,8 +212,18 @@ public class ReservationService {
         if (IN_PROGRESS.equals(target) && LocalDate.parse(reservation.getStartDate()).isAfter(LocalDate.now())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The stay cannot start before the arrival date");
         }
+        if (CONFIRMED.equals(target) && !reservationRepository.findOverlapping(reservation.getPropertyId(),
+                reservation.getStartDate(), reservation.getEndDate(), reservation.getId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "These dates are already confirmed for another reservation");
+        }
         User actor = userRepository.findById(userId).orElse(null);
-        return applyStatus(reservation, target, actor);
+        Reservation updated = applyStatus(reservation, target, actor);
+        if (CONFIRMED.equals(target)) {
+            overridePendingOverlaps(updated, updated.getProperty() != null
+                    ? updated.getProperty()
+                    : accessService.getProperty(updated.getPropertyId()));
+        }
+        return updated;
     }
 
     private Reservation applyStatus(Reservation reservation, String target, User actor) {
@@ -226,6 +236,23 @@ public class ReservationService {
                 : accessService.getProperty(reservation.getPropertyId());
         notificationService.notifyStatusChanged(reservation, property, actor, target);
         return reservation;
+    }
+
+    /**
+     * Once a booking holds its dates (confirmed or in progress), the pending requests on the same dates
+     * can no longer happen: they are cancelled and their stakeholders are told why.
+     */
+    private void overridePendingOverlaps(Reservation holder, Property property) {
+        String status = normalizeStatus(holder.getStatus());
+        if (!CONFIRMED.equals(status) && !IN_PROGRESS.equals(status)) {
+            return;
+        }
+        for (Reservation pending : reservationRepository.findPendingOverlapping(holder.getPropertyId(),
+                holder.getStartDate(), holder.getEndDate(), holder.getId())) {
+            pending.setStatus(CANCELLED);
+            reservationRepository.save(pending);
+            notificationService.notifyReservationOverridden(pending, property);
+        }
     }
 
     /**
@@ -297,6 +324,7 @@ public class ReservationService {
         if (actor != null) {
             notificationService.notifyReservationUpdated(reservation, property, actor);
         }
+        overridePendingOverlaps(reservation, property);
         return reservation;
     }
 

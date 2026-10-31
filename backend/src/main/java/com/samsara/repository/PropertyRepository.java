@@ -7,12 +7,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
 
+/** Availability searches: only confirmed / in-progress stays occupy a house, a pending request can be overridden. */
 public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByCreatedBy(Long createdBy, Sort sort);
 
     @Query("SELECT DISTINCT p FROM Property p WHERE p.id NOT IN (" +
         "SELECT r.property.id FROM Reservation r " +
-        "WHERE r.status IN ('pending', 'confirmed', 'in-progress') " +
+        "WHERE r.status IN ('confirmed', 'in-progress') " +
         "AND r.startDate <= :endDate AND r.endDate >= :startDate) " +
         "AND p.id NOT IN (" +
         "SELECT pa.property.id FROM PropertyAvailability pa " +
@@ -24,7 +25,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 
     @Query("SELECT DISTINCT p FROM Property p WHERE p.createdBy = :createdBy AND p.id NOT IN (" +
         "SELECT r.property.id FROM Reservation r " +
-        "WHERE r.status IN ('pending', 'confirmed', 'in-progress') " +
+        "WHERE r.status IN ('confirmed', 'in-progress') " +
         "AND r.startDate <= :endDate AND r.endDate >= :startDate) " +
         "AND p.id NOT IN (" +
         "SELECT pa.property.id FROM PropertyAvailability pa " +
@@ -40,7 +41,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
         "SELECT ps.propertyId FROM PropertySamsar ps WHERE ps.samsarId = :userId)) " +
         "AND p.id NOT IN (" +
         "SELECT r.propertyId FROM Reservation r " +
-        "WHERE r.status IN ('pending', 'confirmed', 'in-progress') " +
+        "WHERE r.status IN ('confirmed', 'in-progress') " +
         "AND r.startDate <= :endDate AND r.endDate >= :startDate) " +
         "AND p.id NOT IN (" +
         "SELECT pa.propertyId FROM PropertyAvailability pa " +
@@ -53,7 +54,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 
     @Query("SELECT p FROM Property p WHERE p.createdBy = :createdBy AND p.id NOT IN (" +
         "SELECT r.property.id FROM Reservation r " +
-        "WHERE r.status NOT IN ('cancelled', 'completed') " +
+        "WHERE r.status IN ('confirmed', 'in-progress') " +
         "AND r.startDate <= :date AND r.endDate >= :date)")
     List<Property> findAvailableOnDateByCreatedBy(@Param("date") String date,
                              @Param("createdBy") Long createdBy,
@@ -61,7 +62,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 
     @Query("SELECT p FROM Property p WHERE p.id NOT IN (" +
            "SELECT r.property.id FROM Reservation r " +
-           "WHERE r.status NOT IN ('cancelled', 'completed') " +
+           "WHERE r.status IN ('confirmed', 'in-progress') " +
            "AND r.startDate <= :date AND r.endDate >= :date)")
     List<Property> findAvailableOnDate(@Param("date") String date);
 }

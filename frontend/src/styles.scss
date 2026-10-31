@@ -1,20 +1,68 @@
+@use '@angular/material' as mat;
+
+/* ---------- Angular Material theme (teal brand, replaces the indigo-pink prebuilt) ---------- */
+$font-family: "'Fira Sans', 'Almarai', Roboto, 'Helvetica Neue', sans-serif";
+$typography: mat.define-typography-config($font-family: $font-family);
+
+$light-theme: mat.define-light-theme((
+  color: (
+    primary: mat.define-palette(mat.$teal-palette, 700, 100, 900),
+    accent: mat.define-palette(mat.$light-blue-palette, 800, 100, 900),
+    warn: mat.define-palette(mat.$red-palette, 600),
+  ),
+  typography: $typography,
+  density: 0,
+));
+
+$dark-theme: mat.define-dark-theme((
+  color: (
+    primary: mat.define-palette(mat.$teal-palette, 300, 100, 500),
+    accent: mat.define-palette(mat.$light-blue-palette, 300, 100, 500),
+    warn: mat.define-palette(mat.$red-palette, 300),
+  ),
+));
+
+@include mat.core();
+@include mat.all-component-themes($light-theme);
+
+html.dark-theme {
+  @include mat.all-component-colors($dark-theme);
+}
+
 html, body { height: 100%; }
-body { margin: 0; font-family: 'Lato', Roboto, "Helvetica Neue", sans-serif; background: var(--bg-main); color: var(--text-primary); }
+body {
+  margin: 0;
+  font-family: 'Fira Sans', 'Almarai', Roboto, "Helvetica Neue", sans-serif;
+  line-height: 1.5;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
 
 :root {
-  --primary: #3C91E6;
-  --primary-strong: #2563eb;
-  --primary-soft: rgba(60, 145, 230, 0.12);
-  --bg-main: #eef1f5;
+  --primary: #0F766E;
+  --primary-strong: #115E59;
+  --primary-soft: rgba(15, 118, 110, 0.1);
+  --on-primary: #ffffff;
+  --accent: #0369A1;
+  --bg-main: #F3F7F7;
   --bg-card: #ffffff;
   --bg-toolbar: #ffffff;
-  --bg-sidenav: #fafafa;
-  --text-primary: rgba(0,0,0,0.87);
-  --text-secondary: rgba(0,0,0,0.58);
-  --border-color: rgba(0,0,0,0.08);
-  --surface-hover: rgba(0,0,0,0.04);
-  --surface-subtle: rgba(0,0,0,0.03);
-  --surface-accent: rgba(63, 81, 181, 0.05);
+  --bg-sidenav: #ffffff;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --border-color: #E2E8F0;
+  --surface-hover: rgba(15, 23, 42, 0.04);
+  --surface-subtle: rgba(15, 23, 42, 0.03);
+  --surface-accent: rgba(15, 118, 110, 0.05);
+  --focus-ring: 0 0 0 3px rgba(15, 118, 110, 0.35);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
 
   /* Status palette shared by chips, calendars and charts */
   --status-pending: #f59e0b;
@@ -31,17 +79,24 @@ body { margin: 0; font-family: 'Lato', Roboto, "Helvetica Neue", sans-serif; bac
 }
 
 html.dark-theme {
-  --primary-soft: rgba(60, 145, 230, 0.2);
-  --bg-main: #1c1f24;
-  --bg-card: #272b31;
-  --bg-toolbar: #202328;
-  --bg-sidenav: #202328;
-  --text-primary: #f1f3f5;
-  --text-secondary: rgba(255,255,255,0.66);
-  --border-color: rgba(255,255,255,0.12);
+  --primary: #2DD4BF;
+  --primary-strong: #5EEAD4;
+  --primary-soft: rgba(45, 212, 191, 0.14);
+  --on-primary: #042F2E;
+  --accent: #38BDF8;
+  --bg-main: #0B1215;
+  --bg-card: #141C20;
+  --bg-toolbar: #10171A;
+  --bg-sidenav: #10171A;
+  --text-primary: #E6EDF0;
+  --text-secondary: #9AA8B1;
+  --border-color: rgba(255,255,255,0.1);
   --surface-hover: rgba(255,255,255,0.06);
   --surface-subtle: rgba(255,255,255,0.04);
-  --surface-accent: rgba(63, 81, 181, 0.16);
+  --surface-accent: rgba(45, 212, 191, 0.08);
+  --focus-ring: 0 0 0 3px rgba(45, 212, 191, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
   --status-confirmed: #60a5fa;
   --status-in-progress: #4ade80;
   --status-completed: #94a3b8;
@@ -123,7 +178,65 @@ html.dark-theme {
 .p-3 { padding: 1.5rem; }
 
 mat-card, .mat-mdc-card {
-  border-radius: 14px !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+.mat-mdc-card:not(.mat-mdc-card-outlined) {
+  box-shadow: var(--shadow-sm) !important;
+  border: 1px solid var(--border-color);
+}
+
+.mdc-button, .mat-mdc-button-base {
+  --mdc-filled-button-container-shape: 10px;
+  --mdc-protected-button-container-shape: 10px;
+  --mdc-outlined-button-container-shape: 10px;
+  --mdc-text-button-container-shape: 10px;
+  letter-spacing: 0.01em !important;
+}
+
+h1, h2, h3, h4 { text-wrap: balance; }
+
+/* Numbers in tables, metrics and prices should not jitter */
+.mat-mdc-cell, .metric-value, .bar-value, .column-value, .price, .info-item .value { font-variant-numeric: tabular-nums; }
+
+a, button, [role='button'], .cal-day, .mat-mdc-row[routerLink] { cursor: pointer; touch-action: manipulation; }
+button:disabled, .cal-day:disabled { cursor: not-allowed; }
+
+/* ---------- Accessibility ---------- */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.mat-mdc-button-base:focus-visible, .mat-mdc-form-field :focus-visible { outline: none; }
+
+.mat-mdc-button-base.cdk-keyboard-focused, .mat-mdc-button-base.cdk-program-focused {
+  box-shadow: var(--focus-ring);
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -100px;
+  z-index: 3000;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.skip-link:focus { top: 0.75rem; }
+#main-content:focus { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .mat-mdc-form-field {
@@ -373,7 +486,7 @@ mat-card, .mat-mdc-card {
 .cal-day.reserved { background: var(--status-cancelled-bg); color: var(--status-cancelled); font-weight: 700; text-decoration: line-through; }
 .cal-day.blocked { background: repeating-linear-gradient(45deg, var(--surface-subtle), var(--surface-subtle) 3px, var(--status-completed-bg) 3px, var(--status-completed-bg) 6px); color: var(--day-blocked); }
 .cal-day.in-range { background: var(--primary-soft); color: var(--primary); }
-.cal-day.selected { background: var(--primary); color: #fff; font-weight: 700; }
+.cal-day.selected { background: var(--primary); color: var(--on-primary); font-weight: 700; }
 .cal-day.today { box-shadow: inset 0 0 0 2px var(--primary); }
 
 .cal-selection {
@@ -392,6 +505,13 @@ mat-card, .mat-mdc-card {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/* Datepicker days holding a pending request: still selectable, but flagged in orange */
+.mat-calendar-body-cell.date-pending .mat-calendar-body-cell-content:not(.mat-calendar-body-selected) {
+  background: var(--status-pending-bg);
+  color: var(--status-pending);
+  font-weight: 700;
 }
 
 /* ---------- Generic responsive form rows ---------- */
@@ -416,27 +536,20 @@ mat-card, .mat-mdc-card {
   }
 }
 
-/* RTL adjustments for the hand-made sidebar layout */
-html.dark-theme app-main-layout {
-  --light: var(--bg-toolbar);
-  --grey: var(--bg-main);
-  --dark: var(--text-primary);
-  --dark-grey: var(--text-secondary);
-  --light-blue: rgba(63, 145, 230, 0.18);
-  --light-yellow: rgba(255, 206, 38, 0.16);
-  --light-orange: rgba(253, 114, 56, 0.18);
+/* ---------- Auth pages (login / register) ---------- */
+.auth-shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(45, 212, 191, 0.28), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(3, 105, 161, 0.3), transparent 45%),
+    linear-gradient(135deg, #0F766E 0%, #115E59 50%, #0C4A6E 100%);
 }
 
-html[dir='rtl'] app-main-layout #sidebar .side-menu li {
-  margin-inline-start: 0;
-  margin-inline-end: 6px;
-  border-radius: 0 48px 48px 0;
-}
-
-html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::before {
-  box-shadow: -20px 20px 0 var(--grey);
-}
-
-html[dir='rtl'] app-main-layout #sidebar .side-menu li.active::after {
-  box-shadow: -20px -20px 0 var(--grey);
+.auth-brand {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.06em;
 }

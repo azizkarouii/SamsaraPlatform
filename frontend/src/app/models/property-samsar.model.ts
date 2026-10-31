@@ -10,7 +10,7 @@ export interface PropertySamsar {
 }
 
 export interface PropertySamsarInviteDto {
-  propertyId: number;
+  propertyId?: number;
   email: string;
   phone: string;
   priceIncreaseTnd?: number;

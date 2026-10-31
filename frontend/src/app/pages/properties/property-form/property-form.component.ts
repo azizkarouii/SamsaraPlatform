@@ -11,7 +11,9 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { PropertyService } from '../../../services/property.service';
+import { AuthService } from '../../../services/auth.service';
 import { Property } from '../../../models/property.model';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { t } from '../../../shared/translations';
@@ -30,6 +32,7 @@ import { t } from '../../../shared/translations';
     MatIconModule,
     MatCheckboxModule,
     MatSnackBarModule,
+    MatTooltipModule,
     MatProgressSpinnerModule,
     MatDividerModule,
   ],
@@ -75,7 +78,11 @@ import { t } from '../../../shared/translations';
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('owner_contact') }}</mat-label>
                 <span matTextPrefix>+216&nbsp;</span>
-                <input matInput formControlName="ownerContact" inputmode="tel" />
+                <input matInput formControlName="ownerContact" type="tel" inputmode="tel" autocomplete="tel-national" />
+                <button mat-icon-button matSuffix type="button" (click)="fillOwnerContact()"
+                        [matTooltip]="t('fill_with_my_phone')" [attr.aria-label]="t('fill_with_my_phone')">
+                  <mat-icon>contact_phone</mat-icon>
+                </button>
                 <mat-error>{{ t('phone_invalid') }}</mat-error>
               </mat-form-field>
             </div>
@@ -237,8 +244,22 @@ export class PropertyFormComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private snackBar: MatSnackBar,
-    private uiPreferencesService: UiPreferencesService
+    private uiPreferencesService: UiPreferencesService,
+    private authService: AuthService
   ) {
+  }
+
+  /** Fills the owner contact with the phone of the connected account (without the +216 shown as prefix). */
+  fillOwnerContact(): void {
+    const phone = (this.authService.getCurrentUser()?.phone || '').replace(/\s+/g, '').replace(/^(\+|00)216/, '');
+    if (!phone) {
+      this.snackBar.open(this.t('no_phone_in_profile'), this.t('close'), { duration: 4000 });
+      return;
+    }
+    const control = this.propertyForm.get('ownerContact');
+    control?.setValue(phone);
+    control?.markAsDirty();
+    control?.markAsTouched();
   }
 
   t(key: string): string {

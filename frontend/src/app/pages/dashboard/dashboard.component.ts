@@ -276,7 +276,8 @@ export class DashboardComponent implements OnInit {
       reservations: reservations$.pipe(catchError(() => of([] as Reservation[]))),
     }).subscribe(({ properties, reservations }) => {
       this.properties = properties;
-      this.reservations = reservations;
+      // A samsar also reads the other bookings of his houses, but his figures only count his own
+      this.reservations = isSamsar ? reservations.filter(r => r.samsarId === this.user?.id) : reservations;
       this.loading = false;
     });
   }

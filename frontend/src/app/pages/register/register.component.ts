@@ -31,7 +31,7 @@ import { AppLanguage, t } from '../../shared/translations';
     MatButtonToggleModule,
   ],
   template: `
-    <div class="register-container">
+    <div class="register-container auth-shell">
       <mat-card class="register-card">
         <div class="card-accent"></div>
         <mat-card-header>
@@ -43,14 +43,14 @@ import { AppLanguage, t } from '../../shared/translations';
           <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('full_name') }}</mat-label>
-              <input matInput formControlName="name" [placeholder]="t('full_name')" />
+              <input matInput autocomplete="name" formControlName="name" [placeholder]="t('full_name')" />
               <mat-icon matSuffix>person</mat-icon>
               <mat-error *ngIf="registerForm.get('name')?.hasError('required')">{{ t('name_required') }}</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('email_label') }}</mat-label>
-              <input matInput type="email" formControlName="email" [placeholder]="t('email_label')" />
+              <input matInput type="email" autocomplete="email" formControlName="email" [placeholder]="t('email_label')" />
               <mat-icon matSuffix>email</mat-icon>
               <mat-error *ngIf="registerForm.get('email')?.hasError('required')">{{ t('email_required') }}</mat-error>
               <mat-error *ngIf="registerForm.get('email')?.hasError('email')">{{ t('email_invalid') }}</mat-error>
@@ -58,8 +58,8 @@ import { AppLanguage, t } from '../../shared/translations';
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('password_required') }}</mat-label>
-              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" [placeholder]="t('password_required')" />
-              <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" autocomplete="new-password" [placeholder]="t('password_required')" />
+              <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword" [attr.aria-label]="t(hidePassword ? 'show_password' : 'hide_password')" [attr.aria-pressed]="!hidePassword">
                 <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               <mat-error *ngIf="registerForm.get('password')?.hasError('required')">{{ t('password_required') }}</mat-error>
@@ -68,8 +68,8 @@ import { AppLanguage, t } from '../../shared/translations';
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('confirm_password') }}</mat-label>
-              <input matInput [type]="hideConfirm ? 'password' : 'text'" formControlName="confirmPassword" [placeholder]="t('confirm_password')" />
-              <button mat-icon-button matSuffix type="button" (click)="hideConfirm = !hideConfirm">
+              <input matInput [type]="hideConfirm ? 'password' : 'text'" formControlName="confirmPassword" autocomplete="new-password" [placeholder]="t('confirm_password')" />
+              <button mat-icon-button matSuffix type="button" (click)="hideConfirm = !hideConfirm" [attr.aria-label]="t(hideConfirm ? 'show_password' : 'hide_password')" [attr.aria-pressed]="!hideConfirm">
                 <mat-icon>{{ hideConfirm ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               <mat-error *ngIf="registerForm.hasError('mismatch')">{{ t('passwords_dont_match') }}</mat-error>
@@ -78,7 +78,7 @@ import { AppLanguage, t } from '../../shared/translations';
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ isSamsar ? t('phone_required_label') : t('phone_optional') }}</mat-label>
               <span matTextPrefix>+216&nbsp;</span>
-              <input matInput formControlName="phone" inputmode="tel" />
+              <input matInput formControlName="phone" type="tel" inputmode="tel" autocomplete="tel-national" />
               <mat-icon matSuffix>phone</mat-icon>
               <mat-hint *ngIf="isSamsar">{{ t('samsar_phone_hint') }}</mat-hint>
               <mat-error>{{ t('phone_invalid') }}</mat-error>
@@ -112,14 +112,11 @@ import { AppLanguage, t } from '../../shared/translations';
   `,
   styles: [`
     .register-container {
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-      background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 34%),
-        linear-gradient(135deg, #5d6de8 0%, #6f5bd5 48%, #8441c0 100%);
     }
     .register-card {
       position: relative;
@@ -127,17 +124,17 @@ import { AppLanguage, t } from '../../shared/translations';
       max-width: 560px;
       width: 100%;
       padding: 2rem 2rem 1.25rem;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      box-shadow: 0 24px 60px rgba(21, 23, 42, 0.24);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.3) !important;
       backdrop-filter: blur(16px);
-      background: rgba(255, 255, 255, 0.96);
+      background: var(--bg-card);
     }
     .card-accent {
       position: absolute;
       inset: 0 auto auto 0;
       width: 100%;
       height: 5px;
-      background: linear-gradient(90deg, #3f51b5, #7c4dff, #ff7a59);
+      background: linear-gradient(90deg, var(--primary), #14B8A6, var(--accent));
     }
     mat-card-header {
       justify-content: center;
@@ -149,15 +146,15 @@ import { AppLanguage, t } from '../../shared/translations';
       font-size: 2.15rem;
       font-weight: 600;
       letter-spacing: -0.03em;
-      color: #3147b0;
+      color: var(--primary);
     }
     mat-card-subtitle {
-      color: rgba(31, 41, 55, 0.72);
+      color: var(--text-secondary);
       font-size: 0.98rem;
     }
     .form-intro {
       margin: 0 0 1.25rem;
-      color: rgba(31, 41, 55, 0.78);
+      color: var(--text-secondary);
       font-size: 0.95rem;
       line-height: 1.5;
     }
@@ -168,7 +165,7 @@ import { AppLanguage, t } from '../../shared/translations';
     .role-label {
       display: block;
       font-size: 0.875rem;
-      color: rgba(31, 41, 55, 0.78);
+      color: var(--text-secondary);
       margin-bottom: 0.35rem;
       font-weight: 500;
     }
@@ -179,15 +176,15 @@ import { AppLanguage, t } from '../../shared/translations';
       flex: 1;
     }
     :host ::ng-deep .role-toggle .mat-button-toggle .mat-icon {
-      margin-right: 4px;
+      margin-inline-end: 4px;
     }
     .field-error {
       font-size: 0.75rem;
-      color: #f44336;
+      color: var(--status-cancelled);
       margin: 0 0 1rem 0;
     }
     :host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
-      background: rgba(248, 250, 252, 0.92);
+      background: var(--surface-subtle);
     }
     :host ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
       background-color: transparent;
@@ -204,20 +201,20 @@ import { AppLanguage, t } from '../../shared/translations';
     }
     .spinner {
       display: inline-block;
-      margin-right: 0.5rem;
+      margin-inline-end: 0.5rem;
     }
     button[mat-raised-button] {
       height: 48px;
-      border-radius: 14px;
+      border-radius: 12px;
       font-weight: 600;
-      box-shadow: 0 12px 24px rgba(63, 81, 181, 0.26);
+      box-shadow: 0 10px 22px rgba(15, 118, 110, 0.28);
     }
     .card-actions {
       padding-top: 0.5rem;
     }
     .login-text {
       font-size: 0.875rem;
-      color: rgba(31, 41, 55, 0.68);
+      color: var(--text-secondary);
     }
     @media (max-width: 480px) {
       .register-card {

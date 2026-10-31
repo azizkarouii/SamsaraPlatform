@@ -29,11 +29,11 @@ import { AppLanguage, t } from '../../shared/translations';
     MatProgressSpinnerModule,
   ],
   template: `
-    <div class="login-container">
+    <div class="login-container auth-shell">
       <mat-card class="login-card">
         <div class="card-accent"></div>
         <mat-card-header>
-          <mat-card-title>Samsara</mat-card-title>
+          <mat-card-title class="auth-brand">Samsara</mat-card-title>
           <mat-card-subtitle>{{ t('login_subtitle') }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
@@ -41,7 +41,7 @@ import { AppLanguage, t } from '../../shared/translations';
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('email_label') }}</mat-label>
-              <input matInput type="email" formControlName="email" [placeholder]="t('email_label')" />
+              <input matInput type="email" autocomplete="email" formControlName="email" [placeholder]="t('email_label')" />
               <mat-icon matSuffix>email</mat-icon>
               <mat-error *ngIf="loginForm.get('email')?.hasError('required')">{{ t('email_required') }}</mat-error>
               <mat-error *ngIf="loginForm.get('email')?.hasError('email')">{{ t('email_invalid') }}</mat-error>
@@ -49,8 +49,8 @@ import { AppLanguage, t } from '../../shared/translations';
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ t('password_required') }}</mat-label>
-              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" [placeholder]="t('password_required')" />
-              <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+              <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password" autocomplete="current-password" [placeholder]="t('password_required')" />
+              <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword" [attr.aria-label]="t(hidePassword ? 'show_password' : 'hide_password')" [attr.aria-pressed]="!hidePassword">
                 <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               <mat-error *ngIf="loginForm.get('password')?.hasError('required')">{{ t('password_required') }}</mat-error>
@@ -72,14 +72,11 @@ import { AppLanguage, t } from '../../shared/translations';
   `,
   styles: [`
     .login-container {
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-      background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 34%),
-        linear-gradient(135deg, #5d6de8 0%, #6f5bd5 48%, #8441c0 100%);
     }
     .login-card {
       position: relative;
@@ -88,17 +85,17 @@ import { AppLanguage, t } from '../../shared/translations';
       width: 100%;
       padding: 2rem 2rem 1.25rem;
       margin: 0;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      box-shadow: 0 24px 60px rgba(21, 23, 42, 0.24);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.3) !important;
       backdrop-filter: blur(16px);
-      background: rgba(255, 255, 255, 0.96);
+      background: var(--bg-card);
     }
     .card-accent {
       position: absolute;
       inset: 0 auto auto 0;
       width: 100%;
       height: 5px;
-      background: linear-gradient(90deg, #3f51b5, #7c4dff, #ff7a59);
+      background: linear-gradient(90deg, var(--primary), #14B8A6, var(--accent));
     }
     mat-card-header {
       justify-content: center;
@@ -110,15 +107,15 @@ import { AppLanguage, t } from '../../shared/translations';
       font-size: 2.2rem;
       font-weight: 600;
       letter-spacing: -0.03em;
-      color: #3147b0;
+      color: var(--primary);
     }
     mat-card-subtitle {
-      color: rgba(31, 41, 55, 0.72);
+      color: var(--text-secondary);
       font-size: 0.98rem;
     }
     .form-intro {
       margin: 0 0 1.25rem;
-      color: rgba(31, 41, 55, 0.78);
+      color: var(--text-secondary);
       font-size: 0.95rem;
       line-height: 1.5;
     }
@@ -127,7 +124,7 @@ import { AppLanguage, t } from '../../shared/translations';
       margin-bottom: 1.1rem;
     }
     :host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
-      background: rgba(248, 250, 252, 0.92);
+      background: var(--surface-subtle);
     }
     :host ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
       background-color: transparent;
@@ -144,20 +141,20 @@ import { AppLanguage, t } from '../../shared/translations';
     }
     .spinner {
       display: inline-block;
-      margin-right: 0.5rem;
+      margin-inline-end: 0.5rem;
     }
     button[mat-raised-button] {
       height: 48px;
-      border-radius: 14px;
+      border-radius: 12px;
       font-weight: 600;
-      box-shadow: 0 12px 24px rgba(63, 81, 181, 0.26);
+      box-shadow: 0 10px 22px rgba(15, 118, 110, 0.28);
     }
     .card-actions {
       padding-top: 0.5rem;
     }
     .register-text {
       font-size: 0.875rem;
-      color: rgba(31, 41, 55, 0.68);
+      color: var(--text-secondary);
     }
     @media (max-width: 480px) {
       .login-card {

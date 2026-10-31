@@ -40,6 +40,22 @@ public class NotificationService {
                 .build());
     }
 
+    /** One summary notification when an owner shares several houses at once. */
+    public Notification sendPropertiesAssignment(Long samsarId, List<Property> properties, User owner) {
+        if (properties.size() == 1) {
+            return sendPropertyAssignment(samsarId, properties.get(0), owner);
+        }
+        String titles = String.join(", ", properties.stream().map(p -> "\"" + p.getTitle() + "\"").toList());
+        return notificationRepository.save(Notification.builder()
+                .userId(samsarId)
+                .propertyId(properties.get(0).getId())
+                .type("property_assignment")
+                .title("Nouveau partage de maisons")
+                .message(owner.getName() + " vous a ajouté sur " + properties.size() + " maisons : " + titles)
+                .isRead(false)
+                .build());
+    }
+
     public void notifyReservationCreated(Reservation reservation, Property property, User actor) {
         String message = actor.getName() + " a réservé " + property.getTitle()
                 + " du " + reservation.getStartDate() + " au " + reservation.getEndDate()
@@ -69,6 +85,14 @@ public class NotificationService {
                 + ") pour " + reservation.getClientName() + " a été " + verb
                 + (actor != null ? " par " + actor.getName() : "");
         notifyStakeholders(reservation, property, actor, title, message, "reservation_" + status.replace('-', '_'), true);
+    }
+
+    /** A pending request lost its dates to another booking confirmed first. */
+    public void notifyReservationOverridden(Reservation reservation, Property property) {
+        String message = "La réservation en attente de " + reservation.getClientName() + " sur " + property.getTitle()
+                + " (" + reservation.getStartDate() + " au " + reservation.getEndDate()
+                + ") a été annulée : ces dates ont été confirmées pour une autre réservation";
+        notifyStakeholders(reservation, property, null, "Réservation en attente annulée", message, "reservation_cancelled", true);
     }
 
     public void notifyReservationDeleted(Reservation reservation, Property property, User actor) {
