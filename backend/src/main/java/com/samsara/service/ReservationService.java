@@ -324,6 +324,11 @@ public class ReservationService {
         if (actor != null) {
             notificationService.notifyReservationUpdated(reservation, property, actor);
         }
+        // Same rule as creation: once an advance is paid, a pending request becomes a confirmed booking.
+        // validate() already ensured no confirmed stay holds these dates.
+        if (PENDING.equals(status) && reservation.getAdvanceAmount() != null && reservation.getAdvanceAmount() > 0) {
+            reservation = applyStatus(reservation, CONFIRMED, actor);
+        }
         overridePendingOverlaps(reservation, property);
         return reservation;
     }

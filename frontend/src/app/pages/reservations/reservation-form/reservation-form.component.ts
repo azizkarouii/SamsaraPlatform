@@ -19,7 +19,7 @@ import { ReservationService, CreateReservationDto } from '../../../services/rese
 import { AvailabilityService } from '../../../services/availability.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { Property } from '../../../models/property.model';
-import { countReservationDays } from '../../../models/reservation.model';
+import { countReservationDays, normalizeReservationStatus } from '../../../models/reservation.model';
 import { DayStatus, createDayStatusMap, formatIsoDate, isDayBookable, isRangeFree, parseIsoDate, rangeHasPending, todayIso } from '../../../shared/calendar-utils';
 import { MatCalendarCellClassFunction } from '@angular/material/datepicker';
 import { t } from '../../../shared/translations';
@@ -170,7 +170,7 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
               <mat-label>{{ t('advance_amount_label') }}</mat-label>
               <input matInput type="number" min="0" formControlName="advanceAmount" />
               <span matTextSuffix>TND</span>
-              <mat-hint *ngIf="!isEdit">{{ t('advance_confirms_hint') }}</mat-hint>
+              <mat-hint *ngIf="!isEdit || editedStatus === 'pending'">{{ t('advance_confirms_hint') }}</mat-hint>
             </mat-form-field>
             <div class="inline-error" *ngIf="form.hasError('advanceTooHigh')"><mat-icon>error</mat-icon>{{ t('advance_above_total') }}</div>
 
@@ -220,6 +220,8 @@ export class ReservationFormComponent implements OnInit {
   minDate: Date | null = new Date();
   private dayStatuses: Record<string, DayStatus> = {};
   private ownRange?: { startDate: string; endDate: string };
+  /** Status of the reservation being edited: a pending one gets confirmed once an advance is entered. */
+  editedStatus?: string;
   private pendingPropertyId?: number;
 
   form = this.fb.group({
@@ -309,6 +311,7 @@ export class ReservationFormComponent implements OnInit {
     this.reservationService.findOne(id).subscribe({
       next: (reservation) => {
         this.ownRange = { startDate: reservation.startDate, endDate: reservation.endDate };
+        this.editedStatus = normalizeReservationStatus(reservation.status);
         this.totalTouched = true;
         this.pendingPropertyId = reservation.propertyId;
         this.form.patchValue({
