@@ -34,6 +34,7 @@ import { AppLanguage, t } from '../../shared/translations';
     <div class="register-container auth-shell">
       <mat-card class="register-card">
         <div class="card-accent"></div>
+        <img src="assets/brand/logo-icon.png" alt="Samsara" width="256" height="256" class="logo-icon" />
         <mat-card-header>
           <mat-card-title>{{ t('create_account') }}</mat-card-title>
           <mat-card-subtitle>{{ t('register_subtitle') }}</mat-card-subtitle>
@@ -134,8 +135,9 @@ import { AppLanguage, t } from '../../shared/translations';
       inset: 0 auto auto 0;
       width: 100%;
       height: 5px;
-      background: linear-gradient(90deg, var(--primary), #14B8A6, var(--accent));
+      background: linear-gradient(90deg, #15803D, #4ADE80, #15803D);
     }
+    .logo-icon { display: block; width: 64px; height: 64px; margin: 0.25rem auto 0.5rem; }
     mat-card-header {
       justify-content: center;
       text-align: center;

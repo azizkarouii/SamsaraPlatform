@@ -11,6 +11,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   notifications: { fr: 'Notifications', en: 'Notifications', ar: 'الإشعارات' },
   profile: { fr: 'Profil', en: 'Profile', ar: 'الملف الشخصي' },
   app_title: { fr: 'Samsara', en: 'Samsara', ar: 'Samsara' },
+  app_slogan: { fr: 'Plateforme de location', en: 'Rental platform', ar: 'منصة الكراء' },
   collapse: { fr: 'Réduire', en: 'Collapse', ar: 'طي' },
   language: { fr: 'Langue', en: 'Language', ar: 'اللغة' },
   dark_mode: { fr: 'Mode sombre', en: 'Dark mode', ar: 'الوضع المظلم' },

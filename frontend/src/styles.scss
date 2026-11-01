@@ -1,12 +1,24 @@
 @use '@angular/material' as mat;
 
-/* ---------- Angular Material theme (teal brand, replaces the indigo-pink prebuilt) ---------- */
+/* ---------- Angular Material theme (green of the Samsara logo, replaces the indigo-pink prebuilt) ---------- */
+$samsara-green: (
+  50: #F0FDF4, 100: #DCFCE7, 200: #BBF7D0, 300: #86EFAC, 400: #4ADE80,
+  500: #22C55E, 600: #16A34A, 700: #15803D, 800: #166534, 900: #14532D,
+  A100: #BBF7D0, A200: #86EFAC, A400: #22C55E, A700: #15803D,
+  contrast: (
+    50: rgba(0, 0, 0, 0.87), 100: rgba(0, 0, 0, 0.87), 200: rgba(0, 0, 0, 0.87), 300: rgba(0, 0, 0, 0.87),
+    400: rgba(0, 0, 0, 0.87), 500: rgba(0, 0, 0, 0.87), 600: rgba(0, 0, 0, 0.87), 700: #FFFFFF,
+    800: #FFFFFF, 900: #FFFFFF,
+    A100: rgba(0, 0, 0, 0.87), A200: rgba(0, 0, 0, 0.87), A400: rgba(0, 0, 0, 0.87), A700: #FFFFFF,
+  ),
+);
+
 $font-family: "'Fira Sans', 'Almarai', Roboto, 'Helvetica Neue', sans-serif";
 $typography: mat.define-typography-config($font-family: $font-family);
 
 $light-theme: mat.define-light-theme((
   color: (
-    primary: mat.define-palette(mat.$teal-palette, 700, 100, 900),
+    primary: mat.define-palette($samsara-green, 700, 100, 900),
     accent: mat.define-palette(mat.$light-blue-palette, 800, 100, 900),
     warn: mat.define-palette(mat.$red-palette, 600),
   ),
@@ -16,7 +28,7 @@ $light-theme: mat.define-light-theme((
 
 $dark-theme: mat.define-dark-theme((
   color: (
-    primary: mat.define-palette(mat.$teal-palette, 300, 100, 500),
+    primary: mat.define-palette($samsara-green, 400, 100, 600),
     accent: mat.define-palette(mat.$light-blue-palette, 300, 100, 500),
     warn: mat.define-palette(mat.$red-palette, 300),
   ),
@@ -40,9 +52,9 @@ body {
 }
 
 :root {
-  --primary: #0F766E;
-  --primary-strong: #115E59;
-  --primary-soft: rgba(15, 118, 110, 0.1);
+  --primary: #15803D;
+  --primary-strong: #166534;
+  --primary-soft: rgba(22, 163, 74, 0.1);
   --on-primary: #ffffff;
   --accent: #0369A1;
   --bg-main: #F3F7F7;
@@ -54,8 +66,8 @@ body {
   --border-color: #E2E8F0;
   --surface-hover: rgba(15, 23, 42, 0.04);
   --surface-subtle: rgba(15, 23, 42, 0.03);
-  --surface-accent: rgba(15, 118, 110, 0.05);
-  --focus-ring: 0 0 0 3px rgba(15, 118, 110, 0.35);
+  --surface-accent: rgba(22, 163, 74, 0.05);
+  --focus-ring: 0 0 0 3px rgba(22, 163, 74, 0.35);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
   --radius-md: 12px;
@@ -69,8 +81,8 @@ body {
   --status-pending-bg: rgba(245, 158, 11, 0.14);
   --status-confirmed: #2563eb;
   --status-confirmed-bg: rgba(37, 99, 235, 0.12);
-  --status-in-progress: #16a34a;
-  --status-in-progress-bg: rgba(22, 163, 74, 0.13);
+  --status-in-progress: #7C3AED;
+  --status-in-progress-bg: rgba(124, 58, 237, 0.12);
   --status-completed: #64748b;
   --status-completed-bg: rgba(100, 116, 139, 0.14);
   --status-cancelled: #dc2626;
@@ -79,10 +91,10 @@ body {
 }
 
 html.dark-theme {
-  --primary: #2DD4BF;
-  --primary-strong: #5EEAD4;
-  --primary-soft: rgba(45, 212, 191, 0.14);
-  --on-primary: #042F2E;
+  --primary: #4ADE80;
+  --primary-strong: #86EFAC;
+  --primary-soft: rgba(74, 222, 128, 0.14);
+  --on-primary: #052E16;
   --accent: #38BDF8;
   --bg-main: #0B1215;
   --bg-card: #141C20;
@@ -93,12 +105,13 @@ html.dark-theme {
   --border-color: rgba(255,255,255,0.1);
   --surface-hover: rgba(255,255,255,0.06);
   --surface-subtle: rgba(255,255,255,0.04);
-  --surface-accent: rgba(45, 212, 191, 0.08);
-  --focus-ring: 0 0 0 3px rgba(45, 212, 191, 0.45);
+  --surface-accent: rgba(74, 222, 128, 0.08);
+  --focus-ring: 0 0 0 3px rgba(74, 222, 128, 0.45);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
   --status-confirmed: #60a5fa;
-  --status-in-progress: #4ade80;
+  --status-in-progress: #A78BFA;
+  --status-in-progress-bg: rgba(167, 139, 250, 0.16);
   --status-completed: #94a3b8;
   --status-cancelled: #f87171;
   --status-pending: #fbbf24;
@@ -544,12 +557,15 @@ button:disabled, .cal-day:disabled { cursor: not-allowed; }
   justify-content: center;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at 15% 10%, rgba(45, 212, 191, 0.28), transparent 40%),
-    radial-gradient(circle at 85% 90%, rgba(3, 105, 161, 0.3), transparent 45%),
-    linear-gradient(135deg, #0F766E 0%, #115E59 50%, #0C4A6E 100%);
+    radial-gradient(circle at 15% 10%, rgba(74, 222, 128, 0.3), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(20, 83, 45, 0.55), transparent 45%),
+    linear-gradient(135deg, #16A34A 0%, #15803D 50%, #14532D 100%);
 }
 
+/* Wordmark text next to the logo: same geometric bold as the "SAMSARA" of the logo */
 .auth-brand {
-  font-family: 'Cinzel', serif;
-  letter-spacing: 0.06em;
+  font-family: 'Montserrat', 'Fira Sans', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

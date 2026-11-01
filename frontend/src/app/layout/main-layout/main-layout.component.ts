@@ -30,8 +30,8 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     <div class="sidebar-backdrop" *ngIf="isMobile && !sidebarHidden" (click)="sidebarHidden = true"></div>
 
     <aside id="sidebar" [class.hide]="sidebarHidden" [class.mobile]="isMobile" (click)="onSidebarClick($event)">
-      <a class="brand" routerLink="/dashboard">
-        <span class="brand-mark"><mat-icon>holiday_village</mat-icon></span>
+      <a class="brand" routerLink="/dashboard" [attr.aria-label]="t('app_title') + ' — ' + t('dashboard')">
+        <img class="brand-mark" src="assets/brand/logo-icon.png" alt="" width="256" height="256" />
         <span class="text auth-brand">{{ t('app_title') }}</span>
       </a>
 
@@ -133,16 +133,13 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       display: flex; align-items: center; gap: 0.75rem; height: var(--topbar-h); flex-shrink: 0;
       padding-inline: 16px; color: var(--primary); font-size: 1.3rem; white-space: nowrap;
     }
-    .brand-mark {
-      min-width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-      background: var(--primary); color: var(--on-primary);
-    }
+    .brand-mark { flex-shrink: 0; width: 40px; height: 40px; }
     .side-nav { flex: 1; display: flex; flex-direction: column; padding: 12px; padding-inline-end: 0; }
     .side-menu { display: grid; gap: 4px; }
     .side-menu li { position: relative; }
     .side-menu.bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border-color); }
     .side-menu a, .side-menu button {
-      position: relative; width: calc(100% - 12px); height: 44px; display: flex; align-items: center; gap: 12px;
+      position: relative; box-sizing: border-box; width: calc(100% - 12px); height: 44px; display: flex; align-items: center; gap: 12px;
       padding-inline: 12px; border: 0; border-radius: 22px; background: transparent;
       color: var(--text-secondary); font: inherit; font-size: 0.95rem; font-weight: 500;
       white-space: nowrap; overflow: hidden;

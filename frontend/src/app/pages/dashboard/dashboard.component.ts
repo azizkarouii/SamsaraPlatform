@@ -64,13 +64,13 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
               <div class="metric-value">{{ totalRevenue | number:'1.0-0' }} <small>TND</small></div>
             </div>
           </div>
-          <div class="metric">
+          <a class="metric clickable" routerLink="/reservations">
             <mat-icon class="metric-icon bookings">event_available</mat-icon>
             <div>
               <div class="metric-label">{{ t('reservations') }}</div>
               <div class="metric-value">{{ filtered.length }}</div>
             </div>
-          </div>
+          </a>
           <a class="metric clickable" routerLink="/reservations" [queryParams]="{ tab: 'pending' }">
             <mat-icon class="metric-icon pending">hourglass_top</mat-icon>
             <div>

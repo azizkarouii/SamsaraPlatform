@@ -12,6 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { AppLanguage, t } from '../../shared/translations';
+import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-controls.component';
 
 @Component({
   selector: 'app-login',
@@ -27,15 +28,20 @@ import { AppLanguage, t } from '../../shared/translations';
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    UiPreferencesControlsComponent,
   ],
   template: `
     <div class="login-container auth-shell">
+      <app-ui-preferences-controls class="prefs"></app-ui-preferences-controls>
       <mat-card class="login-card">
         <div class="card-accent"></div>
-        <mat-card-header>
-          <mat-card-title class="auth-brand">Samsara</mat-card-title>
-          <mat-card-subtitle>{{ t('login_subtitle') }}</mat-card-subtitle>
-        </mat-card-header>
+        <header class="brand-header">
+          <h1 class="logo-title">
+            <img src="assets/brand/logo-full.png" alt="Samsara" width="900" height="257" class="logo-full" />
+          </h1>
+          <!-- The slogan is text (not part of the image) so it follows the selected language -->
+          <p class="slogan">{{ t('app_slogan') }}</p>
+        </header>
         <mat-card-content>
           <p class="form-intro">{{ t('login_intro') }}</p>
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
@@ -78,6 +84,8 @@ import { AppLanguage, t } from '../../shared/translations';
       justify-content: center;
       padding: 1.5rem;
     }
+    .login-container { position: relative; }
+    .prefs { position: absolute; top: 1rem; inset-inline-end: 1rem; --mdc-icon-button-icon-color: #fff; color: #fff; }
     .login-card {
       position: relative;
       overflow: hidden;
@@ -95,19 +103,14 @@ import { AppLanguage, t } from '../../shared/translations';
       inset: 0 auto auto 0;
       width: 100%;
       height: 5px;
-      background: linear-gradient(90deg, var(--primary), #14B8A6, var(--accent));
+      background: linear-gradient(90deg, #15803D, #4ADE80, #15803D);
     }
-    mat-card-header {
-      justify-content: center;
-      text-align: center;
-      margin-bottom: 1.5rem;
-      padding-top: 0.5rem;
-    }
-    mat-card-title {
-      font-size: 2.2rem;
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      color: var(--primary);
+    .brand-header { text-align: center; margin: 0.5rem 0 1.5rem; }
+    .logo-title { margin: 0; line-height: 0; }
+    .logo-full { width: min(100%, 300px); height: auto; }
+    .slogan {
+      margin: 0.6rem 0 0; font-family: 'Montserrat', 'Fira Sans', sans-serif; font-weight: 600;
+      font-size: 0.8rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--primary);
     }
     mat-card-subtitle {
       color: var(--text-secondary);
@@ -161,8 +164,8 @@ import { AppLanguage, t } from '../../shared/translations';
         padding: 1.5rem 1.25rem 1rem;
       }
 
-      mat-card-title {
-        font-size: 1.9rem;
+      .slogan {
+        letter-spacing: 0.16em;
       }
     }
   `]

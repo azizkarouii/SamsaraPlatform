@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -184,7 +184,8 @@ interface SamsarGroup {
       <!-- ===== Samsar ===== -->
       <ng-container *ngIf="!isOwner && !loading">
         <div class="grid" *ngIf="relations.length; else emptySamsar">
-          <mat-card class="house-card" *ngFor="let relation of relations">
+          <!-- The whole card opens the house; the "View" button stays as the keyboard entry point -->
+          <mat-card class="house-card" *ngFor="let relation of relations" (click)="openHouse(relation)">
             <mat-card-header>
               <mat-card-title>{{ relation.property?.title || '#' + relation.propertyId }}</mat-card-title>
               <mat-card-subtitle>{{ relation.property?.address || relation.property?.configuration || '-' }}</mat-card-subtitle>
@@ -199,10 +200,10 @@ interface SamsarGroup {
                 <span class="pill primary">{{ t('your_margin') }} +{{ relation.priceIncreaseTnd || 0 }} TND</span>
               </div>
               <p class="contact" *ngIf="relation.property?.ownerContact">
-                <mat-icon inline>call</mat-icon> {{ t('owner_contact') }} : <a class="ltr" [href]="'tel:+216' + relation.property?.ownerContact">+216 {{ relation.property?.ownerContact }}</a>
+                <mat-icon inline>call</mat-icon> {{ t('owner_contact') }} : <a class="ltr" [href]="'tel:+216' + relation.property?.ownerContact" (click)="$event.stopPropagation()">+216 {{ relation.property?.ownerContact }}</a>
               </p>
             </mat-card-content>
-            <mat-card-actions>
+            <mat-card-actions (click)="$event.stopPropagation()">
               <a mat-button color="primary" [routerLink]="['/properties', relation.propertyId]"><mat-icon>visibility</mat-icon> {{ t('view') }}</a>
               <a mat-button color="primary" [routerLink]="['/reservations/add']" [queryParams]="{ propertyId: relation.propertyId }"><mat-icon>add</mat-icon> {{ t('book') }}</a>
               <span class="spacer"></span>
@@ -246,7 +247,8 @@ interface SamsarGroup {
     .samsar-info span { font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .margin-btn { min-width: 0; padding: 0 0.7rem; font-size: 0.8rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .house-card { display: flex; flex-direction: column; }
+    .house-card { display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease; }
+    .house-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md) !important; }
     .house-card mat-card-content { flex: 1; }
     .price { margin: 0.5rem 0; }
     .price strong { font-size: 1.6rem; }
@@ -283,7 +285,12 @@ export class SharedHousesComponent implements OnInit {
     private fb: FormBuilder,
     private snackBar: MatSnackBar,
     private uiPrefs: UiPreferencesService,
+    private router: Router,
   ) {}
+
+  openHouse(relation: PropertySamsar): void {
+    this.router.navigate(['/properties', relation.propertyId]);
+  }
 
   get isOwner(): boolean {
     return this.user?.role === 'PROPRIETAIRE';

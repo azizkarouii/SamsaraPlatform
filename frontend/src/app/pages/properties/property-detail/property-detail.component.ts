@@ -51,7 +51,6 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
   ],
   template: `
     <div [class.public-shell]="publicView">
-      <div *ngIf="publicView" class="public-brand"><mat-icon aria-hidden="true">holiday_village</mat-icon> <span class="auth-brand">Samsara</span></div>
 
       <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
@@ -223,7 +222,6 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
   `,
   styles: [`
     .public-shell { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-    .public-brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.3rem; color: var(--primary); margin-bottom: 1rem; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.25rem; align-items: start; }
     .main-col, .side-col { display: grid; gap: 1.25rem; min-width: 0; }
     h3 { margin: 1.25rem 0 0.6rem; font-size: 0.95rem; font-weight: 600; }
