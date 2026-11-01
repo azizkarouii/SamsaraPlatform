@@ -17,7 +17,7 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - Dialogue de partage avec email/téléphone/majoration depuis la liste des propriétés.
 - Notifications complètes pour création, confirmation, annulation et suppression de réservation.
 - Correction : les données propriété sont maintenant chargées dans la vue Samsar (résolution lazy loading).
-- Nouveau : le propriétaire voit dans "Maisons partagées" la liste des samsars invités (regroupés par propriété).
+- Nouveau : le propriétaire voit dans "Maisons partagées" la liste des samsars invités (regroupés par samsar depuis le 01/11/2026, voir plus bas).
 - Correction : les infos utilisateur sont tout en bas de la barre latérale.
 - Backend expose le nom/email/téléphone du samsar dans la réponse PropertySamsar.
 - Dashboard et Profile : les compteurs de propriétés affichent les propriétés partagées pour les SAMSAR (via `PropertySamsarService`).
@@ -32,15 +32,15 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 
 **Sécurité / contrôle d'accès**
 - Le hash du mot de passe n'est plus sérialisé dans les réponses (`User.password` en `@JsonIgnore`).
-- Règles de propriété centralisées dans `AccessService` : seul le propriétaire modifie/supprime sa maison, gère ses samsars, bloque des dates ; une réservation n'est visible/modifiable que par le samsar qui l'a créée ou le propriétaire de la maison ; les notifications ne sont lisibles/supprimables que par leur destinataire.
+- Règles de propriété centralisées dans `AccessService` : seul le propriétaire modifie/supprime sa maison, gère ses samsars, bloque des dates ; une réservation n'est modifiable que par le samsar qui l'a créée ou le propriétaire de la maison (les autres samsars de la maison la consultent en lecture seule depuis le 01/11/2026) ; les notifications ne sont lisibles/supprimables que par leur destinataire.
 - `GET /reservations`, `/property-samsars`, `/revenues` ne renvoient plus les données de tous les utilisateurs.
 - Jeton absent/expiré → 401 (le front redirige vers la connexion) ; accès refusé → 403 (plus de 401 parasite via `/error`).
 - Page publique : le contact du propriétaire est masqué ; le calendrier utilise `GET /properties/{id}/occupancy` (périodes occupées sans données client).
 
 **Règles métier**
-- Réservation : dates `yyyy-MM-dd` validées (fin ≥ début), acompte ≤ total, **refus des chevauchements** (réservations en attente/confirmées/en cours) et des jours bloqués (HTTP 409).
+- Réservation : dates `yyyy-MM-dd` validées (fin ≥ début), acompte ≤ total, **refus des chevauchements** avec une réservation confirmée ou en cours et des jours bloqués (HTTP 409). Une réservation en attente ne bloque plus ses dates depuis le 01/11/2026 (voir plus bas).
 - Montant : jours (dernier jour inclus) × prix/jour ; un samsar ne peut pas dépasser prix + sa marge (10/20/30 TND par jour).
-- Workflow strict `pending → confirmed → in-progress → completed`, annulation possible jusqu'à la fin ; tâche planifiée (toutes les 10 min + au démarrage) qui passe les séjours en cours / terminés et enregistre les revenus (`advance`, `completion`).
+- Workflow strict `pending → confirmed → in-progress → completed`, annulation possible jusqu'à la fin (une réservation avec acompte est confirmée directement, voir plus bas) ; tâche planifiée (toutes les 10 min + au démarrage) qui passe les séjours en cours / terminés et enregistre les revenus (`advance`, `completion`).
 - Notifications envoyées au propriétaire, au samsar de la réservation et aux autres samsars de la maison (sauf l'auteur) pour création, modification, changement de statut et suppression.
 - Suppression d'une réservation / maison : nettoyage des notifications, revenus, disponibilités, images et partages (plus d'erreur de clé étrangère) ; une maison avec des réservations actives ne peut pas être supprimée.
 - Disponibilités : upsert par jour + `POST /availabilities/range` (disponible / en attente / indisponible).
@@ -63,7 +63,42 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - L'historique des revenus est resynchronisé quand l'acompte ou le total est modifié.
 - Les dates saisies au clavier (jj/mm/aaaa) sont reconnues et recalculent le total suggéré.
 
+### Évolutions (31/10/2026 – 01/11/2026)
+
+**Identité visuelle et interface**
+- Refonte guidée par l'outil `ui-ux-pro-max` : thème Angular Material personnalisé (vert du logo, clair et sombre) à la place d'`indigo-pink`, polices Fira Sans + Almarai (arabe) + Montserrat (nom de la marque), tokens communs (couleurs, ombres, rayons, durées).
+- Logo Samsara intégré : symbole dans la barre latérale, logo complet sur la page de connexion (slogan traduit en FR/EN/AR), symbole sur l'inscription, favicon. Fichiers détourés dans `frontend/src/assets/brand/`.
+- Statut « En cours » en violet pour ne pas se confondre avec la couleur principale verte.
+- Barre latérale réécrite : icônes Material uniquement (Boxicons retiré), onglet actif à coins arrondis inversés, compteur de notifications, barre supérieure en verre dépoli.
+- Accessibilité : lien « Aller au contenu », vrais boutons avec libellés, focus visibles, `prefers-reduced-motion`, `autocomplete` sur les formulaires de connexion.
+- Choix de la langue et du mode sombre disponibles sur la page de connexion.
+- Tableau de bord : la carte « Réservations » ouvre la liste ; cartes des maisons partagées cliquables en entier ; plus de logo sur la page publique d'une maison.
+- Formulaire de maison : bouton « Utiliser mon téléphone » pour remplir le contact propriétaire.
+
+**Partage avec les samsars**
+- Invitation d'un samsar sur **toutes les maisons** du propriétaire en une fois (`POST /property-samsars/all-properties`), avec une seule notification récapitulative ; les maisons déjà partagées sont ignorées.
+- « Samsars invités » regroupés **par samsar** : badge « Toutes les maisons », marge commune modifiable en une fois, détail maison par maison, ajout sur les maisons restantes, retrait de toutes les maisons.
+
+**Réservations**
+- Une réservation créée **avec un acompte** est directement **confirmée** ; une réservation en attente modifiée pour ajouter un acompte passe aussi en confirmée.
+- Les samsars d'une maison consultent ses réservations en **lecture seule** (corrige « Impossible de charger la réservation » après une notification). Leurs statistiques ne comptent que leurs propres réservations.
+- Une réservation **en attente ne bloque plus ses dates** : elles restent réservables (affichées en orange). Dès qu'une réservation est confirmée sur ces dates, les réservations en attente qui la chevauchent sont annulées automatiquement, avec notification. Le propriétaire ne peut pas bloquer manuellement des dates occupées par une réservation en attente.
+- Recherche de maisons disponibles, calendriers de sélection et contrôles serveur alignés sur cette règle.
+
+**Photos des maisons**
+- Jusqu'à **10 photos** par maison : ajout (glisser-déposer), ordre, photo de couverture (position 0), remplacement, suppression. Seul le propriétaire les modifie ; elles sont visibles par tous, y compris sur la page publique.
+- Endpoints : `GET|POST /properties/{id}/images`, `PUT /properties/{id}/images/order`, `PUT|DELETE /properties/{id}/images/{imageId}`.
+- Table PostgreSQL `property_images` (existante) complétée par `content_type` et `size_bytes` ; la couverture est exposée sur chaque maison (`coverImage`, calculée).
+- Contrôles : JPEG / PNG / WebP vérifiés sur le contenu réel du fichier, 5 Mo max ; le navigateur redimensionne à 1600 px et convertit en WebP avant l'envoi.
+- Stockage : fichiers sur disque (`backend/uploads/`, servis sous `/api/uploads/**`) derrière l'interface `ImageStorage`, à remplacer par un stockage cloud au déploiement. Supprimer une photo ou une maison supprime aussi les fichiers.
+- Affichage : galerie avec vue plein écran sur la fiche maison, miniature de couverture dans les listes, les cartes samsar et la recherche de disponibilité.
+
+**Photo de profil**
+- Chaque utilisateur peut ajouter, changer ou supprimer sa photo (`PUT|DELETE /auth/profile/photo`), stockée dans la colonne existante `users.photo_url`. Elle remplace les initiales dans le profil, la barre supérieure et les cartes des samsars ; la barre supérieure se met à jour sans rechargement.
+
 ## 1. Présentation Générale
+
+> Les sections 1 à 13 décrivent la **version Android d'origine** (SQLite). L'application web actuelle (Angular + Spring Boot + PostgreSQL) est décrite dans l'addendum ci-dessus et dans le `README.md`.
 
 **Projet :** Samsara - Application de Gestion de Locations Saisonnières pour Courtiers  
 **Type :** Application mobile Android  
