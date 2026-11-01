@@ -4,6 +4,11 @@ server:
     context-path: /api
 
 spring:
+  servlet:
+    multipart:
+      # 10 photos of 5 MB at most (the browser already compresses them to ~1600px before sending)
+      max-file-size: 5MB
+      max-request-size: 52MB
   datasource:
     url: jdbc:postgresql://localhost:5432/Samsara
     username: postgres
@@ -20,6 +25,9 @@ spring:
         format_sql: true
 
 application:
+  storage:
+    # Local folder for uploaded photos (development); replaced by a cloud storage at deployment
+    local-dir: uploads
   jwt:
     secret: samsara-secret-key-change-in-production
     expiration: 86400000

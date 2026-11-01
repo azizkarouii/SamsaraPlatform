@@ -27,6 +27,7 @@ interface SamsarGroup {
   name: string;
   email: string;
   phone: string;
+  photo?: string;
   relations: PropertySamsar[];
   /** True when the samsar has access to every house of the owner. */
   allHouses: boolean;
@@ -34,10 +35,14 @@ interface SamsarGroup {
   commonMargin: number | null;
 }
 
+import { PropertyThumbComponent } from '../../shared/property-thumb.component';
+import { UserAvatarComponent } from '../../shared/user-avatar.component';
 @Component({
   selector: 'app-shared-houses',
   standalone: true,
   imports: [
+    PropertyThumbComponent,
+    UserAvatarComponent,
     CommonModule,
     RouterModule,
     ReactiveFormsModule,
@@ -122,7 +127,7 @@ interface SamsarGroup {
 
         <mat-card *ngFor="let group of samsarGroups; trackBy: trackSamsar" class="samsar-card">
           <div class="samsar-head">
-            <div class="avatar" aria-hidden="true">{{ (group.name || '?')[0] | uppercase }}</div>
+            <app-user-avatar class="avatar" [name]="group.name" [photo]="group.photo" aria-hidden="true"></app-user-avatar>
             <div class="samsar-info">
               <strong>{{ group.name }}</strong>
               <span>{{ group.email }}<ng-container *ngIf="group.phone"> · <span class="ltr">+216 {{ group.phone }}</span></ng-container></span>
@@ -186,6 +191,7 @@ interface SamsarGroup {
         <div class="grid" *ngIf="relations.length; else emptySamsar">
           <!-- The whole card opens the house; the "View" button stays as the keyboard entry point -->
           <mat-card class="house-card" *ngFor="let relation of relations" (click)="openHouse(relation)">
+            <app-property-thumb class="card-cover" [path]="relation.property?.coverImage"></app-property-thumb>
             <mat-card-header>
               <mat-card-title>{{ relation.property?.title || '#' + relation.propertyId }}</mat-card-title>
               <mat-card-subtitle>{{ relation.property?.address || relation.property?.configuration || '-' }}</mat-card-subtitle>
@@ -239,17 +245,17 @@ interface SamsarGroup {
     .house-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
     .details-btn { font-size: 0.8rem; }
     .danger { color: var(--status-cancelled); }
-    .avatar {
-      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-      background: var(--primary-soft); color: var(--primary); font-weight: 700;
-    }
+    .avatar { --avatar-size: 36px; --avatar-bg: var(--primary-soft); --avatar-fg: var(--primary); }
     .samsar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .samsar-info span { font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .margin-btn { min-width: 0; padding: 0 0.7rem; font-size: 0.8rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     .house-card { display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease; }
     .house-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md) !important; }
+    .house-card { overflow: hidden; }
     .house-card mat-card-content { flex: 1; }
+    .card-cover { --thumb-w: 100%; --thumb-ratio: 16 / 9; --thumb-radius: 0; }
+    .card-cover ::ng-deep mat-icon { font-size: 40px; width: 40px; height: 40px; opacity: 0.5; }
     .price { margin: 0.5rem 0; }
     .price strong { font-size: 1.6rem; }
     .price span { color: var(--text-secondary); }
@@ -343,6 +349,7 @@ export class SharedHousesComponent implements OnInit {
           name: rel.samsar?.name || '#' + rel.samsarId,
           email: rel.samsar?.email || '',
           phone: rel.samsar?.phone || '',
+          photo: rel.samsar?.photoUrl,
           relations: [],
           allHouses: false,
           commonMargin: null,

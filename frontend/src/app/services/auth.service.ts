@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { LoginDto, RegisterDto, AuthResponse, User } from '../models/auth.model';
 
@@ -9,14 +9,22 @@ import { LoginDto, RegisterDto, AuthResponse, User } from '../models/auth.model'
 })
 export class AuthService {
   private apiUrl = `${environment.apiUrl}/auth`;
+  private readonly currentUserSubject = new BehaviorSubject<User | null>(this.readStoredUser());
+  /** Emits whenever the connected user changes (login, profile edit, photo...). */
+  readonly currentUser$ = this.currentUserSubject.asObservable();
 
   constructor(private http: HttpClient) {}
+
+  private storeUser(user: User): void {
+    localStorage.setItem('user', JSON.stringify(user));
+    this.currentUserSubject.next(user);
+  }
 
   login(dto: LoginDto): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, dto).pipe(
       tap(res => {
         localStorage.setItem('token', res.access_token);
-        localStorage.setItem('user', JSON.stringify(res.user));
+        this.storeUser(res.user);
       })
     );
   }
@@ -25,7 +33,7 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.apiUrl}/register`, dto).pipe(
       tap(res => {
         localStorage.setItem('token', res.access_token);
-        localStorage.setItem('user', JSON.stringify(res.user));
+        this.storeUser(res.user);
       })
     );
   }
@@ -36,8 +44,18 @@ export class AuthService {
 
   updateProfile(dto: { name: string; phone?: string }): Observable<User> {
     return this.http.put<User>(`${this.apiUrl}/profile`, dto).pipe(
-      tap(user => localStorage.setItem('user', JSON.stringify(user)))
+      tap(user => this.storeUser(user))
     );
+  }
+
+  updatePhoto(file: File): Observable<User> {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.put<User>(`${this.apiUrl}/profile/photo`, body).pipe(tap(user => this.storeUser(user)));
+  }
+
+  removePhoto(): Observable<User> {
+    return this.http.delete<User>(`${this.apiUrl}/profile/photo`).pipe(tap(user => this.storeUser(user)));
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
@@ -47,6 +65,7 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    this.currentUserSubject.next(null);
   }
 
   getToken(): string | null {
@@ -54,6 +73,10 @@ export class AuthService {
   }
 
   getCurrentUser(): User | null {
+    return this.readStoredUser();
+  }
+
+  private readStoredUser(): User | null {
     try {
       const user = localStorage.getItem('user');
       return user ? JSON.parse(user) : null;

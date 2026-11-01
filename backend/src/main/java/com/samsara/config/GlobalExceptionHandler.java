@@ -1,5 +1,6 @@
 package com.samsara.config;
 
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +52,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleIntegrity(DataIntegrityViolationException ex) {
         // Never leak raw SQL errors to the client
         return error(HttpStatus.CONFLICT, "Operation conflicts with existing data");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "Each image must be 5 MB or less");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

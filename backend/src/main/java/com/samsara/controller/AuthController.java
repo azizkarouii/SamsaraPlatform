@@ -1,5 +1,7 @@
 package com.samsara.controller;
 
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import com.samsara.dto.AuthResponse;
 import com.samsara.dto.ChangePasswordDto;
 import com.samsara.dto.LoginDto;
@@ -41,6 +43,17 @@ public class AuthController {
                                                  Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(authService.updateProfile(userId, dto));
+    }
+
+    @PutMapping(value = "/profile/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserDto> updatePhoto(@RequestParam("file") MultipartFile file,
+                                               Authentication authentication) {
+        return ResponseEntity.ok(authService.updatePhoto((Long) authentication.getPrincipal(), file));
+    }
+
+    @DeleteMapping("/profile/photo")
+    public ResponseEntity<UserDto> removePhoto(Authentication authentication) {
+        return ResponseEntity.ok(authService.removePhoto((Long) authentication.getPrincipal()));
     }
 
     @PutMapping("/password")

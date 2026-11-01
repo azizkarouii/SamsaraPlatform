@@ -19,6 +19,8 @@ import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
 import { Reservation, isRevenueStatus } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
+import { UserAvatarComponent } from '../../shared/user-avatar.component';
+import { ACCEPT_ATTRIBUTE, checkImageFile, compressImage } from '../../shared/image-utils';
 
 function passwordsMatch(group: AbstractControl): ValidationErrors | null {
   return group.get('newPassword')?.value === group.get('confirmPassword')?.value ? null : { mismatch: true };
@@ -37,6 +39,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    UserAvatarComponent,
   ],
   template: `
     <div class="page narrow">
@@ -46,7 +49,20 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
 
       <mat-card class="identity">
         <mat-card-content>
-          <div class="avatar">{{ initials }}</div>
+          <div class="photo-block">
+            <div class="avatar-wrap">
+              <app-user-avatar class="avatar" [name]="user?.name" [photo]="user?.photoUrl"></app-user-avatar>
+              <div class="avatar-busy" *ngIf="photoBusy"><mat-spinner diameter="28"></mat-spinner></div>
+              <button mat-mini-fab color="primary" type="button" class="change-photo" (click)="photoInput.click()"
+                      [disabled]="photoBusy" [attr.aria-label]="user?.photoUrl ? t('change_photo') : t('add_photo')">
+                <mat-icon>photo_camera</mat-icon>
+              </button>
+            </div>
+            <button mat-button type="button" class="remove-photo" *ngIf="user?.photoUrl" (click)="removePhoto()" [disabled]="photoBusy">
+              {{ t('remove_photo') }}
+            </button>
+            <input #photoInput type="file" hidden [accept]="accept" (change)="onPhotoPicked($event)" />
+          </div>
           <div class="who">
             <strong>{{ user?.name }}</strong>
             <span>{{ user?.email }}</span>
@@ -124,10 +140,12 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
   styles: [`
     .narrow { max-width: 960px; }
     .identity mat-card-content { display: flex; flex-wrap: wrap; align-items: center; gap: 1.25rem; padding-top: 1rem !important; }
-    .avatar {
-      width: 72px; height: 72px; border-radius: 50%; background: var(--primary); color: var(--on-primary);
-      display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 700;
-    }
+    .photo-block { display: flex; flex-direction: column; align-items: center; }
+    .avatar-wrap { position: relative; }
+    .avatar { --avatar-size: 88px; }
+    .avatar-busy { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.45); }
+    .change-photo { position: absolute; bottom: -4px; inset-inline-end: -4px; transform: scale(0.85); }
+    .remove-photo { font-size: 0.78rem; min-height: 28px; height: 28px; margin-top: 4px; }
     .who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; flex: 1; min-width: 200px; }
     .who strong { font-size: 1.25rem; }
     .who span:not(.pill) { color: var(--text-secondary); }
@@ -183,8 +201,47 @@ export class ProfileComponent implements OnInit {
     return t(key, this.uiPrefs.getLanguage());
   }
 
-  get initials(): string {
-    return (this.user?.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+  readonly accept = ACCEPT_ATTRIBUTE;
+  photoBusy = false;
+
+  /** Profile photo: resized to 512px in the browser, then replaces the initials everywhere. */
+  async onPhotoPicked(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const error = checkImageFile(file);
+    if (error) {
+      this.snackBar.open(this.t(error), this.t('close'), { duration: 4000 });
+      return;
+    }
+    this.photoBusy = true;
+    const prepared = await compressImage(file, 512);
+    this.authService.updatePhoto(prepared).subscribe({
+      next: (user) => {
+        this.user = user;
+        this.photoBusy = false;
+        this.snackBar.open(this.t('photo_updated'), this.t('close'), { duration: 2500 });
+      },
+      error: (err) => this.photoFailed(err),
+    });
+  }
+
+  removePhoto(): void {
+    if (!confirm(this.t('remove_photo_confirm'))) return;
+    this.photoBusy = true;
+    this.authService.removePhoto().subscribe({
+      next: (user) => {
+        this.user = user;
+        this.photoBusy = false;
+      },
+      error: (err) => this.photoFailed(err),
+    });
+  }
+
+  private photoFailed(err: any): void {
+    this.photoBusy = false;
+    this.snackBar.open(err?.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
   }
 
   private resetProfileForm(): void {

@@ -22,10 +22,12 @@ import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { TRANSLATIONS } from '../../../shared/translations';
 import { ShareDialogComponent } from './share-dialog.component';
 
+import { PropertyThumbComponent } from '../../../shared/property-thumb.component';
 @Component({
   selector: 'app-property-list',
   standalone: true,
   imports: [
+    PropertyThumbComponent,
     CommonModule,
     RouterModule,
     ReactiveFormsModule,
@@ -91,8 +93,13 @@ import { ShareDialogComponent } from './share-dialog.component';
               <ng-container matColumnDef="title">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('title_col') }}</th>
                 <td mat-cell *matCellDef="let prop">
-                  <strong>{{ prop.title }}</strong>
-                  <div class="sub" *ngIf="prop.configuration">{{ prop.configuration }}</div>
+                  <div class="title-cell">
+                    <app-property-thumb [path]="prop.coverImage"></app-property-thumb>
+                    <div>
+                      <strong>{{ prop.title }}</strong>
+                      <div class="sub" *ngIf="prop.configuration">{{ prop.configuration }}</div>
+                    </div>
+                  </div>
                 </td>
               </ng-container>
 
@@ -166,6 +173,7 @@ import { ShareDialogComponent } from './share-dialog.component';
       min-width: 200px;
       flex: 1 1 auto;
     }
+    .title-cell { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; }
     .property-table {
       width: 100%;
     }

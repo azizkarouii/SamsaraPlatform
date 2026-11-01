@@ -14,10 +14,11 @@ import { countReservationDays } from '../../models/reservation.model';
 import { CalendarDay, CalendarMonth, buildCalendarMonths, getWeekdayLabels, todayIso } from '../../shared/calendar-utils';
 import { t } from '../../shared/translations';
 
+import { PropertyThumbComponent } from '../../shared/property-thumb.component';
 @Component({
   selector: 'app-availability',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [CommonModule, RouterModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, PropertyThumbComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -88,6 +89,7 @@ import { t } from '../../shared/translations';
 
             <div class="result-list" *ngIf="!loading && results.length">
               <div class="result" *ngFor="let property of results">
+                <app-property-thumb [path]="property.coverImage"></app-property-thumb>
                 <a class="result-main" [routerLink]="['/properties', property.id]">
                   <strong>{{ property.title }}</strong>
                   <span>{{ property.address || property.configuration || '-' }}</span>

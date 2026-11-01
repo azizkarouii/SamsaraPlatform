@@ -13,6 +13,7 @@ import { User } from '../../models/auth.model';
 import { Subscription, interval } from 'rxjs';
 import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
 
+import { UserAvatarComponent } from '../../shared/user-avatar.component';
 @Component({
   selector: 'app-main-layout',
   standalone: true,
@@ -24,6 +25,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
     MatBadgeModule,
     MatMenuModule,
     MatTooltipModule,
+    UserAvatarComponent,
   ],
   template: `
     <a class="skip-link" href="#main-content" (click)="focusMain($event)">{{ t('skip_to_content') }}</a>
@@ -102,7 +104,7 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
         </button>
 
         <a class="profile" *ngIf="user" routerLink="/profile">
-          <span class="avatar" aria-hidden="true">{{ initials }}</span>
+          <app-user-avatar [name]="user.name" [photo]="user.photoUrl" aria-hidden="true"></app-user-avatar>
           <span class="identity">
             <span class="username">{{ user.name }}</span>
             <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
@@ -193,10 +195,6 @@ import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
       transition: background var(--duration-fast) ease;
     }
     .profile:hover { background: var(--surface-hover); }
-    .avatar {
-      width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
-      background: var(--primary); color: var(--on-primary); font-size: 0.8rem; font-weight: 700;
-    }
     .identity { display: flex; flex-direction: column; line-height: 1.2; }
     .username { font-size: 0.875rem; font-weight: 600; }
     .role-badge { font-size: 0.72rem; color: var(--text-secondary); }
@@ -255,15 +253,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     document.getElementById('main-content')?.focus();
   }
 
-  get initials(): string {
-    return (this.user?.name || '?')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0].toUpperCase())
-      .join('');
-  }
-
   @HostListener('window:resize')
   onResize(): void {
     const mobile = window.innerWidth <= 768;
@@ -287,6 +276,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.language = this.uiPreferencesService.getLanguage();
     this.themeMode = this.uiPreferencesService.getTheme();
     this.loadUnreadCount();
+    // Name or photo changed on the profile page: reflect it in the top bar right away
+    this.subscriptions.push(
+      this.authService.currentUser$.subscribe(user => this.user = user)
+    );
     this.subscriptions.push(
       interval(30000).subscribe(() => this.loadUnreadCount())
     );

@@ -25,6 +25,8 @@ export interface Property {
   createdAt: string;
   updatedAt: string;
   images?: PropertyImage[];
+  /** Storage key of the cover photo, if the property has photos. */
+  coverImage?: string;
 }
 
 export interface CreatePropertyDto {
@@ -50,10 +52,13 @@ export interface CreatePropertyDto {
   description?: string;
 }
 
+/** A photo of a property; the file is served at imageUrl(imagePath). Position 0 is the cover. */
 export interface PropertyImage {
   id: number;
   propertyId: number;
   imagePath: string;
   isMain: boolean;
   position: number;
+  contentType?: string;
+  sizeBytes?: number;
 }

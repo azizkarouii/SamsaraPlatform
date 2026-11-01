@@ -3,38 +3,54 @@ package com.samsara.controller;
 import com.samsara.entity.PropertyImage;
 import com.samsara.service.PropertyImageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
+/** Photos of a property; the files themselves are served under /uploads/{imagePath}. */
 @RestController
-@RequestMapping("/images")
+@RequestMapping("/properties/{propertyId}/images")
 @RequiredArgsConstructor
 public class PropertyImageController {
 
     private final PropertyImageService propertyImageService;
 
-    @GetMapping("/property/{propertyId}")
+    /** Public, like the property page itself. */
+    @GetMapping
     public ResponseEntity<List<PropertyImage>> findByProperty(@PathVariable Long propertyId) {
         return ResponseEntity.ok(propertyImageService.findByProperty(propertyId));
     }
 
-    @PostMapping
-    public ResponseEntity<PropertyImage> upload(@RequestBody Map<String, Object> body, Authentication authentication) {
-        Long userId = (Long) authentication.getPrincipal();
-        Long propertyId = Long.valueOf(body.get("propertyId").toString());
-        String imagePath = (String) body.get("imagePath");
-        Boolean isMain = Boolean.TRUE.equals(body.get("isMain"));
-        Integer position = body.get("position") instanceof Number n ? n.intValue() : 0;
-        return ResponseEntity.ok(propertyImageService.upload(propertyId, imagePath, isMain, position, userId));
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<List<PropertyImage>> upload(@PathVariable Long propertyId,
+                                                      @RequestParam("files") List<MultipartFile> files,
+                                                      Authentication authentication) {
+        return ResponseEntity.ok(propertyImageService.upload(propertyId, files, (Long) authentication.getPrincipal()));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
-        propertyImageService.delete(id, (Long) authentication.getPrincipal());
-        return ResponseEntity.noContent().build();
+    @PutMapping("/order")
+    public ResponseEntity<List<PropertyImage>> reorder(@PathVariable Long propertyId,
+                                                       @RequestBody List<Long> orderedIds,
+                                                       Authentication authentication) {
+        return ResponseEntity.ok(propertyImageService.reorder(propertyId, orderedIds, (Long) authentication.getPrincipal()));
+    }
+
+    @PutMapping(value = "/{imageId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PropertyImage> replace(@PathVariable Long propertyId,
+                                                 @PathVariable Long imageId,
+                                                 @RequestParam("file") MultipartFile file,
+                                                 Authentication authentication) {
+        return ResponseEntity.ok(propertyImageService.replace(propertyId, imageId, file, (Long) authentication.getPrincipal()));
+    }
+
+    @DeleteMapping("/{imageId}")
+    public ResponseEntity<List<PropertyImage>> delete(@PathVariable Long propertyId,
+                                                      @PathVariable Long imageId,
+                                                      Authentication authentication) {
+        return ResponseEntity.ok(propertyImageService.delete(propertyId, imageId, (Long) authentication.getPrincipal()));
     }
 }

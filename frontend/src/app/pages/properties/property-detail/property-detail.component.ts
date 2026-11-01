@@ -33,10 +33,12 @@ import {
 import { t } from '../../../shared/translations';
 import { ShareDialogComponent } from '../property-list/share-dialog.component';
 
+import { PropertyGalleryComponent } from '../../../shared/property-gallery.component';
 @Component({
   selector: 'app-property-detail',
   standalone: true,
   imports: [
+    PropertyGalleryComponent,
     CommonModule,
     RouterModule,
     MatCardModule,
@@ -78,6 +80,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
 
         <div class="layout">
           <div class="main-col">
+            <app-property-gallery [propertyId]="p.id" [title]="p.title"></app-property-gallery>
             <mat-card>
               <mat-card-content>
                 <div class="tags" *ngIf="p.hautStanding || p.appartientResidence">

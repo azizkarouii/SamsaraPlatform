@@ -22,7 +22,7 @@ public class PropertyService {
     private final RevenueHistoryRepository revenueHistoryRepository;
     private final NotificationRepository notificationRepository;
     private final PropertyAvailabilityRepository availabilityRepository;
-    private final PropertyImageRepository propertyImageRepository;
+    private final PropertyImageService propertyImageService;
     private final PropertySamsarRepository propertySamsarRepository;
     private final AccessService accessService;
 
@@ -148,7 +148,7 @@ public class PropertyService {
         }
         notificationRepository.deleteByPropertyId(id);
         availabilityRepository.deleteByPropertyId(id);
-        propertyImageRepository.deleteByPropertyId(id);
+        propertyImageService.deleteAllOfProperty(id);
         propertySamsarRepository.deleteByPropertyId(id);
         propertyRepository.delete(property);
     }

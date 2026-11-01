@@ -8,7 +8,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface PropertyImageRepository extends JpaRepository<PropertyImage, Long> {
-    List<PropertyImage> findByPropertyId(Long propertyId);
+    List<PropertyImage> findByPropertyIdOrderByPositionAscIdAsc(Long propertyId);
+
+    long countByPropertyId(Long propertyId);
 
     @Modifying
     @Query("DELETE FROM PropertyImage pi WHERE pi.propertyId = :propertyId")

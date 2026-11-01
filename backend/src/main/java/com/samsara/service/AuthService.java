@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -22,6 +23,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final ImageStorage imageStorage;
+    private final ImageFileValidator imageFileValidator;
 
     public AuthResponse register(RegisterDto dto) {
         String email = dto.getEmail().trim().toLowerCase();
@@ -61,6 +64,36 @@ public class AuthService {
         user.setName(dto.getName().trim());
         user.setPhone(validatePhone(dto.getPhone(), user.getRole()));
         return toUserDto(userRepository.save(user));
+    }
+
+    /** Profile photo shown instead of the initials; photo_url keeps its storage key. */
+    public UserDto updatePhoto(Long userId, MultipartFile file) {
+        User user = getUser(userId);
+        ImageFileValidator.CheckedImage image = imageFileValidator.check(file);
+        String oldKey = user.getPhotoUrl();
+        String newKey = imageStorage.save("avatars/" + userId, image.extension(), image.bytes());
+        user.setPhotoUrl(newKey);
+        try {
+            user = userRepository.save(user);
+        } catch (RuntimeException e) {
+            imageStorage.delete(newKey);
+            throw e;
+        }
+        if (oldKey != null && !oldKey.isBlank()) {
+            imageStorage.delete(oldKey);
+        }
+        return toUserDto(user);
+    }
+
+    public UserDto removePhoto(Long userId) {
+        User user = getUser(userId);
+        String oldKey = user.getPhotoUrl();
+        user.setPhotoUrl(null);
+        user = userRepository.save(user);
+        if (oldKey != null && !oldKey.isBlank()) {
+            imageStorage.delete(oldKey);
+        }
+        return toUserDto(user);
     }
 
     public void changePassword(Long userId, ChangePasswordDto dto) {

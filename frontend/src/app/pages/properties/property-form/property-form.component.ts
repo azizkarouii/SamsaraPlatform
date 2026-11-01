@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
@@ -18,10 +18,12 @@ import { Property } from '../../../models/property.model';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { t } from '../../../shared/translations';
 
+import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-editor.component';
 @Component({
   selector: 'app-property-form',
   standalone: true,
   imports: [
+    PropertyPhotosEditorComponent,
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
@@ -149,6 +151,10 @@ import { t } from '../../../shared/translations';
               <mat-checkbox formControlName="terrace">{{ t('terrace') }}</mat-checkbox>
             </div>
 
+            <h2>{{ t('photos') }}</h2>
+            <mat-divider class="section-divider"></mat-divider>
+            <app-property-photos-editor #photos [propertyId]="propertyId"></app-property-photos-editor>
+
             <div class="form-actions">
               <button mat-stroked-button type="button" routerLink="/properties">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="propertyForm.invalid || loading">
@@ -211,6 +217,7 @@ import { t } from '../../../shared/translations';
   `]
 })
 export class PropertyFormComponent implements OnInit {
+  @ViewChild('photos') photosEditor?: PropertyPhotosEditorComponent;
   isEdit = false;
   propertyId?: number;
   loading = false;
@@ -321,8 +328,23 @@ export class PropertyFormComponent implements OnInit {
     obs.subscribe({
       next: (saved) => {
         const message = this.isEdit ? this.t('property_update_success') : this.t('property_create_success');
-        this.snackBar.open(message, this.t('close'), { duration: 3000 });
-        this.router.navigate(saved?.id ? ['/properties', saved.id] : ['/properties']);
+        // In edit mode photos are already saved one by one; on creation they wait for the new id
+        if (this.isEdit || !saved?.id || !this.photosEditor) {
+          this.snackBar.open(message, this.t('close'), { duration: 3000 });
+          this.router.navigate(saved?.id ? ['/properties', saved.id] : ['/properties']);
+          return;
+        }
+        this.photosEditor.uploadPending(saved.id).subscribe({
+          next: () => {
+            this.snackBar.open(message, this.t('close'), { duration: 3000 });
+            this.router.navigate(['/properties', saved.id]);
+          },
+          error: (err) => {
+            // The house exists: send the owner to its edit page to retry the photos
+            this.snackBar.open(err.error?.message || this.t('photos_upload_failed'), this.t('close'), { duration: 6000 });
+            this.router.navigate(['/properties', saved.id, 'edit']);
+          },
+        });
       },
       error: (err) => {
         this.loading = false;
