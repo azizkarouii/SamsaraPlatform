@@ -17,6 +17,7 @@ import {
   STATUS_TRANSITIONS,
   countReservationDays,
   normalizeReservationStatus,
+  ownerShareOf,
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
@@ -146,6 +147,10 @@ import { todayIso } from '../../../shared/calendar-utils';
               <div><span>{{ t('total_amount_label') }}</span><strong class="total">{{ r.totalAmount | number:'1.0-0' }} TND</strong></div>
               <div><span>{{ t('advance_paid') }}</span><strong>{{ r.advanceAmount | number:'1.0-0' }} TND</strong></div>
               <div class="balance"><span>{{ t('balance_due') }}</span><strong>{{ r.totalAmount - r.advanceAmount | number:'1.0-0' }} TND</strong></div>
+              <ng-container *ngIf="showsShares">
+                <div><span>{{ r.samsarId === currentUserId ? t('your_gain') : t('samsar_gain') }}<ng-container *ngIf="r.samsarCommissionPercent"> ({{ r.samsarCommissionPercent }} %)</ng-container></span><strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong></div>
+                <div><span>{{ t('owner_share') }}</span><strong>{{ ownerShare | number:'1.0-2' }} TND</strong></div>
+              </ng-container>
             </div>
             <div class="meta">
               <span>{{ t('created_label') }} {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
@@ -244,6 +249,16 @@ export class ReservationDetailComponent implements OnInit {
   get canManage(): boolean {
     const r = this.reservation;
     return !!r && (r.samsarId === this.currentUserId || r.property?.createdBy === this.currentUserId);
+  }
+
+  /** Split of the money, for the booking samsar and the owner; pointless on the owner's own bookings. */
+  get showsShares(): boolean {
+    const r = this.reservation;
+    return this.canManage && !!r && r.samsarGain != null && r.samsarId !== r.property?.createdBy;
+  }
+
+  get ownerShare(): number {
+    return this.reservation ? ownerShareOf(this.reservation) : 0;
   }
 
   get editable(): boolean {

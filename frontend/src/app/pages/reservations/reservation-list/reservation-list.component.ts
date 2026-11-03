@@ -108,7 +108,10 @@ import { t } from '../../../shared/translations';
 
               <ng-container matColumnDef="totalAmount">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('amount') }}</th>
-                <td mat-cell *matCellDef="let res" class="nowrap">{{ res.totalAmount | number:'1.0-0' }} TND</td>
+                <td mat-cell *matCellDef="let res" class="nowrap">
+                  {{ res.totalAmount | number:'1.0-0' }} TND
+                  <div class="by" *ngIf="res.samsarGain">{{ isOwner ? t('samsar_gain') : t('your_gain') }} : {{ res.samsarGain | number:'1.0-2' }} TND</div>
+                </td>
               </ng-container>
 
               <ng-container matColumnDef="actions">

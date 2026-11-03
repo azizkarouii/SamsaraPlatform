@@ -1,10 +1,11 @@
 package com.samsara.dto;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class PropertySamsarPriceUpdateDto {
-    @NotNull
     private Integer priceIncreaseTnd;
+
+    /** Set instead of priceIncreaseTnd for a percentage deal. */
+    private Integer commissionPercent;
 }

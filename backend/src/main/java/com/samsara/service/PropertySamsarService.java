@@ -25,6 +25,7 @@ import java.util.Set;
 public class PropertySamsarService {
 
     private static final Set<Integer> ALLOWED_PRICE_INCREASES = Set.of(10, 20, 30);
+    private static final Set<Integer> ALLOWED_COMMISSIONS = Set.of(10);
 
     private final PropertySamsarRepository propertySamsarRepository;
     private final PropertyRepository propertyRepository;
@@ -60,13 +61,12 @@ public class PropertySamsarService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Samsar already assigned to this property");
         }
 
-        Integer priceIncreaseTnd = validPriceIncrease(dto.getPriceIncreaseTnd());
-
-        PropertySamsar saved = propertySamsarRepository.save(PropertySamsar.builder()
+        PropertySamsar relation = PropertySamsar.builder()
                 .propertyId(property.getId())
                 .samsarId(samsar.getId())
-                .priceIncreaseTnd(priceIncreaseTnd)
-                .build());
+                .build();
+        applyDeal(relation, requestedIncrease(dto), dto.getCommissionPercent());
+        PropertySamsar saved = propertySamsarRepository.save(relation);
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
         notificationService.sendPropertyAssignment(samsar.getId(), property, owner);
@@ -80,7 +80,8 @@ public class PropertySamsarService {
             throw new IllegalArgumentException("Email and phone are required");
         }
         User samsar = findSamsar(dto);
-        Integer priceIncreaseTnd = validPriceIncrease(dto.getPriceIncreaseTnd());
+        // Validated before anything is written, on a throwaway relation
+        applyDeal(new PropertySamsar(), requestedIncrease(dto), dto.getCommissionPercent());
 
         List<Property> properties = propertyRepository.findByCreatedBy(ownerId, Sort.by("title"));
         if (properties.isEmpty()) {
@@ -94,11 +95,14 @@ public class PropertySamsarService {
         }
 
         List<PropertySamsar> saved = propertySamsarRepository.saveAll(added.stream()
-                .map(p -> PropertySamsar.builder()
-                        .propertyId(p.getId())
-                        .samsarId(samsar.getId())
-                        .priceIncreaseTnd(priceIncreaseTnd)
-                        .build())
+                .map(p -> {
+                    PropertySamsar relation = PropertySamsar.builder()
+                            .propertyId(p.getId())
+                            .samsarId(samsar.getId())
+                            .build();
+                    applyDeal(relation, requestedIncrease(dto), dto.getCommissionPercent());
+                    return relation;
+                })
                 .toList());
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
@@ -118,25 +122,39 @@ public class PropertySamsarService {
         return samsar;
     }
 
-    private Integer validPriceIncrease(Integer requested) {
-        Integer priceIncreaseTnd = requested != null ? requested : 10;
-        if (!ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
-            throw new IllegalArgumentException("Allowed price increases are only 10, 20, or 30 TND");
+    /** An invitation naming no deal at all defaults to +10 TND per day. */
+    private Integer requestedIncrease(PropertySamsarInviteDto dto) {
+        return dto.getPriceIncreaseTnd() == null && dto.getCommissionPercent() == null
+                ? Integer.valueOf(10)
+                : dto.getPriceIncreaseTnd();
+    }
+
+    /** A samsar works either with a fixed margin per day (10, 20, 30 TND) or with a commission (10%), never both. */
+    private void applyDeal(PropertySamsar relation, Integer priceIncreaseTnd, Integer commissionPercent) {
+        if (commissionPercent != null) {
+            if (priceIncreaseTnd != null || !ALLOWED_COMMISSIONS.contains(commissionPercent)) {
+                throw new IllegalArgumentException("Allowed deals are 10, 20 or 30 TND per day, or a 10% commission");
+            }
+            relation.setCommissionPercent(commissionPercent);
+            relation.setPriceIncreaseTnd(0);
+            return;
         }
-        return priceIncreaseTnd;
+        if (priceIncreaseTnd == null || !ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
+            throw new IllegalArgumentException("Allowed deals are 10, 20 or 30 TND per day, or a 10% commission");
+        }
+        relation.setCommissionPercent(null);
+        relation.setPriceIncreaseTnd(priceIncreaseTnd);
     }
 
     /** Only the owner decides the margin granted to a samsar. */
     @Transactional
-    public PropertySamsar updatePriceIncrease(Long propertyId, Long samsarId, Integer priceIncreaseTnd, Long requesterId) {
-        if (priceIncreaseTnd == null || !ALLOWED_PRICE_INCREASES.contains(priceIncreaseTnd)) {
-            throw new IllegalArgumentException("Allowed price increases are only 10, 20, or 30 TND");
-        }
+    public PropertySamsar updatePriceIncrease(Long propertyId, Long samsarId, Integer priceIncreaseTnd,
+                                              Integer commissionPercent, Long requesterId) {
         accessService.requireOwner(propertyId, requesterId);
 
         PropertySamsar relation = propertySamsarRepository.findByPropertyIdAndSamsarId(propertyId, samsarId)
                 .orElseThrow(() -> new RuntimeException("Shared property link not found"));
-        relation.setPriceIncreaseTnd(priceIncreaseTnd);
+        applyDeal(relation, priceIncreaseTnd, commissionPercent);
         return propertySamsarRepository.save(relation);
     }
 

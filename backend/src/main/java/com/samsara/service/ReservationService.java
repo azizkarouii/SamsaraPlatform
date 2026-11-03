@@ -52,17 +52,38 @@ public class ReservationService {
     private final AccessService accessService;
 
     public List<Reservation> findVisibleTo(Long userId) {
-        return reservationRepository.findVisibleTo(userId);
+        return hidePrivateTerms(reservationRepository.findVisibleTo(userId), userId);
+    }
+
+    /**
+     * A samsar reads the other bookings of his houses, but what another samsar earns stays private.
+     * Only called outside a transaction: the entities are detached, so nothing is written back.
+     */
+    private List<Reservation> hidePrivateTerms(List<Reservation> reservations, Long userId) {
+        reservations.forEach(r -> hidePrivateTerms(r, userId));
+        return reservations;
+    }
+
+    private Reservation hidePrivateTerms(Reservation reservation, Long userId) {
+        Property property = reservation.getProperty() != null
+                ? reservation.getProperty()
+                : accessService.getProperty(reservation.getPropertyId());
+        if (!userId.equals(reservation.getSamsarId()) && !accessService.isOwner(property, userId)) {
+            reservation.setSamsarGain(null);
+            reservation.setSamsarMarginTnd(null);
+            reservation.setSamsarCommissionPercent(null);
+        }
+        return reservation;
     }
 
     public Reservation findById(Long id, Long userId) {
         Reservation reservation = getReservation(id);
         accessService.requireReservationView(reservation, userId);
-        return reservation;
+        return hidePrivateTerms(reservation, userId);
     }
 
     public List<Reservation> findBySamsar(Long samsarId) {
-        return reservationRepository.findBySamsarId(samsarId);
+        return hidePrivateTerms(reservationRepository.findBySamsarId(samsarId), samsarId);
     }
 
     public List<Reservation> findByProperty(Long propertyId, Long userId) {
@@ -71,7 +92,7 @@ public class ReservationService {
             return reservationRepository.findByPropertyId(propertyId);
         }
         accessService.requireWorkOn(propertyId, userId);
-        return reservationRepository.findByPropertyId(propertyId);
+        return hidePrivateTerms(reservationRepository.findByPropertyId(propertyId), userId);
     }
 
     public List<Reservation> findByPropertyCreator(Long ownerId) {
@@ -116,10 +137,17 @@ public class ReservationService {
             String start = toLocalDate(r.getStartDate());
             String end = toLocalDate(r.getEndDate());
             String status = normalizeStatus(r.getStatus());
-            if (!start.equals(r.getStartDate()) || !end.equals(r.getEndDate()) || !status.equals(r.getStatus())) {
+            boolean missingGain = r.getSamsarGain() == null;
+            if (!start.equals(r.getStartDate()) || !end.equals(r.getEndDate()) || !status.equals(r.getStatus()) || missingGain) {
                 r.setStartDate(start);
                 r.setEndDate(end);
                 r.setStatus(status);
+                if (missingGain) {
+                    // Bookings older than the gain tracking take the deal currently in force
+                    Property property = accessService.getProperty(r.getPropertyId());
+                    freezeSamsarDeal(r, property, r.getSamsarId());
+                    r.setSamsarGain(computeSamsarGain(r, property));
+                }
                 reservationRepository.save(r);
                 fixed++;
             }
@@ -181,7 +209,9 @@ public class ReservationService {
                 .notes(dto.getNotes())
                 .build();
 
+        freezeSamsarDeal(reservation, property, userId);
         validate(reservation, property, userId);
+        reservation.setSamsarGain(computeSamsarGain(reservation, property));
         requireNotInPast(reservation.getStartDate());
         Reservation saved = reservationRepository.save(reservation);
         syncRevenue(saved);
@@ -317,6 +347,7 @@ public class ReservationService {
 
         Property property = reservation.getProperty();
         validate(reservation, property, reservation.getSamsarId());
+        reservation.setSamsarGain(computeSamsarGain(reservation, property));
         reservation = reservationRepository.save(reservation);
         syncRevenue(reservation);
 
@@ -345,6 +376,36 @@ public class ReservationService {
 
         userRepository.findById(userId)
                 .ifPresent(actor -> notificationService.notifyReservationDeleted(reservation, property, actor));
+    }
+
+    /** Copies the deal granted by the owner onto the booking. A booking by the owner has no samsar deal. */
+    private void freezeSamsarDeal(Reservation reservation, Property property, Long bookerId) {
+        if (accessService.isOwner(property, bookerId)) {
+            return;
+        }
+        propertySamsarRepository.findByPropertyIdAndSamsarId(property.getId(), bookerId).ifPresent(deal -> {
+            reservation.setSamsarMarginTnd(deal.getPriceIncreaseTnd());
+            reservation.setSamsarCommissionPercent(deal.getCommissionPercent());
+        });
+    }
+
+    /**
+     * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
+     * Fixed margin: what was charged above the house price. The owner's own bookings earn no samsar anything.
+     */
+    private double computeSamsarGain(Reservation reservation, Property property) {
+        if (accessService.isOwner(property, reservation.getSamsarId())) {
+            return 0.0;
+        }
+        double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
+        double gain = 0.0;
+        if (reservation.getSamsarCommissionPercent() != null) {
+            gain = total * reservation.getSamsarCommissionPercent() / 100.0;
+        } else if (property.getPricePerDay() != null) {
+            long days = ChronoUnit.DAYS.between(LocalDate.parse(reservation.getStartDate()), LocalDate.parse(reservation.getEndDate())) + 1;
+            gain = Math.max(0.0, total - days * property.getPricePerDay());
+        }
+        return Math.round(gain * 100.0) / 100.0;
     }
 
     /**
@@ -377,9 +438,7 @@ public class ReservationService {
 
         if (property.getPricePerDay() != null && !accessService.isOwner(property, bookerId)) {
             long days = ChronoUnit.DAYS.between(start, end) + 1;
-            int margin = propertySamsarRepository.findByPropertyIdAndSamsarId(property.getId(), bookerId)
-                    .map(ps -> ps.getPriceIncreaseTnd() != null ? ps.getPriceIncreaseTnd() : 0)
-                    .orElse(0);
+            int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
             double max = days * (property.getPricePerDay() + margin);
             if (total > max + 0.001) {
                 throw new IllegalArgumentException(String.format(

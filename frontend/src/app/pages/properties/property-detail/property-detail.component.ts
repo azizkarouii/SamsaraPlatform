@@ -34,6 +34,7 @@ import { t } from '../../../shared/translations';
 import { ShareDialogComponent } from '../property-list/share-dialog.component';
 
 import { PropertyGalleryComponent } from '../../../shared/property-gallery.component';
+import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../../shared/samsar-deal';
 @Component({
   selector: 'app-property-detail',
   standalone: true,
@@ -182,6 +183,7 @@ import { PropertyGalleryComponent } from '../../../shared/property-gallery.compo
                   <strong>{{ p.pricePerDay + myMargin | number:'1.0-0' }}</strong> TND <span class="muted">/ {{ t('day') }}</span>
                 </div>
                 <ng-template #noPrice><p class="muted">{{ t('price_on_request') }}</p></ng-template>
+                <p class="margin-note" *ngIf="myCommission">{{ t('your_commission_note').replace('{{percent}}', '' + myCommission) }}</p>
                 <p class="margin-note" *ngIf="myMargin">{{ t('your_price_note').replace('{{base}}', '' + p.pricePerDay).replace('{{margin}}', '' + myMargin) }}</p>
                 <div class="price-lines">
                   <div *ngIf="p.pricePerWeek"><span>{{ t('price_per_week') }}</span><strong>{{ p.pricePerWeek | number:'1.0-0' }} TND</strong></div>
@@ -206,10 +208,10 @@ import { PropertyGalleryComponent } from '../../../shared/property-gallery.compo
                     <strong>{{ s.samsar?.name || '#' + s.samsarId }}</strong>
                     <span>{{ s.samsar?.email }}</span>
                   </div>
-                  <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">+{{ s.priceIncreaseTnd || 0 }} TND</button>
+                  <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">{{ dealLabel(s) }}</button>
                   <mat-menu #marginMenu="matMenu">
-                    <button mat-menu-item *ngFor="let m of margins" (click)="updateMargin(s, m)">
-                      <mat-icon>{{ s.priceIncreaseTnd === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
+                    <button mat-menu-item *ngFor="let deal of deals" (click)="updateMargin(s, deal)">
+                      <mat-icon>{{ sameDeal(s, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealLabel(deal) }}
                     </button>
                   </mat-menu>
                   <button mat-icon-button color="warn" (click)="removeSamsar(s)" [matTooltip]="t('remove_access')"><mat-icon>person_remove</mat-icon></button>
@@ -269,12 +271,15 @@ export class PropertyDetailComponent implements OnInit {
   isOwner = false;
   isSharedSamsar = false;
   myMargin = 0;
+  myCommission = 0;
   samsars: PropertySamsar[] = [];
   months: CalendarMonth[] = [];
   startDate = '';
   endDate = '';
   readonly today = todayIso();
-  readonly margins = [10, 20, 30];
+  readonly deals = SAMSAR_DEALS;
+  readonly dealLabel = dealLabel;
+  readonly sameDeal = sameDeal;
   private monthOffset = 0;
   private dayStatuses: Record<string, DayStatus> = {};
 
@@ -354,6 +359,7 @@ export class PropertyDetailComponent implements OnInit {
             const relation = rels.find(r => r.propertyId === id);
             this.isSharedSamsar = !!relation;
             this.myMargin = relation?.priceIncreaseTnd || 0;
+            this.myCommission = relation?.commissionPercent || 0;
           });
         }
       },
@@ -444,11 +450,11 @@ export class PropertyDetailComponent implements OnInit {
     });
   }
 
-  updateMargin(s: PropertySamsar, margin: number): void {
-    if (s.priceIncreaseTnd === margin) return;
-    this.propertySamsarService.updatePriceIncrease(s.propertyId, s.samsarId, margin).subscribe({
+  updateMargin(s: PropertySamsar, deal: SamsarDeal): void {
+    if (sameDeal(s, deal)) return;
+    this.propertySamsarService.updateDeal(s.propertyId, s.samsarId, deal).subscribe({
       next: () => {
-        s.priceIncreaseTnd = margin;
+        applyDeal(s, deal);
         this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
       },
       error: (err) => this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 3000 }),

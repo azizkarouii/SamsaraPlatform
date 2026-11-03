@@ -20,6 +20,7 @@ import {
   RESERVATION_STATUSES,
   isRevenueStatus,
   normalizeReservationStatus,
+  ownerShareOf,
   statusKey,
 } from '../../models/reservation.model';
 import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
@@ -60,7 +61,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
           <div class="metric">
             <mat-icon class="metric-icon revenue">payments</mat-icon>
             <div>
-              <div class="metric-label">{{ t('total_revenue') }}</div>
+              <div class="metric-label">{{ isSamsar ? t('my_gains') : t('total_revenue') }}</div>
               <div class="metric-value">{{ totalRevenue | number:'1.0-0' }} <small>TND</small></div>
             </div>
           </div>
@@ -89,7 +90,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
 
         <div class="grid-2">
           <mat-card>
-            <mat-card-header><mat-card-title>{{ t('revenue_trend') }}</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title>{{ isSamsar ? t('gains_trend') : t('revenue_trend') }}</mat-card-title></mat-card-header>
             <mat-card-content>
               <div *ngIf="months.length; else noData" class="columns">
                 <div class="column" *ngFor="let m of months" [title]="(m.revenue | number:'1.0-0') + ' TND'">
@@ -122,7 +123,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
 
         <div class="grid-2">
           <mat-card>
-            <mat-card-header><mat-card-title>{{ t('revenue_by_property') }}</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title>{{ isSamsar ? t('gains_by_property') : t('revenue_by_property') }}</mat-card-title></mat-card-header>
             <mat-card-content>
               <div *ngIf="revenueByProperty.length; else noData" class="bars">
                 <div class="bar" *ngFor="let item of revenueByProperty">
@@ -156,6 +157,25 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             </mat-card-content>
           </mat-card>
         </div>
+
+        <mat-card *ngIf="isSamsar">
+          <mat-card-header><mat-card-title>{{ t('gains_by_rental') }}</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <div *ngIf="gainsByRental.length; else noData" class="rentals">
+              <a class="rental" *ngFor="let r of gainsByRental" [routerLink]="['/reservations', r.id]">
+                <div class="rental-body">
+                  <strong>{{ r.property?.title || '#' + r.propertyId }}</strong>
+                  <span>{{ r.clientName }} · {{ r.startDate | date:'dd/MM/yyyy' }} → {{ r.endDate | date:'dd/MM/yyyy' }}</span>
+                </div>
+                <span class="status-chip" [ngClass]="'status-' + normalize(r.status)">{{ t(statusKey(r.status)) }}</span>
+                <div class="rental-money">
+                  <strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong>
+                  <span>{{ t('total_amount_label') }} : {{ r.totalAmount | number:'1.0-0' }} TND</span>
+                </div>
+              </a>
+            </div>
+          </mat-card-content>
+        </mat-card>
 
         <div class="quick-actions">
           <a mat-raised-button color="primary" routerLink="/reservations/add"><mat-icon>add</mat-icon> {{ t('reservation_new_title') }}</a>
@@ -232,6 +252,12 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     .upcoming-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .upcoming-body span { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .empty-state.small { padding: 1.5rem; }
+    .rentals { display: grid; gap: 0.25rem; max-height: 340px; overflow-y: auto; }
+    .rental { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 10px; color: inherit; text-decoration: none; }
+    .rental:hover { background: var(--surface-hover); }
+    .rental-body { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
+    .rental-body span, .rental-money span { font-size: 0.8rem; color: var(--text-secondary); }
+    .rental-money { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
     .quick-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
   `]
 })
@@ -263,9 +289,18 @@ export class DashboardComponent implements OnInit {
     return t(key, this.uiPrefs.getLanguage());
   }
 
+  get isSamsar(): boolean {
+    return this.user?.role === 'SAMSAR';
+  }
+
+  /** What this user really earns on a booking: the samsar's gain, or the owner's part after it. */
+  private earnedOn(reservation: Reservation): number {
+    return this.isSamsar ? reservation.samsarGain || 0 : ownerShareOf(reservation);
+  }
+
   loadData(): void {
     this.loading = true;
-    const isSamsar = this.user?.role === 'SAMSAR';
+    const isSamsar = this.isSamsar;
     const properties$ = isSamsar
       ? this.propertySamsarService.findMine().pipe(map(rels => rels.map(r => r.property).filter((p): p is Property => !!p)))
       : this.propertyService.findMine();
@@ -293,7 +328,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get totalRevenue(): number {
-    return this.filtered.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    return this.filtered.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + this.earnedOn(r), 0);
   }
 
   get months(): MonthBucket[] {
@@ -308,7 +343,7 @@ export class DashboardComponent implements OnInit {
       const bucket = buckets.get(key)!;
       bucket.count++;
       if (isRevenueStatus(r.status)) {
-        bucket.revenue += r.totalAmount || 0;
+        bucket.revenue += this.earnedOn(r);
       }
     }
     return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key)).slice(-12);
@@ -322,7 +357,7 @@ export class DashboardComponent implements OnInit {
     const totals = new Map<string, number>();
     for (const r of this.filtered.filter(item => isRevenueStatus(item.status))) {
       const key = r.property?.title || '#' + r.propertyId;
-      totals.set(key, (totals.get(key) || 0) + (r.totalAmount || 0));
+      totals.set(key, (totals.get(key) || 0) + this.earnedOn(r));
     }
     return Array.from(totals.entries())
       .map(([title, amount]) => ({ title, amount }))
@@ -332,6 +367,13 @@ export class DashboardComponent implements OnInit {
 
   get maxPropertyRevenue(): number {
     return Math.max(...this.revenueByProperty.map(i => i.amount), 1);
+  }
+
+  /** The samsar's own rentals that count as earned, most recent stay first. */
+  get gainsByRental(): Reservation[] {
+    return this.filtered
+      .filter(r => isRevenueStatus(r.status))
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
   }
 
   get upcoming(): Reservation[] {

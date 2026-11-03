@@ -58,7 +58,7 @@ public class PropertySamsarController {
                                                               @RequestBody PropertySamsarPriceUpdateDto dto,
                                                               Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        return ResponseEntity.ok(propertySamsarService.updatePriceIncrease(propertyId, samsarId, dto.getPriceIncreaseTnd(), userId));
+        return ResponseEntity.ok(propertySamsarService.updatePriceIncrease(propertyId, samsarId, dto.getPriceIncreaseTnd(), dto.getCommissionPercent(), userId));
     }
 
     @DeleteMapping("/{propertyId}/{samsarId}")

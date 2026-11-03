@@ -17,7 +17,7 @@ import { PropertySamsarService } from '../../services/property-samsar.service';
 import { ReservationService } from '../../services/reservation.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
-import { Reservation, isRevenueStatus } from '../../models/reservation.model';
+import { Reservation, isRevenueStatus, ownerShareOf } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
 import { UserAvatarComponent } from '../../shared/user-avatar.component';
 import { ACCEPT_ATTRIBUTE, checkImageFile, compressImage } from '../../shared/image-utils';
@@ -71,7 +71,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
           <div class="stats">
             <div><strong>{{ propertyCount }}</strong><span>{{ user?.role === 'PROPRIETAIRE' ? t('properties_count') : t('shared_houses') }}</span></div>
             <div><strong>{{ reservationCount }}</strong><span>{{ t('reservations_count') }}</span></div>
-            <div><strong>{{ totalRevenue | number:'1.0-0' }} <small>TND</small></strong><span>{{ t('revenue_suffix') }}</span></div>
+            <div><strong>{{ totalRevenue | number:'1.0-0' }} <small>TND</small></strong><span>{{ user?.role === 'SAMSAR' ? t('my_gains') : t('revenue_suffix') }}</span></div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -259,7 +259,8 @@ export class ProfileComponent implements OnInit {
       const reservations = isSamsar ? all.filter(r => r.samsarId === this.user?.id) : all;
       this.propertyCount = count.length;
       this.reservationCount = reservations.length;
-      this.totalRevenue = reservations.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+      this.totalRevenue = reservations.filter(r => isRevenueStatus(r.status))
+        .reduce((sum, r) => sum + (isSamsar ? r.samsarGain || 0 : ownerShareOf(r)), 0);
     });
   }
 

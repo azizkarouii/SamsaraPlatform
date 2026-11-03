@@ -24,7 +24,8 @@ import { DayStatus, createDayStatusMap, formatIsoDate, isDayBookable, isRangeFre
 import { MatCalendarCellClassFunction } from '@angular/material/datepicker';
 import { t } from '../../../shared/translations';
 
-interface BookableProperty { property: Property; margin: number; }
+interface BookableProperty { property: Property; margin: number;
+  commissionPercent: number; }
 
 function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
   const start = group.get('startDate')?.value as Date | null;
@@ -148,13 +149,14 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
             </div>
             <div class="summary-line" *ngIf="selected?.property?.pricePerDay">
               <span>{{ t('price_per_day') }}</span>
-              <strong>{{ selected!.property.pricePerDay | number:'1.0-0' }} TND<span *ngIf="selected!.margin"> + {{ selected!.margin }}</span></strong>
+              <strong>{{ selected!.property.pricePerDay | number:'1.0-0' }} TND<span *ngIf="deal.margin"> + {{ deal.margin }}</span></strong>
             </div>
             <div class="summary-line suggested" *ngIf="suggestedTotal">
               <span>{{ t('suggested_total') }}</span>
               <strong>{{ suggestedTotal | number:'1.0-0' }} TND</strong>
             </div>
-            <p class="hint" *ngIf="selected?.margin">{{ t('margin_hint').replace('{{margin}}', '' + selected!.margin) }}</p>
+            <p class="hint" *ngIf="deal.margin">{{ t('margin_hint').replace('{{margin}}', '' + deal.margin) }}</p>
+            <p class="hint" *ngIf="deal.commissionPercent">{{ t('commission_hint').replace('{{percent}}', '' + deal.commissionPercent) }}</p>
 
             <mat-form-field appearance="outline">
               <mat-label>{{ t('total_amount_label') }}</mat-label>
@@ -173,6 +175,11 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
               <mat-hint *ngIf="!isEdit || editedStatus === 'pending'">{{ t('advance_confirms_hint') }}</mat-hint>
             </mat-form-field>
             <div class="inline-error" *ngIf="form.hasError('advanceTooHigh')"><mat-icon>error</mat-icon>{{ t('advance_above_total') }}</div>
+
+            <div class="summary-line" *ngIf="showsGain">
+              <span>{{ t('your_gain') }}</span>
+              <strong>{{ estimatedGain | number:'1.0-2' }} TND</strong>
+            </div>
 
             <div class="summary-line balance">
               <span>{{ t('balance_due') }}</span>
@@ -223,6 +230,7 @@ export class ReservationFormComponent implements OnInit {
   /** Status of the reservation being edited: a pending one gets confirmed once an advance is entered. */
   editedStatus?: string;
   private pendingPropertyId?: number;
+  private frozenDeal?: { margin: number; commissionPercent: number };
 
   form = this.fb.group({
     propertyId: [null as number | null, Validators.required],
@@ -290,8 +298,8 @@ export class ReservationFormComponent implements OnInit {
     const source$ = isSamsar
       ? this.propertySamsarService.findMine().pipe(map(rels => rels
           .filter(r => !!r.property)
-          .map(r => ({ property: r.property!, margin: r.priceIncreaseTnd || 0 }))))
-      : this.propertyService.findMine().pipe(map(props => props.map(property => ({ property, margin: 0 }))));
+          .map(r => ({ property: r.property!, margin: r.priceIncreaseTnd || 0, commissionPercent: r.commissionPercent || 0 }))))
+      : this.propertyService.findMine().pipe(map(props => props.map(property => ({ property, margin: 0, commissionPercent: 0 }))));
 
     source$.subscribe({
       next: (items) => {
@@ -312,6 +320,10 @@ export class ReservationFormComponent implements OnInit {
       next: (reservation) => {
         this.ownRange = { startDate: reservation.startDate, endDate: reservation.endDate };
         this.editedStatus = normalizeReservationStatus(reservation.status);
+        this.frozenDeal = {
+          margin: reservation.samsarMarginTnd || 0,
+          commissionPercent: reservation.samsarCommissionPercent || 0,
+        };
         this.totalTouched = true;
         this.pendingPropertyId = reservation.propertyId;
         this.form.patchValue({
@@ -342,8 +354,29 @@ export class ReservationFormComponent implements OnInit {
     return this.properties.find(p => p.property.id === id);
   }
 
+  /** The deal in force: the one frozen on a booking being edited, otherwise the one of the selected house. */
+  get deal(): { margin: number; commissionPercent: number } {
+    return this.frozenDeal ?? {
+      margin: this.selected?.margin || 0,
+      commissionPercent: this.selected?.commissionPercent || 0,
+    };
+  }
+
   unitPriceOf(item: BookableProperty): number {
-    return (item.property.pricePerDay || 0) + item.margin;
+    return (item.property.pricePerDay || 0) + (item === this.selected ? this.deal.margin : item.margin);
+  }
+
+  get showsGain(): boolean {
+    return this.authService.getCurrentUser()?.role === 'SAMSAR' && !!(this.deal.margin || this.deal.commissionPercent);
+  }
+
+  /** Mirrors the server: a commission on the total, or what is charged above the house price. */
+  get estimatedGain(): number {
+    const total = Number(this.form.value.totalAmount || 0);
+    if (this.deal.commissionPercent) {
+      return Math.round(total * this.deal.commissionPercent) / 100;
+    }
+    return Math.max(0, total - this.days * (this.selected?.property.pricePerDay || 0));
   }
 
   get startIso(): string {
@@ -364,9 +397,9 @@ export class ReservationFormComponent implements OnInit {
     return this.selected?.property.pricePerDay ? this.days * this.unitPriceOf(this.selected) : 0;
   }
 
-  /** A samsar may not sell above price + margin granted by the owner. */
+  /** A samsar may not sell above price + margin granted by the owner (the house price with a commission). */
   get maxTotal(): number {
-    return this.selected?.margin ? this.suggestedTotal : 0;
+    return this.deal.margin || this.deal.commissionPercent ? this.suggestedTotal : 0;
   }
 
   get exceedsMax(): boolean {

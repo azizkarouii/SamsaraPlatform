@@ -15,6 +15,11 @@ export interface Reservation {
   advanceAmount: number;
   totalAmount: number;
   notes?: string;
+  /** Deal frozen when the samsar booked; hidden from other samsars of the house. */
+  samsarMarginTnd?: number | null;
+  samsarCommissionPercent?: number | null;
+  /** What the samsar earns on this booking; hidden from other samsars of the house. */
+  samsarGain?: number | null;
   createdAt: string;
   updatedAt: string;
   property?: Property;
@@ -55,6 +60,11 @@ export function isActiveReservationStatus(status?: string | null): boolean {
 
 export function isRevenueStatus(status?: string | null): boolean {
   return (REVENUE_STATUSES as string[]).includes(normalizeReservationStatus(status));
+}
+
+/** The owner's part of a booking: the total minus what the samsar earns. */
+export function ownerShareOf(reservation: Reservation): number {
+  return (reservation.totalAmount || 0) - (reservation.samsarGain || 0);
 }
 
 /** Translation key of a status label, e.g. "status_in_progress". */

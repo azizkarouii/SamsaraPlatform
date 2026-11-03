@@ -46,7 +46,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   invite_samsar_sub: { fr: 'Ajoutez un samsar à cette maison par email et téléphone.', en: 'Add a samsar to this property by email and phone.', ar: 'أضف سمسارًا إلى هذا العقار عبر البريد الإلكتروني والهاتف.' },
   samsar_email: { fr: 'Email du samsar', en: 'Samsar email', ar: 'البريد الإلكتروني للسمسار' },
   samsar_phone: { fr: 'Téléphone du samsar (+216)', en: 'Samsar phone (+216)', ar: 'هاتف السمسار (+216)' },
-  allowed_increase: { fr: 'Augmentation autorisée', en: 'Allowed increase', ar: 'الزيادة المسموح بها' },
+  allowed_increase: { fr: 'Tarif du samsar', en: 'Samsar rate', ar: 'تعريفة السمسار' },
   cancel: { fr: 'Annuler', en: 'Cancel', ar: 'إلغاء' },
   send_invite: { fr: 'Envoyer l\'invitation', en: 'Send invite', ar: 'إرسال الدعوة' },
   invite_success: { fr: 'Samsar invité avec succès', en: 'Samsar invited successfully', ar: 'تمت دعوة السمسار بنجاح' },
@@ -298,7 +298,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   edit_margin: { fr: 'Modifier la marge', en: 'Edit margin', ar: 'تعديل الهامش' },
   remove_access: { fr: "Retirer l'accès", en: 'Remove access', ar: 'إزالة الوصول' },
   your_price_note: { fr: 'Votre prix : {{base}} TND + {{margin}} TND de marge.', en: 'Your price: {{base}} TND + {{margin}} TND margin.', ar: 'سعرك: {{base}} دينار + {{margin}} دينار هامش.' },
-  margin_explained: { fr: 'Montant que le samsar peut ajouter par jour au prix de base.', en: 'Amount the samsar may add per day to the base price.', ar: 'المبلغ الذي يمكن للسمسار إضافته يوميًا إلى السعر الأساسي.' },
+  margin_explained: { fr: 'Montant ajouté par jour au prix de base, ou pourcentage du total prélevé sur votre part.', en: 'Amount added per day to the base price, or a percentage of the total taken from your share.', ar: 'مبلغ يضاف يوميًا إلى السعر الأساسي، أو نسبة من الإجمالي تُقتطع من حصتك.' },
 
   // Availability page
   availability_subtitle: { fr: 'Choisissez une période pour trouver les maisons libres parmi les vôtres.', en: 'Pick a period to find free houses among yours.', ar: 'اختر فترة للعثور على المنازل المتاحة.' },
@@ -307,7 +307,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
 
   // Shared houses
   my_samsars: { fr: 'Mes samsars', en: 'My samsars', ar: 'سماسرتي' },
-  shared_owner_subtitle: { fr: 'Invitez des samsars sur vos maisons et fixez leur marge (10, 20 ou 30 TND).', en: 'Invite samsars to your houses and set their margin (10, 20 or 30 TND).', ar: 'ادعُ سماسرة إلى منازلك وحدد هامشهم (10 أو 20 أو 30 دينار).' },
+  shared_owner_subtitle: { fr: 'Invitez des samsars sur vos maisons et fixez leur tarif (10, 20 ou 30 TND par jour, ou 10 % du total).', en: 'Invite samsars to your houses and set their rate (10, 20 or 30 TND per day, or 10% of the total).', ar: 'ادعُ سماسرة إلى منازلك وحدد تعريفتهم (10 أو 20 أو 30 دينار يوميًا، أو 10% من الإجمالي).' },
   shared_samsar_subtitle: { fr: 'Les maisons que des propriétaires vous ont confiées.', en: 'The houses owners entrusted to you.', ar: 'المنازل التي عهد بها إليك الملاك.' },
   add_property_first: { fr: "Ajoutez d'abord une maison pour pouvoir la partager.", en: 'Add a house first to be able to share it.', ar: 'أضف منزلًا أولًا لتتمكن من مشاركته.' },
   remove_from_this_property: { fr: 'Retirer de cette maison', en: 'Remove from this house', ar: 'إزالة من هذا المنزل' },
@@ -370,6 +370,16 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   remove_photo: { fr: 'Supprimer la photo', en: 'Remove photo', ar: 'حذف الصورة' },
   remove_photo_confirm: { fr: 'Supprimer votre photo de profil ? Vos initiales seront affichées à la place.', en: 'Remove your profile photo? Your initials will be shown instead.', ar: 'حذف صورة ملفك الشخصي؟ ستُعرض الأحرف الأولى من اسمك بدلاً منها.' },
   photo_updated: { fr: 'Photo de profil mise à jour', en: 'Profile photo updated', ar: 'تم تحديث صورة الملف الشخصي' },
+  of_total: { fr: 'du total', en: 'of the total', ar: 'من الإجمالي' },
+  commission_hint: { fr: 'Prix de la maison, sans majoration : vous gardez {{percent}} % du total, le reste revient au propriétaire.', en: 'House price with no increase: you keep {{percent}}% of the total, the rest goes to the owner.', ar: 'سعر المنزل دون زيادة: تحتفظ بنسبة {{percent}}% من الإجمالي والباقي للمالك.' },
+  your_commission_note: { fr: 'Vous gardez {{percent}} % du total de chaque réservation.', en: 'You keep {{percent}}% of the total of each booking.', ar: 'تحتفظ بنسبة {{percent}}% من إجمالي كل حجز.' },
+  my_gains: { fr: 'Mes gains', en: 'My earnings', ar: 'أرباحي' },
+  your_gain: { fr: 'Votre gain', en: 'Your earnings', ar: 'ربحك' },
+  samsar_gain: { fr: 'Gain du samsar', en: 'Samsar earnings', ar: 'ربح السمسار' },
+  owner_share: { fr: 'Part du propriétaire', en: 'Owner share', ar: 'حصة المالك' },
+  gains_trend: { fr: 'Évolution de mes gains', en: 'My earnings over time', ar: 'تطور أرباحي' },
+  gains_by_property: { fr: 'Mes gains par maison', en: 'My earnings by house', ar: 'أرباحي حسب المنزل' },
+  gains_by_rental: { fr: 'Mes gains par location', en: 'My earnings by rental', ar: 'أرباحي حسب الإيجار' },
   samsar_phone_hint: { fr: 'Obligatoire : les propriétaires vous trouvent par email + téléphone.', en: 'Required: owners find you by email + phone.', ar: 'إلزامي: يجدك الملاك عبر البريد الإلكتروني والهاتف.' },
 };
 

@@ -25,6 +25,13 @@ public class PropertySamsar {
     @Column(name = "price_increase_tnd")
     private Integer priceIncreaseTnd;
 
+    /**
+     * Alternative deal: instead of adding a fixed amount per day (priceIncreaseTnd), the samsar sells at the
+     * house price and keeps this percentage of the total, the rest going to the owner. Null for a fixed margin.
+     */
+    @Column(name = "commission_percent")
+    private Integer commissionPercent;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", insertable = false, updatable = false)
     private Property property;

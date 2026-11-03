@@ -17,4 +17,7 @@ public class PropertySamsarInviteDto {
     private String phone;
 
     private Integer priceIncreaseTnd;
+
+    /** Set instead of priceIncreaseTnd for a percentage deal. */
+    private Integer commissionPercent;
 }

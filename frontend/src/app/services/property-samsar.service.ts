@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { SamsarDeal } from '../shared/samsar-deal';
 import { PropertySamsar, PropertySamsarInviteDto } from '../models/property-samsar.model';
 
 @Injectable({
@@ -33,8 +34,8 @@ export class PropertySamsarService {
     return this.http.post<PropertySamsar[]>(`${this.apiUrl}/all-properties`, dto);
   }
 
-  updatePriceIncrease(propertyId: number, samsarId: number, priceIncreaseTnd: number): Observable<PropertySamsar> {
-    return this.http.patch<PropertySamsar>(`${this.apiUrl}/${propertyId}/${samsarId}/price-increase`, { priceIncreaseTnd });
+  updateDeal(propertyId: number, samsarId: number, deal: SamsarDeal): Observable<PropertySamsar> {
+    return this.http.patch<PropertySamsar>(`${this.apiUrl}/${propertyId}/${samsarId}/price-increase`, deal);
   }
 
   remove(propertyId: number, samsarId: number): Observable<void> {

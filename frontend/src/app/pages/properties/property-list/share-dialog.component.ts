@@ -12,6 +12,7 @@ import { PropertySamsarService } from '../../../services/property-samsar.service
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { TRANSLATIONS } from '../../../shared/translations';
 
+import { SAMSAR_DEALS, SamsarDeal, dealLabel } from '../../../shared/samsar-deal';
 @Component({
   selector: 'app-share-dialog',
   standalone: true,
@@ -44,10 +45,8 @@ import { TRANSLATIONS } from '../../../shared/translations';
         </mat-form-field>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>{{ t('allowed_increase') }}</mat-label>
-          <mat-select formControlName="priceIncreaseTnd">
-            <mat-option [value]="10">10 TND</mat-option>
-            <mat-option [value]="20">20 TND</mat-option>
-            <mat-option [value]="30">30 TND</mat-option>
+          <mat-select formControlName="deal">
+            <mat-option *ngFor="let deal of deals" [value]="deal">{{ dealOption(deal) }}</mat-option>
           </mat-select>
           <mat-hint>{{ t('margin_explained') }}</mat-hint>
         </mat-form-field>
@@ -69,9 +68,10 @@ export class ShareDialogComponent {
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     phone: ['', [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]],
-    priceIncreaseTnd: [10, Validators.required],
+    deal: [SAMSAR_DEALS[0], Validators.required],
   });
   submitting = false;
+  readonly deals = SAMSAR_DEALS;
 
   constructor(
     public dialogRef: MatDialogRef<ShareDialogComponent>,
@@ -86,12 +86,12 @@ export class ShareDialogComponent {
   submit(): void {
     if (this.form.invalid) return;
     this.submitting = true;
-    const { email, phone, priceIncreaseTnd } = this.form.value;
+    const { email, phone, deal } = this.form.value;
     this.propertySamsarService.invite({
       propertyId: this.data.propertyId,
       email: email!,
       phone: phone!,
-      priceIncreaseTnd: priceIncreaseTnd || 10,
+      ...deal!,
     }).subscribe({
       next: () => {
         this.snackBar.open(this.t('invite_success'), this.t('close'), { duration: 3000 });
@@ -102,6 +102,10 @@ export class ShareDialogComponent {
         this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
       },
     });
+  }
+
+  dealOption(deal: SamsarDeal): string {
+    return deal.commissionPercent ? `${dealLabel(deal)} ${this.t('of_total')}` : `${dealLabel(deal)} / ${this.t('day')}`;
   }
 
   t(key: string): string {

@@ -31,12 +31,13 @@ interface SamsarGroup {
   relations: PropertySamsar[];
   /** True when the samsar has access to every house of the owner. */
   allHouses: boolean;
-  /** Margin shared by all his houses, or null when they differ. */
-  commonMargin: number | null;
+  /** Deal shared by all his houses, or null when they differ. */
+  commonDeal: SamsarDeal | null;
 }
 
 import { PropertyThumbComponent } from '../../shared/property-thumb.component';
 import { UserAvatarComponent } from '../../shared/user-avatar.component';
+import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../shared/samsar-deal';
 @Component({
   selector: 'app-shared-houses',
   standalone: true,
@@ -105,8 +106,8 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('allowed_increase') }}</mat-label>
-                <mat-select formControlName="priceIncreaseTnd">
-                  <mat-option *ngFor="let m of margins" [value]="m">+{{ m }} TND / {{ t('day') }}</mat-option>
+                <mat-select formControlName="deal">
+                  <mat-option *ngFor="let deal of deals" [value]="deal">{{ dealOption(deal) }}</mat-option>
                 </mat-select>
               </mat-form-field>
               <div class="invite-actions">
@@ -154,11 +155,11 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
             <mat-icon class="house-icon" aria-hidden="true">holiday_village</mat-icon>
             <span class="house-title">{{ t('all_houses') }} ({{ group.relations.length }})</span>
             <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="allMarginMenu" [matTooltip]="t('margin_all_houses')">
-              {{ group.commonMargin != null ? '+' + group.commonMargin + ' TND' : t('mixed_margins') }}
+              {{ group.commonDeal ? dealLabel(group.commonDeal) : t('mixed_margins') }}
             </button>
             <mat-menu #allMarginMenu="matMenu">
-              <button mat-menu-item *ngFor="let m of margins" (click)="updateMarginForAll(group, m)">
-                <mat-icon>{{ group.commonMargin === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
+              <button mat-menu-item *ngFor="let deal of deals" (click)="updateMarginForAll(group, deal)">
+                <mat-icon>{{ group.commonDeal && sameDeal(group.commonDeal, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealLabel(deal) }}
               </button>
             </mat-menu>
             <button mat-button class="details-btn" (click)="toggleDetails(group.samsarId)" [attr.aria-expanded]="expanded.has(group.samsarId)">
@@ -171,10 +172,10 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
             <div class="house-row" *ngFor="let rel of group.relations">
               <mat-icon class="house-icon" aria-hidden="true">home</mat-icon>
               <a class="house-title link" [routerLink]="['/properties', rel.propertyId]">{{ rel.property?.title || '#' + rel.propertyId }}</a>
-              <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">+{{ rel.priceIncreaseTnd || 0 }} TND</button>
+              <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">{{ dealLabel(rel) }}</button>
               <mat-menu #marginMenu="matMenu">
-                <button mat-menu-item *ngFor="let m of margins" (click)="updateMargin(rel, m)">
-                  <mat-icon>{{ rel.priceIncreaseTnd === m ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>+{{ m }} TND
+                <button mat-menu-item *ngFor="let deal of deals" (click)="updateMargin(rel, deal)">
+                  <mat-icon>{{ sameDeal(rel, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealLabel(deal) }}
                 </button>
               </mat-menu>
               <button mat-icon-button color="warn" (click)="remove(rel)"
@@ -203,7 +204,7 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
               </div>
               <div class="meta">
                 <span class="pill">{{ t('base_price') }} {{ relation.property?.pricePerDay | number:'1.0-0' }} TND</span>
-                <span class="pill primary">{{ t('your_margin') }} +{{ relation.priceIncreaseTnd || 0 }} TND</span>
+                <span class="pill primary">{{ t('your_margin') }} {{ dealLabel(relation) }}</span>
               </div>
               <p class="contact" *ngIf="relation.property?.ownerContact">
                 <mat-icon inline>call</mat-icon> {{ t('owner_contact') }} : <a class="ltr" [href]="'tel:+216' + relation.property?.ownerContact" (click)="$event.stopPropagation()">+216 {{ relation.property?.ownerContact }}</a>
@@ -275,13 +276,15 @@ export class SharedHousesComponent implements OnInit {
   loading = true;
   submitting = false;
   user: User | null = null;
-  readonly margins = [10, 20, 30];
+  readonly deals = SAMSAR_DEALS;
+  readonly dealLabel = dealLabel;
+  readonly sameDeal = sameDeal;
 
   inviteForm = this.fb.group({
     propertyId: ['all' as number | 'all', Validators.required],
     email: ['', [Validators.required, Validators.email]],
     phone: ['', [Validators.required, Validators.pattern(/^[\d\s+]{8,15}$/)]],
-    priceIncreaseTnd: [10, Validators.required],
+    deal: [SAMSAR_DEALS[0], Validators.required],
   });
 
   constructor(
@@ -352,7 +355,7 @@ export class SharedHousesComponent implements OnInit {
           photo: rel.samsar?.photoUrl,
           relations: [],
           allHouses: false,
-          commonMargin: null,
+          commonDeal: null,
         });
       }
       map.get(rel.samsarId)!.relations.push(rel);
@@ -366,8 +369,10 @@ export class SharedHousesComponent implements OnInit {
     group.relations.sort((a, b) => (a.property?.title || '').localeCompare(b.property?.title || ''));
     const ownedIds = new Set(this.ownedProperties.map(p => p.id));
     group.allHouses = ownedIds.size > 0 && [...ownedIds].every(id => group.relations.some(rel => rel.propertyId === id));
-    const margins = new Set(group.relations.map(rel => rel.priceIncreaseTnd || 0));
-    group.commonMargin = margins.size === 1 ? [...margins][0] : null;
+    const first = group.relations[0];
+    group.commonDeal = first && group.relations.every(rel => sameDeal(rel, first))
+      ? { priceIncreaseTnd: first.commissionPercent ? null : first.priceIncreaseTnd, commissionPercent: first.commissionPercent ?? null }
+      : null;
   }
 
   toggleDetails(samsarId: number): void {
@@ -432,7 +437,7 @@ export class SharedHousesComponent implements OnInit {
     this.propertySamsarService.inviteToAllProperties({
       email: group.email,
       phone: group.phone,
-      priceIncreaseTnd: group.commonMargin ?? 10,
+      ...(group.commonDeal ?? SAMSAR_DEALS[0]),
     }).subscribe({
       next: (added) => {
         this.snackBar.open(this.t('invite_all_success').replace('{{n}}', '' + added.length), this.t('close'), { duration: 3000 });
@@ -442,11 +447,15 @@ export class SharedHousesComponent implements OnInit {
     });
   }
 
-  updateMargin(relation: PropertySamsar, margin: number): void {
-    if (relation.priceIncreaseTnd === margin) return;
-    this.propertySamsarService.updatePriceIncrease(relation.propertyId, relation.samsarId, margin).subscribe({
+  dealOption(deal: SamsarDeal): string {
+    return deal.commissionPercent ? `${dealLabel(deal)} ${this.t('of_total')}` : `${dealLabel(deal)} / ${this.t('day')}`;
+  }
+
+  updateMargin(relation: PropertySamsar, deal: SamsarDeal): void {
+    if (sameDeal(relation, deal)) return;
+    this.propertySamsarService.updateDeal(relation.propertyId, relation.samsarId, deal).subscribe({
       next: () => {
-        relation.priceIncreaseTnd = margin;
+        applyDeal(relation, deal);
         const group = this.samsarGroups.find(g => g.samsarId === relation.samsarId);
         if (group) this.refreshGroup(group);
         this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
@@ -455,12 +464,12 @@ export class SharedHousesComponent implements OnInit {
     });
   }
 
-  updateMarginForAll(group: SamsarGroup, margin: number): void {
-    const toUpdate = group.relations.filter(rel => rel.priceIncreaseTnd !== margin);
+  updateMarginForAll(group: SamsarGroup, deal: SamsarDeal): void {
+    const toUpdate = group.relations.filter(rel => !sameDeal(rel, deal));
     if (!toUpdate.length) return;
-    forkJoin(toUpdate.map(rel => this.propertySamsarService.updatePriceIncrease(rel.propertyId, rel.samsarId, margin))).subscribe({
+    forkJoin(toUpdate.map(rel => this.propertySamsarService.updateDeal(rel.propertyId, rel.samsarId, deal))).subscribe({
       next: () => {
-        toUpdate.forEach(rel => rel.priceIncreaseTnd = margin);
+        toUpdate.forEach(rel => applyDeal(rel, deal));
         this.refreshGroup(group);
         this.snackBar.open(this.t('update_margin'), this.t('close'), { duration: 2500 });
       },
@@ -477,7 +486,7 @@ export class SharedHousesComponent implements OnInit {
     const dto = {
       email: value.email!.trim(),
       phone: value.phone!.trim(),
-      priceIncreaseTnd: value.priceIncreaseTnd || 10,
+      ...value.deal!,
     };
     const request = value.propertyId === this.ALL
       ? this.propertySamsarService.inviteToAllProperties(dto)

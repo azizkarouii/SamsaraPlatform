@@ -54,6 +54,17 @@ public class Reservation {
 
     private String notes;
 
+    /** Deal in force when the samsar booked: later changes by the owner do not touch existing bookings. */
+    @Column(name = "samsar_margin_tnd")
+    private Integer samsarMarginTnd;
+
+    @Column(name = "samsar_commission_percent")
+    private Integer samsarCommissionPercent;
+
+    /** What the samsar earns on this booking; the owner receives totalAmount - samsarGain. */
+    @Column(name = "samsar_gain")
+    private Double samsarGain;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
