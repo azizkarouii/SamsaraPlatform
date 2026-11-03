@@ -7,6 +7,23 @@ export interface PriceStretch {
   pricePerDay: number;
 }
 
+/** True when a yearly period covers a day given as "MM-dd"; a start after the end crosses the new year. */
+export function periodCovers(period: { startDate: string; endDate: string }, monthDay: string): boolean {
+  return period.startDate <= period.endDate
+    ? period.startDate <= monthDay && period.endDate >= monthDay
+    : period.startDate <= monthDay || period.endDate >= monthDay;
+}
+
+/** "06-01" as stored -> "01/06" as shown. */
+export function toDayMonth(monthDay: string): string {
+  return `${monthDay.slice(3)}/${monthDay.slice(0, 2)}`;
+}
+
+/** "01/06" as typed -> "06-01" as stored. */
+export function toMonthDay(dayMonth: string): string {
+  return `${dayMonth.slice(3)}-${dayMonth.slice(0, 2)}`;
+}
+
 /**
  * Price of a stay day by day, last day included, mirroring the server: the price of the period
  * covering each day, else the main price. 7 days at 100 then 3 at 200 gives two stretches.
@@ -22,8 +39,8 @@ export function priceStretches(
   const cursor = parseIsoDate(startDate);
   const end = parseIsoDate(endDate);
   while (cursor <= end) {
-    const day = formatIsoDate(cursor);
-    const price = periods?.find(period => period.startDate <= day && period.endDate >= day)?.pricePerDay ?? mainPrice;
+    const monthDay = formatIsoDate(cursor).slice(5);
+    const price = periods?.find(period => periodCovers(period, monthDay))?.pricePerDay ?? mainPrice;
     const last = stretches[stretches.length - 1];
     if (last?.pricePerDay === price) {
       last.days++;

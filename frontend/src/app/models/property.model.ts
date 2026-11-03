@@ -31,6 +31,7 @@ export interface Property {
   coverImage?: string;
 }
 
+/** A period coming back every year: dates are "MM-dd", a start after the end crosses the new year. */
 export interface SeasonalPrice {
   id?: number;
   startDate: string;

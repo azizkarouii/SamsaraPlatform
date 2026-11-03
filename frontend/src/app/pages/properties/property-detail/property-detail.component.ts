@@ -16,7 +16,7 @@ import { PropertyService } from '../../../services/property.service';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { AvailabilityService, ManualAvailabilityStatus } from '../../../services/availability.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { Property, SeasonalPrice } from '../../../models/property.model';
+import { Property } from '../../../models/property.model';
 import { PropertySamsar } from '../../../models/property-samsar.model';
 import { User } from '../../../models/auth.model';
 import {
@@ -35,6 +35,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
 
 import { PropertyGalleryComponent } from '../../../shared/property-gallery.component';
 import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../../shared/samsar-deal';
+import { toDayMonth } from '../../../shared/pricing';
 @Component({
   selector: 'app-property-detail',
   standalone: true,
@@ -185,13 +186,12 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
                 <ng-template #noPrice><p class="muted">{{ t('price_on_request') }}</p></ng-template>
                 <p class="margin-note" *ngIf="myCommission">{{ t('your_commission_note').replace('{{percent}}', '' + myCommission) }}</p>
                 <p class="margin-note" *ngIf="myMargin">{{ t('your_price_note').replace('{{base}}', '' + p.pricePerDay).replace('{{margin}}', '' + myMargin) }}</p>
-                <div class="price-lines" *ngIf="currentSeasons(p).length">
-                  <h4>{{ t('seasonal_prices') }}</h4>
-                  <div *ngFor="let season of currentSeasons(p)">
-                    <span>{{ season.startDate | date:'dd/MM/yyyy' }} → {{ season.endDate | date:'dd/MM/yyyy' }}</span>
-                    <strong>{{ season.pricePerDay + myMargin | number:'1.0-0' }} TND</strong>
-                  </div>
-                </div>
+                <ul class="season-lines" *ngIf="p.seasonalPrices?.length" [attr.aria-label]="t('seasonal_prices')">
+                  <li *ngFor="let season of p.seasonalPrices">
+                    <span class="ltr">{{ dayMonth(season.startDate) }} → {{ dayMonth(season.endDate) }}</span>
+                    <span>{{ season.pricePerDay + myMargin | number:'1.0-0' }} TND / {{ t('day') }}</span>
+                  </li>
+                </ul>
                 <div class="price-lines">
                   <div *ngIf="p.pricePerWeek"><span>{{ t('price_per_week') }}</span><strong>{{ p.pricePerWeek | number:'1.0-0' }} TND</strong></div>
                   <div *ngIf="p.pricePerMonth"><span>{{ t('price_per_month') }}</span><strong>{{ p.pricePerMonth | number:'1.0-0' }} TND</strong></div>
@@ -255,7 +255,8 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
     .price-main strong { font-size: 2rem; }
     .margin-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
     .price-lines { display: grid; gap: 0.35rem; margin: 0.75rem 0 1rem; }
-    .price-lines h4 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+    .season-lines { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.8rem; font-weight: 400; color: var(--text-secondary); }
+    .season-lines li { display: flex; justify-content: space-between; gap: 0.75rem; }
     .price-lines div { display: flex; justify-content: space-between; font-size: 0.9rem; }
     .full { width: 100%; }
     .side-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
@@ -458,10 +459,7 @@ export class PropertyDetailComponent implements OnInit {
     });
   }
 
-  /** Periods already over no longer matter to someone looking at the prices. */
-  currentSeasons(property: Property): SeasonalPrice[] {
-    return (property.seasonalPrices ?? []).filter(season => season.endDate >= this.today);
-  }
+  readonly dayMonth = toDayMonth;
 
   updateMargin(s: PropertySamsar, deal: SamsarDeal): void {
     if (sameDeal(s, deal)) return;

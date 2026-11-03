@@ -417,9 +417,9 @@ public class ReservationService {
         List<PropertySeasonalPrice> periods = seasonalPriceRepository.findByPropertyIdOrderByStartDateAsc(property.getId());
         double amount = 0.0;
         for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
-            String iso = day.toString();
+            String monthDay = day.toString().substring(5);
             amount += periods.stream()
-                    .filter(period -> period.getStartDate().compareTo(iso) <= 0 && period.getEndDate().compareTo(iso) >= 0)
+                    .filter(period -> period.covers(monthDay))
                     .map(PropertySeasonalPrice::getPricePerDay)
                     .findFirst()
                     .orElse(property.getPricePerDay());

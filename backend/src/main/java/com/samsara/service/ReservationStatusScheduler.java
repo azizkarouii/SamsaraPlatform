@@ -14,9 +14,18 @@ import org.springframework.stereotype.Component;
 public class ReservationStatusScheduler {
 
     private final ReservationService reservationService;
+    private final PropertyService propertyService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
+        try {
+            int periods = propertyService.normalizeLegacySeasonalPrices();
+            if (periods > 0) {
+                log.info("Converted {} prices by period to yearly periods", periods);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Legacy price period normalization failed", e);
+        }
         try {
             int fixed = reservationService.normalizeLegacyData();
             if (fixed > 0) {

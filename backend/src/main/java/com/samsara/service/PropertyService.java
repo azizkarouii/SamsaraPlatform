@@ -14,12 +14,16 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
 public class PropertyService {
+
+    private static final int REFERENCE_LEAP_YEAR = 2024;
 
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
@@ -186,15 +190,11 @@ public class PropertyService {
         if (!requested.isEmpty() && property.getPricePerDay() == null) {
             throw new IllegalArgumentException("Set the main price before adding prices by period");
         }
+        requested.forEach(this::validateSeasonalPrice);
+        requireNoOverlap(requested);
         List<PropertySeasonalPriceDto> sorted = requested.stream()
-                .peek(this::validateSeasonalPrice)
                 .sorted(Comparator.comparing(PropertySeasonalPriceDto::getStartDate))
                 .toList();
-        for (int i = 1; i < sorted.size(); i++) {
-            if (sorted.get(i).getStartDate().compareTo(sorted.get(i - 1).getEndDate()) <= 0) {
-                throw new IllegalArgumentException("Periods with different prices cannot overlap");
-            }
-        }
         seasonalPriceRepository.deleteByPropertyId(property.getId());
         property.setSeasonalPrices(seasonalPriceRepository.saveAll(sorted.stream()
                 .map(price -> PropertySeasonalPrice.builder()
@@ -207,20 +207,55 @@ public class PropertyService {
     }
 
     private void validateSeasonalPrice(PropertySeasonalPriceDto price) {
-        LocalDate start;
-        LocalDate end;
-        try {
-            start = LocalDate.parse(String.valueOf(price.getStartDate()));
-            end = LocalDate.parse(String.valueOf(price.getEndDate()));
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Each price by period needs valid start and end dates");
-        }
-        if (end.isBefore(start)) {
-            throw new IllegalArgumentException("The end of a period cannot be before its start");
-        }
+        monthDayInLeapYear(price.getStartDate());
+        monthDayInLeapYear(price.getEndDate());
         if (price.getPricePerDay() == null || price.getPricePerDay() <= 0) {
             throw new IllegalArgumentException("Each period needs a price above zero");
         }
+    }
+
+    /** One night cannot have two prices. Walks each period day by day, crossing the new year if needed. */
+    private void requireNoOverlap(List<PropertySeasonalPriceDto> periods) {
+        Set<LocalDate> taken = new HashSet<>();
+        for (PropertySeasonalPriceDto period : periods) {
+            LocalDate day = monthDayInLeapYear(period.getStartDate());
+            LocalDate last = monthDayInLeapYear(period.getEndDate());
+            while (true) {
+                if (!taken.add(day)) {
+                    throw new IllegalArgumentException("Periods with different prices cannot overlap");
+                }
+                if (day.equals(last)) {
+                    break;
+                }
+                day = day.plusDays(1).withYear(REFERENCE_LEAP_YEAR);
+            }
+        }
+    }
+
+    /** Periods have no year: a leap year accepts every day, 29 February included. */
+    private LocalDate monthDayInLeapYear(String monthDay) {
+        if (monthDay == null || !monthDay.matches("\\d{2}-\\d{2}")) {
+            throw new IllegalArgumentException("Each period needs a valid start and end (day and month)");
+        }
+        try {
+            return LocalDate.parse(REFERENCE_LEAP_YEAR + "-" + monthDay);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Each period needs a valid start and end (day and month)");
+        }
+    }
+
+    /** Periods first saved with a year ("2026-06-01") become yearly ones ("06-01"). */
+    @Transactional
+    public int normalizeLegacySeasonalPrices() {
+        int fixed = 0;
+        for (PropertySeasonalPrice period : seasonalPriceRepository.findAll()) {
+            if (period.getStartDate().length() > 5 || period.getEndDate().length() > 5) {
+                period.setStartDate(period.getStartDate().substring(period.getStartDate().length() - 5));
+                period.setEndDate(period.getEndDate().substring(period.getEndDate().length() - 5));
+                fixed++;
+            }
+        }
+        return fixed;
     }
 
     private void validatePrices(PropertyDto dto) {

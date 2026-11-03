@@ -1,7 +1,6 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, FormArray, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators, FormGroup } from '@angular/forms';
-import { MatDatepickerModule } from '@angular/material/datepicker';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -20,20 +19,37 @@ import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { t } from '../../../shared/translations';
 
 import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-editor.component';
-import { formatIsoDate, parseIsoDate } from '../../../shared/calendar-utils';
+import { periodCovers, toDayMonth, toMonthDay } from '../../../shared/pricing';
 import { SeasonalPrice } from '../../../models/property.model';
 
-function seasonDatesInOrder(row: AbstractControl): ValidationErrors | null {
-  const { startDate, endDate } = row.value;
-  return startDate && endDate && endDate < startDate ? { dateOrder: true } : null;
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** A day of the year written jj/mm, 29/02 included. */
+function isDayMonth(value: unknown): boolean {
+  const match = /^(\d{2})\/(\d{2})$/.exec(String(value ?? ''));
+  if (!match) return false;
+  const [day, month] = [Number(match[1]), Number(match[2])];
+  return month >= 1 && month <= 12 && day >= 1 && day <= DAYS_IN_MONTH[month - 1];
 }
 
-/** One night cannot have two prices. */
+function validDayMonth(control: AbstractControl): ValidationErrors | null {
+  return !control.value || isDayMonth(control.value) ? null : { dayMonth: true };
+}
+
+/** One night cannot have two prices: checks each day of the year, periods may cross the new year. */
 function seasonsDoNotOverlap(rows: AbstractControl): ValidationErrors | null {
-  const periods = (rows.value as { startDate: Date | null; endDate: Date | null }[])
-    .filter(row => row.startDate && row.endDate)
-    .sort((a, b) => a.startDate!.getTime() - b.startDate!.getTime());
-  return periods.some((period, i) => i > 0 && period.startDate! <= periods[i - 1].endDate!) ? { overlap: true } : null;
+  const periods = (rows.value as { startDate: string; endDate: string }[])
+    .filter(row => isDayMonth(row.startDate) && isDayMonth(row.endDate))
+    .map(row => ({ startDate: toMonthDay(row.startDate), endDate: toMonthDay(row.endDate) }));
+  for (let month = 1; month <= 12; month++) {
+    for (let day = 1; day <= DAYS_IN_MONTH[month - 1]; day++) {
+      const monthDay = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      if (periods.filter(period => periodCovers(period, monthDay)).length > 1) {
+        return { overlap: true };
+      }
+    }
+  }
+  return null;
 }
 
 /** Prices by period complete the main price, which applies on every other day. */
@@ -59,7 +75,6 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatDividerModule,
-    MatDatepickerModule,
   ],
   template: `
     <div class="form-container">
@@ -141,17 +156,15 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
               <div class="season-row" *ngFor="let row of seasonalRows.controls; let i = index" [formGroupName]="i">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('from') }}</mat-label>
-                  <input matInput [matDatepicker]="seasonStart" formControlName="startDate" />
-                  <mat-datepicker-toggle matSuffix [for]="seasonStart"></mat-datepicker-toggle>
-                  <mat-datepicker #seasonStart></mat-datepicker>
-                  <mat-error>{{ t('start_date_required') }}</mat-error>
+                  <input matInput formControlName="startDate" inputmode="numeric" maxlength="5" [placeholder]="t('day_month_placeholder')"
+                         (input)="formatDayMonth(row, 'startDate')" />
+                  <mat-error>{{ t('day_month_invalid') }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('to') }}</mat-label>
-                  <input matInput [matDatepicker]="seasonEnd" [min]="row.get('startDate')?.value" formControlName="endDate" />
-                  <mat-datepicker-toggle matSuffix [for]="seasonEnd"></mat-datepicker-toggle>
-                  <mat-datepicker #seasonEnd [startAt]="row.get('startDate')?.value"></mat-datepicker>
-                  <mat-error>{{ t('end_date_required') }}</mat-error>
+                  <input matInput formControlName="endDate" inputmode="numeric" maxlength="5" [placeholder]="t('day_month_placeholder')"
+                         (input)="formatDayMonth(row, 'endDate')" />
+                  <mat-error>{{ t('day_month_invalid') }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('price_per_night') }}</mat-label>
@@ -163,7 +176,6 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
                         [matTooltip]="t('remove_seasonal_price')" [attr.aria-label]="t('remove_seasonal_price')">
                   <mat-icon>delete</mat-icon>
                 </button>
-                <p class="season-error" *ngIf="row.hasError('dateOrder')">{{ t('end_before_start') }}</p>
               </div>
               <p class="season-error" *ngIf="seasonalRows.hasError('overlap')">{{ t('seasons_overlap') }}</p>
               <p class="season-error" *ngIf="propertyForm.hasError('mainPriceRequired')">{{ t('seasons_need_main_price') }}</p>
@@ -289,10 +301,17 @@ export class PropertyFormComponent implements OnInit {
 
   addSeasonalRow(price?: SeasonalPrice): void {
     this.seasonalRows.push(this.fb.group({
-      startDate: [price ? parseIsoDate(price.startDate) : null as Date | null, Validators.required],
-      endDate: [price ? parseIsoDate(price.endDate) : null as Date | null, Validators.required],
+      startDate: [price ? toDayMonth(price.startDate) : '', [Validators.required, validDayMonth]],
+      endDate: [price ? toDayMonth(price.endDate) : '', [Validators.required, validDayMonth]],
       pricePerDay: [price?.pricePerDay ?? null as number | null, [Validators.required, Validators.min(1)]],
-    }, { validators: seasonDatesInOrder }));
+    }));
+  }
+
+  /** Keeps only digits and adds the slash: typing 0106 gives 01/06. */
+  formatDayMonth(row: AbstractControl, field: string): void {
+    const control = row.get(field)!;
+    const digits = String(control.value ?? '').replace(/\D/g, '').slice(0, 4);
+    control.setValue(digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits, { emitEvent: true });
   }
 
   removeSeasonalRow(index: number): void {
@@ -406,8 +425,8 @@ export class PropertyFormComponent implements OnInit {
     const dto = {
       ...this.propertyForm.value,
       seasonalPrices: this.seasonalRows.getRawValue().map(row => ({
-        startDate: formatIsoDate(row['startDate']),
-        endDate: formatIsoDate(row['endDate']),
+        startDate: toMonthDay(row['startDate']),
+        endDate: toMonthDay(row['endDate']),
         pricePerDay: Number(row['pricePerDay']),
       })),
     };
