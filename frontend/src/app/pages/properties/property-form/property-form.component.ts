@@ -1,6 +1,7 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { AbstractControl, FormArray, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators, FormGroup } from '@angular/forms';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -19,6 +20,27 @@ import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { t } from '../../../shared/translations';
 
 import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-editor.component';
+import { formatIsoDate, parseIsoDate } from '../../../shared/calendar-utils';
+import { SeasonalPrice } from '../../../models/property.model';
+
+function seasonDatesInOrder(row: AbstractControl): ValidationErrors | null {
+  const { startDate, endDate } = row.value;
+  return startDate && endDate && endDate < startDate ? { dateOrder: true } : null;
+}
+
+/** One night cannot have two prices. */
+function seasonsDoNotOverlap(rows: AbstractControl): ValidationErrors | null {
+  const periods = (rows.value as { startDate: Date | null; endDate: Date | null }[])
+    .filter(row => row.startDate && row.endDate)
+    .sort((a, b) => a.startDate!.getTime() - b.startDate!.getTime());
+  return periods.some((period, i) => i > 0 && period.startDate! <= periods[i - 1].endDate!) ? { overlap: true } : null;
+}
+
+/** Prices by period complete the main price, which applies on every other day. */
+function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
+  return form.value.seasonalPrices?.length && !form.value.pricePerDay ? { mainPriceRequired: true } : null;
+}
+
 @Component({
   selector: 'app-property-form',
   standalone: true,
@@ -37,6 +59,7 @@ import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-e
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatDividerModule,
+    MatDatepickerModule,
   ],
   template: `
     <div class="form-container">
@@ -110,6 +133,43 @@ import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-e
                 <input matInput type="number" min="0" formControlName="pricePerMonth" />
                 <span matTextSuffix>TND</span>
               </mat-form-field>
+            </div>
+
+            <div class="seasons" formArrayName="seasonalPrices">
+              <h3>{{ t('seasonal_prices') }}</h3>
+              <p class="seasons-hint">{{ t('seasonal_prices_hint') }}</p>
+              <div class="season-row" *ngFor="let row of seasonalRows.controls; let i = index" [formGroupName]="i">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ t('from') }}</mat-label>
+                  <input matInput [matDatepicker]="seasonStart" formControlName="startDate" />
+                  <mat-datepicker-toggle matSuffix [for]="seasonStart"></mat-datepicker-toggle>
+                  <mat-datepicker #seasonStart></mat-datepicker>
+                  <mat-error>{{ t('start_date_required') }}</mat-error>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ t('to') }}</mat-label>
+                  <input matInput [matDatepicker]="seasonEnd" [min]="row.get('startDate')?.value" formControlName="endDate" />
+                  <mat-datepicker-toggle matSuffix [for]="seasonEnd"></mat-datepicker-toggle>
+                  <mat-datepicker #seasonEnd [startAt]="row.get('startDate')?.value"></mat-datepicker>
+                  <mat-error>{{ t('end_date_required') }}</mat-error>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ t('price_per_night') }}</mat-label>
+                  <input matInput type="number" min="1" formControlName="pricePerDay" />
+                  <span matTextSuffix>TND</span>
+                  <mat-error>{{ t('season_price_required') }}</mat-error>
+                </mat-form-field>
+                <button mat-icon-button type="button" color="warn" (click)="removeSeasonalRow(i)"
+                        [matTooltip]="t('remove_seasonal_price')" [attr.aria-label]="t('remove_seasonal_price')">
+                  <mat-icon>delete</mat-icon>
+                </button>
+                <p class="season-error" *ngIf="row.hasError('dateOrder')">{{ t('end_before_start') }}</p>
+              </div>
+              <p class="season-error" *ngIf="seasonalRows.hasError('overlap')">{{ t('seasons_overlap') }}</p>
+              <p class="season-error" *ngIf="propertyForm.hasError('mainPriceRequired')">{{ t('seasons_need_main_price') }}</p>
+              <button mat-stroked-button type="button" color="primary" (click)="addSeasonalRow()">
+                <mat-icon>add</mat-icon> {{ t('add_seasonal_price') }}
+              </button>
             </div>
 
             <h2>{{ t('details') }}</h2>
@@ -186,6 +246,12 @@ import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-e
       margin-bottom: 0.5rem;
       font-weight: 500;
     }
+    .seasons { margin-bottom: 1.5rem; }
+    .seasons h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .seasons-hint { margin: 0.25rem 0 0.75rem; font-size: 0.82rem; color: var(--text-secondary); }
+    .season-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; align-items: start; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .season-error { grid-column: 1 / -1; margin: 0 0 0.75rem; font-size: 0.82rem; color: var(--status-cancelled); }
+    @media (max-width: 640px) { .season-row { grid-template-columns: 1fr auto; } .season-row mat-form-field { grid-column: 1; } .season-row button { grid-column: 2; grid-row: 1; } }
     .section-divider {
       margin-bottom: 1rem;
     }
@@ -217,6 +283,22 @@ import { PropertyPhotosEditorComponent } from '../../../shared/property-photos-e
   `]
 })
 export class PropertyFormComponent implements OnInit {
+  get seasonalRows(): FormArray<FormGroup> {
+    return this.propertyForm.get('seasonalPrices') as FormArray<FormGroup>;
+  }
+
+  addSeasonalRow(price?: SeasonalPrice): void {
+    this.seasonalRows.push(this.fb.group({
+      startDate: [price ? parseIsoDate(price.startDate) : null as Date | null, Validators.required],
+      endDate: [price ? parseIsoDate(price.endDate) : null as Date | null, Validators.required],
+      pricePerDay: [price?.pricePerDay ?? null as number | null, [Validators.required, Validators.min(1)]],
+    }, { validators: seasonDatesInOrder }));
+  }
+
+  removeSeasonalRow(index: number): void {
+    this.seasonalRows.removeAt(index);
+  }
+
   @ViewChild('photos') photosEditor?: PropertyPhotosEditorComponent;
   isEdit = false;
   propertyId?: number;
@@ -243,7 +325,8 @@ export class PropertyFormComponent implements OnInit {
     kitchen: [false],
     seaView: [false],
     terrace: [false],
-  });
+    seasonalPrices: this.fb.array<FormGroup>([], seasonsDoNotOverlap),
+  }, { validators: seasonsNeedMainPrice });
 
   constructor(
     private fb: FormBuilder,
@@ -285,6 +368,7 @@ export class PropertyFormComponent implements OnInit {
   private loadProperty(id: number): void {
     this.propertyService.findOne(id).subscribe({
       next: (property) => {
+        property.seasonalPrices?.forEach(price => this.addSeasonalRow(price));
         this.propertyForm.patchValue({
           title: property.title,
           configuration: property.configuration || '',
@@ -319,7 +403,14 @@ export class PropertyFormComponent implements OnInit {
     if (this.propertyForm.invalid) return;
 
     this.loading = true;
-    const dto = this.propertyForm.value;
+    const dto = {
+      ...this.propertyForm.value,
+      seasonalPrices: this.seasonalRows.getRawValue().map(row => ({
+        startDate: formatIsoDate(row['startDate']),
+        endDate: formatIsoDate(row['endDate']),
+        pricePerDay: Number(row['pricePerDay']),
+      })),
+    };
 
     const obs = this.isEdit
       ? this.propertyService.update(this.propertyId!, dto)

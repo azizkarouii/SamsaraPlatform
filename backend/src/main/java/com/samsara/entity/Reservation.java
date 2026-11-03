@@ -54,6 +54,13 @@ public class Reservation {
 
     private String notes;
 
+    /**
+     * Price of the stay at the house rates when it was booked (main price and prices by period, day by day),
+     * before any samsar margin. Kept so a later change of the rates does not touch this booking.
+     */
+    @Column(name = "base_amount")
+    private Double baseAmount;
+
     /** Deal in force when the samsar booked: later changes by the owner do not touch existing bookings. */
     @Column(name = "samsar_margin_tnd")
     private Integer samsarMarginTnd;

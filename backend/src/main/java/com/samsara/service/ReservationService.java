@@ -2,6 +2,7 @@ package com.samsara.service;
 
 import com.samsara.dto.ReservationDto;
 import com.samsara.entity.Property;
+import com.samsara.entity.PropertySeasonalPrice;
 import com.samsara.entity.Reservation;
 import com.samsara.entity.RevenueHistory;
 import com.samsara.entity.User;
@@ -47,6 +48,7 @@ public class ReservationService {
     private final RevenueHistoryRepository revenueHistoryRepository;
     private final PropertyAvailabilityRepository availabilityRepository;
     private final PropertySamsarRepository propertySamsarRepository;
+    private final PropertySeasonalPriceRepository seasonalPriceRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final AccessService accessService;
@@ -70,6 +72,7 @@ public class ReservationService {
                 : accessService.getProperty(reservation.getPropertyId());
         if (!userId.equals(reservation.getSamsarId()) && !accessService.isOwner(property, userId)) {
             reservation.setSamsarGain(null);
+            reservation.setBaseAmount(null);
             reservation.setSamsarMarginTnd(null);
             reservation.setSamsarCommissionPercent(null);
         }
@@ -137,17 +140,24 @@ public class ReservationService {
             String start = toLocalDate(r.getStartDate());
             String end = toLocalDate(r.getEndDate());
             String status = normalizeStatus(r.getStatus());
-            boolean missingGain = r.getSamsarGain() == null;
-            if (!start.equals(r.getStartDate()) || !end.equals(r.getEndDate()) || !status.equals(r.getStatus()) || missingGain) {
-                r.setStartDate(start);
-                r.setEndDate(end);
-                r.setStatus(status);
-                if (missingGain) {
-                    // Bookings older than the gain tracking take the deal currently in force
-                    Property property = accessService.getProperty(r.getPropertyId());
+            boolean changed = !start.equals(r.getStartDate()) || !end.equals(r.getEndDate()) || !status.equals(r.getStatus());
+            r.setStartDate(start);
+            r.setEndDate(end);
+            r.setStatus(status);
+            if (r.getBaseAmount() == null || r.getSamsarGain() == null) {
+                // Bookings older than these columns take the rates and the deal currently in force
+                Property property = accessService.getProperty(r.getPropertyId());
+                if (r.getBaseAmount() == null && property.getPricePerDay() != null) {
+                    r.setBaseAmount(computeBaseAmount(property, LocalDate.parse(start), LocalDate.parse(end)));
+                    changed = true;
+                }
+                if (r.getSamsarGain() == null) {
                     freezeSamsarDeal(r, property, r.getSamsarId());
                     r.setSamsarGain(computeSamsarGain(r, property));
+                    changed = true;
                 }
+            }
+            if (changed) {
                 reservationRepository.save(r);
                 fixed++;
             }
@@ -330,6 +340,9 @@ public class ReservationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A completed or cancelled reservation cannot be modified");
         }
 
+        String previousStart = reservation.getStartDate();
+        String previousEnd = reservation.getEndDate();
+
         // Status changes go through PATCH /reservations/{id}/status to respect the workflow
         if (dto.getStartDate() != null && !dto.getStartDate().equals(reservation.getStartDate())) {
             parseDate(dto.getStartDate(), "start date");
@@ -337,6 +350,10 @@ public class ReservationService {
             reservation.setStartDate(dto.getStartDate());
         }
         if (dto.getEndDate() != null) reservation.setEndDate(dto.getEndDate());
+        if (!previousStart.equals(reservation.getStartDate()) || !previousEnd.equals(reservation.getEndDate())) {
+            // Other dates are priced at the current rates; otherwise the booking keeps its original price
+            reservation.setBaseAmount(null);
+        }
         if (dto.getCheckInTime() != null) reservation.setCheckInTime(dto.getCheckInTime());
         if (dto.getCheckOutTime() != null) reservation.setCheckOutTime(dto.getCheckOutTime());
         if (dto.getClientName() != null) reservation.setClientName(dto.getClientName().trim());
@@ -390,6 +407,27 @@ public class ReservationService {
     }
 
     /**
+     * Price of a stay day by day, last day included: the price of the period covering each day, else the
+     * main price (7 days at 100 then 3 days at 200 = 1300). Null when the house has no price at all.
+     */
+    private Double computeBaseAmount(Property property, LocalDate start, LocalDate end) {
+        if (property.getPricePerDay() == null) {
+            return null;
+        }
+        List<PropertySeasonalPrice> periods = seasonalPriceRepository.findByPropertyIdOrderByStartDateAsc(property.getId());
+        double amount = 0.0;
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            String iso = day.toString();
+            amount += periods.stream()
+                    .filter(period -> period.getStartDate().compareTo(iso) <= 0 && period.getEndDate().compareTo(iso) >= 0)
+                    .map(PropertySeasonalPrice::getPricePerDay)
+                    .findFirst()
+                    .orElse(property.getPricePerDay());
+        }
+        return amount;
+    }
+
+    /**
      * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
      * Fixed margin: what was charged above the house price. The owner's own bookings earn no samsar anything.
      */
@@ -401,9 +439,8 @@ public class ReservationService {
         double gain = 0.0;
         if (reservation.getSamsarCommissionPercent() != null) {
             gain = total * reservation.getSamsarCommissionPercent() / 100.0;
-        } else if (property.getPricePerDay() != null) {
-            long days = ChronoUnit.DAYS.between(LocalDate.parse(reservation.getStartDate()), LocalDate.parse(reservation.getEndDate())) + 1;
-            gain = Math.max(0.0, total - days * property.getPricePerDay());
+        } else if (reservation.getBaseAmount() != null) {
+            gain = Math.max(0.0, total - reservation.getBaseAmount());
         }
         return Math.round(gain * 100.0) / 100.0;
     }
@@ -436,14 +473,16 @@ public class ReservationService {
             throw new IllegalArgumentException("Advance must be between 0 and the total amount");
         }
 
-        if (property.getPricePerDay() != null && !accessService.isOwner(property, bookerId)) {
+        if (reservation.getBaseAmount() == null) {
+            reservation.setBaseAmount(computeBaseAmount(property, start, end));
+        }
+        if (reservation.getBaseAmount() != null && !accessService.isOwner(property, bookerId)) {
             long days = ChronoUnit.DAYS.between(start, end) + 1;
             int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
-            double max = days * (property.getPricePerDay() + margin);
+            double max = reservation.getBaseAmount() + days * margin;
             if (total > max + 0.001) {
                 throw new IllegalArgumentException(String.format(
-                        "Total exceeds the allowed maximum of %.0f TND (%d days × (%.0f + %d) TND)",
-                        max, days, property.getPricePerDay(), margin));
+                        "Total exceeds the allowed maximum of %.0f TND", max));
             }
         }
 

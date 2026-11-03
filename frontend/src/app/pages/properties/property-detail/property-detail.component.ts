@@ -16,7 +16,7 @@ import { PropertyService } from '../../../services/property.service';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { AvailabilityService, ManualAvailabilityStatus } from '../../../services/availability.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
-import { Property } from '../../../models/property.model';
+import { Property, SeasonalPrice } from '../../../models/property.model';
 import { PropertySamsar } from '../../../models/property-samsar.model';
 import { User } from '../../../models/auth.model';
 import {
@@ -185,6 +185,13 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
                 <ng-template #noPrice><p class="muted">{{ t('price_on_request') }}</p></ng-template>
                 <p class="margin-note" *ngIf="myCommission">{{ t('your_commission_note').replace('{{percent}}', '' + myCommission) }}</p>
                 <p class="margin-note" *ngIf="myMargin">{{ t('your_price_note').replace('{{base}}', '' + p.pricePerDay).replace('{{margin}}', '' + myMargin) }}</p>
+                <div class="price-lines" *ngIf="currentSeasons(p).length">
+                  <h4>{{ t('seasonal_prices') }}</h4>
+                  <div *ngFor="let season of currentSeasons(p)">
+                    <span>{{ season.startDate | date:'dd/MM/yyyy' }} → {{ season.endDate | date:'dd/MM/yyyy' }}</span>
+                    <strong>{{ season.pricePerDay + myMargin | number:'1.0-0' }} TND</strong>
+                  </div>
+                </div>
                 <div class="price-lines">
                   <div *ngIf="p.pricePerWeek"><span>{{ t('price_per_week') }}</span><strong>{{ p.pricePerWeek | number:'1.0-0' }} TND</strong></div>
                   <div *ngIf="p.pricePerMonth"><span>{{ t('price_per_month') }}</span><strong>{{ p.pricePerMonth | number:'1.0-0' }} TND</strong></div>
@@ -248,6 +255,7 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
     .price-main strong { font-size: 2rem; }
     .margin-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
     .price-lines { display: grid; gap: 0.35rem; margin: 0.75rem 0 1rem; }
+    .price-lines h4 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
     .price-lines div { display: flex; justify-content: space-between; font-size: 0.9rem; }
     .full { width: 100%; }
     .side-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
@@ -448,6 +456,11 @@ export class PropertyDetailComponent implements OnInit {
     }).afterClosed().subscribe(invited => {
       if (invited) this.loadSamsars();
     });
+  }
+
+  /** Periods already over no longer matter to someone looking at the prices. */
+  currentSeasons(property: Property): SeasonalPrice[] {
+    return (property.seasonalPrices ?? []).filter(season => season.endDate >= this.today);
   }
 
   updateMargin(s: PropertySamsar, deal: SamsarDeal): void {

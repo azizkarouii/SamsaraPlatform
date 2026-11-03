@@ -15,6 +15,8 @@ export interface Reservation {
   advanceAmount: number;
   totalAmount: number;
   notes?: string;
+  /** Price of the stay at the house rates when booked; hidden from other samsars of the house. */
+  baseAmount?: number | null;
   /** Deal frozen when the samsar booked; hidden from other samsars of the house. */
   samsarMarginTnd?: number | null;
   samsarCommissionPercent?: number | null;

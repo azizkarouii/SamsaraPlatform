@@ -1,7 +1,9 @@
 package com.samsara.service;
 
 import com.samsara.dto.PropertyDto;
+import com.samsara.dto.PropertySeasonalPriceDto;
 import com.samsara.entity.Property;
+import com.samsara.entity.PropertySeasonalPrice;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -9,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.data.domain.Sort;
 
@@ -24,6 +29,7 @@ public class PropertyService {
     private final PropertyAvailabilityRepository availabilityRepository;
     private final PropertyImageService propertyImageService;
     private final PropertySamsarRepository propertySamsarRepository;
+    private final PropertySeasonalPriceRepository seasonalPriceRepository;
     private final AccessService accessService;
 
     public List<Property> findAll() {
@@ -79,6 +85,7 @@ public class PropertyService {
         return propertyRepository.findAvailableOnDateByCreatedBy(date, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
+    @Transactional
     public Property create(PropertyDto dto, Long userId) {
         if (!userRepository.existsById(userId)) {
             throw new RuntimeException("Owner not found");
@@ -109,9 +116,12 @@ public class PropertyService {
                 .description(dto.getDescription())
                 .createdBy(userId)
                 .build();
-        return propertyRepository.save(property);
+        Property saved = propertyRepository.save(property);
+        saveSeasonalPrices(saved, dto.getSeasonalPrices());
+        return saved;
     }
 
+    @Transactional
     public Property update(Long id, PropertyDto dto, Long userId) {
         Property property = accessService.requireOwner(id, userId);
         validatePrices(dto);
@@ -139,7 +149,9 @@ public class PropertyService {
         if (dto.getBathrooms() != null) property.setBathrooms(dto.getBathrooms());
         if (dto.getPhotos() != null) property.setPhotos(dto.getPhotos());
         if (dto.getDescription() != null) property.setDescription(dto.getDescription());
-        return propertyRepository.save(property);
+        Property saved = propertyRepository.save(property);
+        saveSeasonalPrices(saved, dto.getSeasonalPrices());
+        return saved;
     }
 
     /**
@@ -161,8 +173,54 @@ public class PropertyService {
         notificationRepository.deleteByPropertyId(id);
         availabilityRepository.deleteByPropertyId(id);
         propertyImageService.deleteAllOfProperty(id);
+        seasonalPriceRepository.deleteByPropertyId(id);
         propertySamsarRepository.deleteByPropertyId(id);
         propertyRepository.delete(property);
+    }
+
+    /** Replaces the prices by period of a house; they complete the main price, which must exist. */
+    private void saveSeasonalPrices(Property property, List<PropertySeasonalPriceDto> requested) {
+        if (requested == null) {
+            return;
+        }
+        if (!requested.isEmpty() && property.getPricePerDay() == null) {
+            throw new IllegalArgumentException("Set the main price before adding prices by period");
+        }
+        List<PropertySeasonalPriceDto> sorted = requested.stream()
+                .peek(this::validateSeasonalPrice)
+                .sorted(Comparator.comparing(PropertySeasonalPriceDto::getStartDate))
+                .toList();
+        for (int i = 1; i < sorted.size(); i++) {
+            if (sorted.get(i).getStartDate().compareTo(sorted.get(i - 1).getEndDate()) <= 0) {
+                throw new IllegalArgumentException("Periods with different prices cannot overlap");
+            }
+        }
+        seasonalPriceRepository.deleteByPropertyId(property.getId());
+        property.setSeasonalPrices(seasonalPriceRepository.saveAll(sorted.stream()
+                .map(price -> PropertySeasonalPrice.builder()
+                        .propertyId(property.getId())
+                        .startDate(price.getStartDate())
+                        .endDate(price.getEndDate())
+                        .pricePerDay(price.getPricePerDay())
+                        .build())
+                .toList()));
+    }
+
+    private void validateSeasonalPrice(PropertySeasonalPriceDto price) {
+        LocalDate start;
+        LocalDate end;
+        try {
+            start = LocalDate.parse(String.valueOf(price.getStartDate()));
+            end = LocalDate.parse(String.valueOf(price.getEndDate()));
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Each price by period needs valid start and end dates");
+        }
+        if (end.isBefore(start)) {
+            throw new IllegalArgumentException("The end of a period cannot be before its start");
+        }
+        if (price.getPricePerDay() == null || price.getPricePerDay() <= 0) {
+            throw new IllegalArgumentException("Each period needs a price above zero");
+        }
     }
 
     private void validatePrices(PropertyDto dto) {

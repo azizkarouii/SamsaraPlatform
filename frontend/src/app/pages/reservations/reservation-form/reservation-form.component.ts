@@ -41,6 +41,7 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
   return null;
 }
 
+import { PriceStretch, priceStretches, stretchesTotal } from '../../../shared/pricing';
 @Component({
   selector: 'app-reservation-form',
   standalone: true,
@@ -147,10 +148,16 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
               <span>{{ t('days_count') }}</span>
               <strong>{{ days }}</strong>
             </div>
-            <div class="summary-line" *ngIf="selected?.property?.pricePerDay">
-              <span>{{ t('price_per_day') }}</span>
-              <strong>{{ selected!.property.pricePerDay | number:'1.0-0' }} TND<span *ngIf="deal.margin"> + {{ deal.margin }}</span></strong>
-            </div>
+            <ng-container *ngIf="selected?.property?.pricePerDay">
+              <div class="summary-line" *ngIf="stretches.length < 2">
+                <span>{{ t('price_per_day') }}</span>
+                <strong>{{ (stretches.length ? stretches[0].pricePerDay : selected!.property.pricePerDay) | number:'1.0-0' }} TND<span *ngIf="deal.margin"> + {{ deal.margin }}</span></strong>
+              </div>
+              <div class="summary-line" *ngFor="let stretch of stretches.length > 1 ? stretches : []">
+                <span>{{ stretch.days }} {{ t('days_short') }} × {{ stretch.pricePerDay | number:'1.0-0' }} TND<ng-container *ngIf="deal.margin"> + {{ deal.margin }}</ng-container></span>
+                <strong>{{ stretch.days * (stretch.pricePerDay + deal.margin) | number:'1.0-0' }} TND</strong>
+              </div>
+            </ng-container>
             <div class="summary-line suggested" *ngIf="suggestedTotal">
               <span>{{ t('suggested_total') }}</span>
               <strong>{{ suggestedTotal | number:'1.0-0' }} TND</strong>
@@ -231,6 +238,7 @@ export class ReservationFormComponent implements OnInit {
   editedStatus?: string;
   private pendingPropertyId?: number;
   private frozenDeal?: { margin: number; commissionPercent: number };
+  private frozenBaseAmount?: number | null;
 
   form = this.fb.group({
     propertyId: [null as number | null, Validators.required],
@@ -324,6 +332,7 @@ export class ReservationFormComponent implements OnInit {
           margin: reservation.samsarMarginTnd || 0,
           commissionPercent: reservation.samsarCommissionPercent || 0,
         };
+        this.frozenBaseAmount = reservation.baseAmount;
         this.totalTouched = true;
         this.pendingPropertyId = reservation.propertyId;
         this.form.patchValue({
@@ -376,7 +385,7 @@ export class ReservationFormComponent implements OnInit {
     if (this.deal.commissionPercent) {
       return Math.round(total * this.deal.commissionPercent) / 100;
     }
-    return Math.max(0, total - this.days * (this.selected?.property.pricePerDay || 0));
+    return Math.max(0, total - this.baseAmount);
   }
 
   get startIso(): string {
@@ -393,8 +402,20 @@ export class ReservationFormComponent implements OnInit {
     return countReservationDays(this.startIso, this.endIso);
   }
 
+  /** The stay split by nightly price, for the selected house and dates. */
+  get stretches(): PriceStretch[] {
+    const property = this.selected?.property;
+    return priceStretches(property?.pricePerDay, property?.seasonalPrices, this.startIso, this.endIso);
+  }
+
+  /** Price at the house rates; a booking edited without changing its dates keeps its original price. */
+  get baseAmount(): number {
+    const sameDates = this.ownRange?.startDate === this.startIso && this.ownRange?.endDate === this.endIso;
+    return sameDates && this.frozenBaseAmount != null ? this.frozenBaseAmount : stretchesTotal(this.stretches);
+  }
+
   get suggestedTotal(): number {
-    return this.selected?.property.pricePerDay ? this.days * this.unitPriceOf(this.selected) : 0;
+    return this.selected?.property.pricePerDay ? this.baseAmount + this.days * this.deal.margin : 0;
   }
 
   /** A samsar may not sell above price + margin granted by the owner (the house price with a commission). */

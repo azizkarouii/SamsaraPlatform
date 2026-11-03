@@ -1,5 +1,6 @@
 package com.samsara.dto;
 
+import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -30,6 +31,8 @@ public class PropertyDto {
     private Integer bathrooms;
     private String photos;
     private String description;
+    /** Full list of prices by period; null leaves the existing ones untouched. */
+    private List<PropertySeasonalPriceDto> seasonalPrices;
     private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

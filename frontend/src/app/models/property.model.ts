@@ -25,8 +25,17 @@ export interface Property {
   createdAt: string;
   updatedAt: string;
   images?: PropertyImage[];
+  /** Nightly prices by period; outside them the main price (pricePerDay) applies. */
+  seasonalPrices?: SeasonalPrice[];
   /** Storage key of the cover photo, if the property has photos. */
   coverImage?: string;
+}
+
+export interface SeasonalPrice {
+  id?: number;
+  startDate: string;
+  endDate: string;
+  pricePerDay: number;
 }
 
 export interface CreatePropertyDto {

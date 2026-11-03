@@ -382,6 +382,15 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   gains_by_rental: { fr: 'Mes gains par location', en: 'My earnings by rental', ar: 'أرباحي حسب الإيجار' },
   house_type: { fr: 'Type de maison (optionnel)', en: 'House type (optional)', ar: 'نوع المنزل (اختياري)' },
   all_types: { fr: 'Tous les types', en: 'All types', ar: 'جميع الأنواع' },
+  seasonal_prices: { fr: 'Prix selon la période', en: 'Prices by period', ar: 'الأسعار حسب الفترة' },
+  seasonal_prices_hint: { fr: 'En dehors de ces périodes, le prix par jour ci-dessus s\'applique.', en: 'Outside these periods, the daily price above applies.', ar: 'خارج هذه الفترات، يُطبَّق السعر اليومي أعلاه.' },
+  add_seasonal_price: { fr: 'Ajouter un prix selon la période', en: 'Add a price by period', ar: 'إضافة سعر حسب الفترة' },
+  remove_seasonal_price: { fr: 'Supprimer ce prix', en: 'Remove this price', ar: 'حذف هذا السعر' },
+  price_per_night: { fr: 'Prix par nuit', en: 'Price per night', ar: 'السعر لليلة' },
+  season_price_required: { fr: 'Prix requis', en: 'Price required', ar: 'السعر مطلوب' },
+  seasons_overlap: { fr: 'Deux périodes se chevauchent : une nuit ne peut avoir qu\'un seul prix.', en: 'Two periods overlap: a night can only have one price.', ar: 'تتداخل فترتان: لا يمكن أن يكون لليلة سوى سعر واحد.' },
+  seasons_need_main_price: { fr: 'Renseignez le prix par jour : il s\'applique en dehors de ces périodes.', en: 'Enter the daily price: it applies outside these periods.', ar: 'أدخل السعر اليومي: يُطبَّق خارج هذه الفترات.' },
+  price_varies: { fr: 'prix variable selon les dates', en: 'price varies with dates', ar: 'السعر يختلف حسب التواريخ' },
   samsar_phone_hint: { fr: 'Obligatoire : les propriétaires vous trouvent par email + téléphone.', en: 'Required: owners find you by email + phone.', ar: 'إلزامي: يجدك الملاك عبر البريد الإلكتروني والهاتف.' },
 };
 

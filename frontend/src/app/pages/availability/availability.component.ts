@@ -19,6 +19,7 @@ import { PropertyThumbComponent } from '../../shared/property-thumb.component';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { PriceStretch, priceStretches, stretchesTotal } from '../../shared/pricing';
 @Component({
   selector: 'app-availability',
   standalone: true,
@@ -105,8 +106,9 @@ import { MatSelectModule } from '@angular/material/select';
                 </a>
                 <div class="result-side">
                   <span class="price" *ngIf="property.pricePerDay">
-                    {{ priceFor(property) | number:'1.0-0' }} TND
-                    <small *ngIf="days">· {{ priceFor(property) * days | number:'1.0-0' }} TND {{ t('total_short') }}</small>
+                    <ng-container *ngIf="singleRate(property) as rate">{{ rate | number:'1.0-0' }} TND <small>· </small></ng-container>
+                    <small>{{ totalFor(property) | number:'1.0-0' }} TND {{ t('total_short') }}</small>
+                    <small *ngIf="!singleRate(property)"> · {{ t('price_varies') }}</small>
                   </span>
                   <a mat-stroked-button color="primary" [routerLink]="['/reservations/add']"
                      [queryParams]="{ propertyId: property.id, start: startDate, end: endDate || startDate }">
@@ -192,8 +194,18 @@ export class AvailabilityComponent implements OnInit, OnDestroy {
     return countReservationDays(this.startDate, this.endDate || this.startDate);
   }
 
-  priceFor(property: Property): number {
-    return (property.pricePerDay || 0) + (this.margins.get(property.id) || 0);
+  private stretchesOf(property: Property): PriceStretch[] {
+    return priceStretches(property.pricePerDay, property.seasonalPrices, this.startDate, this.endDate);
+  }
+
+  /** Nightly price when the whole stay has the same one; null when it covers several price periods. */
+  singleRate(property: Property): number | null {
+    const stretches = this.stretchesOf(property);
+    return stretches.length === 1 ? stretches[0].pricePerDay + (this.margins.get(property.id) || 0) : null;
+  }
+
+  totalFor(property: Property): number {
+    return stretchesTotal(this.stretchesOf(property)) + this.days * (this.margins.get(property.id) || 0);
   }
 
   rebuild(): void {
