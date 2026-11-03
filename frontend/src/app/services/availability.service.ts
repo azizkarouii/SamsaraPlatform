@@ -18,10 +18,13 @@ export class AvailabilityService {
   constructor(private http: HttpClient) {}
 
   /** Properties owned or shared with the current user that are free on the whole period. */
-  findAvailable(startDate: string, endDate: string): Observable<Property[]> {
-    const params = new HttpParams()
+  findAvailable(startDate: string, endDate: string, configuration?: string): Observable<Property[]> {
+    let params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate);
+    if (configuration) {
+      params = params.set('configuration', configuration);
+    }
     return this.http.get<Property[]>(`${this.propertyApiUrl}/available`, { params });
   }
 

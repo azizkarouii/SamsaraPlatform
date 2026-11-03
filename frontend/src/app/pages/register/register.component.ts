@@ -76,7 +76,7 @@ import { AppLanguage, t } from '../../shared/translations';
               <mat-error *ngIf="registerForm.hasError('mismatch')">{{ t('passwords_dont_match') }}</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="full-width">
+            <mat-form-field appearance="outline" class="field-with-hint full-width" subscriptSizing="dynamic">
               <mat-label>{{ isSamsar ? t('phone_required_label') : t('phone_optional') }}</mat-label>
               <span matTextPrefix>+216&nbsp;</span>
               <input matInput formControlName="phone" type="tel" inputmode="tel" autocomplete="tel-national" />

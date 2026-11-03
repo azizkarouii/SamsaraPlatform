@@ -302,7 +302,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
 
   // Availability page
   availability_subtitle: { fr: 'Choisissez une période pour trouver les maisons libres parmi les vôtres.', en: 'Pick a period to find free houses among yours.', ar: 'اختر فترة للعثور على المنازل المتاحة.' },
-  availability_hint: { fr: 'Sélectionnez une date de début puis de fin dans le calendrier.', en: 'Select a start then an end date in the calendar.', ar: 'اختر تاريخ البداية ثم النهاية في التقويم.' },
+  availability_hint: { fr: 'Sélectionnez une date de début puis de fin : les maisons libres apparaissent ici. Pour un seul jour, cliquez deux fois sur la même date.', en: 'Select a start then an end date: free houses appear here. For a single day, click the same date twice.', ar: 'اختر تاريخ البداية ثم النهاية: تظهر المنازل المتاحة هنا. ليوم واحد، انقر مرتين على التاريخ نفسه.' },
   total_short: { fr: 'au total', en: 'total', ar: 'المجموع' },
 
   // Shared houses
@@ -380,6 +380,8 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   gains_trend: { fr: 'Évolution de mes gains', en: 'My earnings over time', ar: 'تطور أرباحي' },
   gains_by_property: { fr: 'Mes gains par maison', en: 'My earnings by house', ar: 'أرباحي حسب المنزل' },
   gains_by_rental: { fr: 'Mes gains par location', en: 'My earnings by rental', ar: 'أرباحي حسب الإيجار' },
+  house_type: { fr: 'Type de maison (optionnel)', en: 'House type (optional)', ar: 'نوع المنزل (اختياري)' },
+  all_types: { fr: 'Tous les types', en: 'All types', ar: 'جميع الأنواع' },
   samsar_phone_hint: { fr: 'Obligatoire : les propriétaires vous trouvent par email + téléphone.', en: 'Required: owners find you by email + phone.', ar: 'إلزامي: يجدك الملاك عبر البريد الإلكتروني والهاتف.' },
 };
 

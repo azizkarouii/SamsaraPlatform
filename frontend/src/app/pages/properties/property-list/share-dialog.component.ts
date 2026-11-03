@@ -43,7 +43,7 @@ import { SAMSAR_DEALS, SamsarDeal, dealLabel } from '../../../shared/samsar-deal
           <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
           <mat-error>{{ t('phone_invalid') }}</mat-error>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="full-width">
+        <mat-form-field appearance="outline" class="field-with-hint full-width" subscriptSizing="dynamic">
           <mat-label>{{ t('allowed_increase') }}</mat-label>
           <mat-select formControlName="deal">
             <mat-option *ngFor="let deal of deals" [value]="deal">{{ dealOption(deal) }}</mat-option>

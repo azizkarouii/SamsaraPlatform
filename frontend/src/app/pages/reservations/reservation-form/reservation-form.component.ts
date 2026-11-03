@@ -74,7 +74,7 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
         <mat-card>
           <mat-card-content>
             <h3>{{ t('property_details') }}</h3>
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
               <mat-label>{{ t('property_label') }}</mat-label>
               <mat-select formControlName="propertyId" (selectionChange)="onPropertyChange()">
                 <mat-option *ngFor="let item of properties" [value]="item.property.id">
@@ -168,7 +168,7 @@ function dateRangeValidator(group: AbstractControl): ValidationErrors | null {
               <mat-icon>error</mat-icon>{{ t('total_above_max').replace('{{max}}', '' + maxTotal) }}
             </div>
 
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
               <mat-label>{{ t('advance_amount_label') }}</mat-label>
               <input matInput type="number" min="0" formControlName="advanceAmount" />
               <span matTextSuffix>TND</span>

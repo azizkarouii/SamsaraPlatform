@@ -37,9 +37,10 @@ public class PropertyController {
     @GetMapping("/available")
     public ResponseEntity<List<Property>> findAvailableBetween(@RequestParam String startDate,
                                                                @RequestParam String endDate,
+                                                               @RequestParam(required = false) String configuration,
                                                                Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        return ResponseEntity.ok(propertyService.findAvailableBetweenForUser(userId, startDate, endDate));
+        return ResponseEntity.ok(propertyService.findAvailableBetweenForUser(userId, startDate, endDate, configuration));
     }
 
     /** Public: anyone with the share link can see the property, but not the owner's phone. */

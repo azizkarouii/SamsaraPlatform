@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -15,10 +16,13 @@ import { CalendarDay, CalendarMonth, buildCalendarMonths, getWeekdayLabels, toda
 import { t } from '../../shared/translations';
 
 import { PropertyThumbComponent } from '../../shared/property-thumb.component';
+import { FormsModule } from '@angular/forms';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 @Component({
   selector: 'app-availability',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, PropertyThumbComponent],
+  imports: [CommonModule, FormsModule, RouterModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatFormFieldModule, MatSelectModule, PropertyThumbComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -64,11 +68,16 @@ import { PropertyThumbComponent } from '../../shared/property-thumb.component';
               </div>
             </div>
 
+            <mat-form-field appearance="outline" class="type-filter" subscriptSizing="dynamic">
+              <mat-label>{{ t('house_type') }}</mat-label>
+              <mat-select [(ngModel)]="houseType" (selectionChange)="onHouseTypeChange()">
+                <mat-option value="">{{ t('all_types') }}</mat-option>
+                <mat-option *ngFor="let type of houseTypes" [value]="type">{{ type }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+
             <div class="actions">
-              <button mat-button (click)="resetRange()" [disabled]="!startDate">{{ t('clear_filter') }}</button>
-              <button mat-raised-button color="primary" (click)="searchAvailable()" [disabled]="!startDate || loading">
-                <mat-icon>search</mat-icon> {{ t('search_available_houses') }}
-              </button>
+              <button mat-button (click)="resetRange()" [disabled]="!startDate && !houseType">{{ t('clear_filter') }}</button>
             </div>
           </mat-card-content>
         </mat-card>
@@ -91,8 +100,8 @@ import { PropertyThumbComponent } from '../../shared/property-thumb.component';
               <div class="result" *ngFor="let property of results">
                 <app-property-thumb [path]="property.coverImage"></app-property-thumb>
                 <a class="result-main" [routerLink]="['/properties', property.id]">
-                  <strong>{{ property.title }}</strong>
-                  <span>{{ property.address || property.configuration || '-' }}</span>
+                  <strong>{{ property.title }}<span class="pill type-pill" *ngIf="property.configuration">{{ property.configuration | uppercase }}</span></strong>
+                  <span>{{ property.address || '-' }}</span>
                 </a>
                 <div class="result-side">
                   <span class="price" *ngIf="property.pricePerDay">
@@ -117,6 +126,8 @@ import { PropertyThumbComponent } from '../../shared/property-thumb.component';
     .range mat-icon { color: var(--primary); }
     .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
     h3 { margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; }
+    .type-filter { display: block; margin-top: 1rem; }
+    .type-pill { margin-inline-start: 0.5rem; font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.5rem; }
     .results { position: sticky; top: 72px; }
     .result-list { display: grid; gap: 0.6rem; }
     .result {
@@ -135,7 +146,7 @@ import { PropertyThumbComponent } from '../../shared/property-thumb.component';
     }
   `]
 })
-export class AvailabilityComponent implements OnInit {
+export class AvailabilityComponent implements OnInit, OnDestroy {
   months: CalendarMonth[] = [];
   offset = 0;
   startDate = '';
@@ -143,8 +154,12 @@ export class AvailabilityComponent implements OnInit {
   loading = false;
   searched = false;
   results: Property[] = [];
+  /** Optional filter: empty means every type. */
+  houseType = '';
+  readonly houseTypes = ['S+1', 'S+2', 'S+3', 'S+4'];
   readonly today = todayIso();
   private margins = new Map<number, number>();
+  private search?: Subscription;
 
   constructor(
     private authService: AuthService,
@@ -159,6 +174,10 @@ export class AvailabilityComponent implements OnInit {
       this.propertySamsarService.findMine().subscribe(rels =>
         rels.forEach(r => this.margins.set(r.propertyId, r.priceIncreaseTnd || 0)));
     }
+  }
+
+  ngOnDestroy(): void {
+    this.search?.unsubscribe();
   }
 
   t(key: string): string {
@@ -192,31 +211,48 @@ export class AvailabilityComponent implements OnInit {
     if (!this.startDate || this.endDate) {
       this.startDate = day.date;
       this.endDate = '';
-    } else if (day.date < this.startDate) {
+      this.clearResults();
+      return;
+    }
+    if (day.date < this.startDate) {
       this.endDate = this.startDate;
       this.startDate = day.date;
     } else {
       this.endDate = day.date;
     }
-    this.searched = false;
-    this.results = [];
+    this.searchAvailable();
   }
 
   isInRange(date: string): boolean {
     return !!date && !!this.startDate && !!this.endDate && date > this.startDate && date < this.endDate;
   }
 
-  resetRange(): void {
-    this.startDate = '';
-    this.endDate = '';
+  /** Once the period is chosen, the results follow the type right away. */
+  onHouseTypeChange(): void {
+    if (this.startDate && this.endDate) {
+      this.searchAvailable();
+    }
+  }
+
+  private clearResults(): void {
+    this.search?.unsubscribe();
+    this.loading = false;
     this.searched = false;
     this.results = [];
   }
 
-  searchAvailable(): void {
-    if (!this.startDate) return;
+  resetRange(): void {
+    this.startDate = '';
+    this.endDate = '';
+    this.houseType = '';
+    this.clearResults();
+  }
+
+  /** Runs as soon as both dates are chosen; a newer search replaces one still in flight. */
+  private searchAvailable(): void {
+    this.search?.unsubscribe();
     this.loading = true;
-    this.availabilityService.findAvailable(this.startDate, this.endDate || this.startDate).subscribe({
+    this.search = this.availabilityService.findAvailable(this.startDate, this.endDate, this.houseType).subscribe({
       next: (properties) => {
         this.results = properties;
         this.loading = false;

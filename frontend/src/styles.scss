@@ -256,6 +256,11 @@ button:disabled, .cal-day:disabled { cursor: not-allowed; }
   width: 100%;
 }
 
+/* subscriptSizing="dynamic" drops the space Material reserves under a field: give it back as a margin */
+.mat-mdc-form-field.field-with-hint {
+  margin-bottom: 1rem;
+}
+
 /* ---------- Page scaffolding ---------- */
 .page {
   display: grid;

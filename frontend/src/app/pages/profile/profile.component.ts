@@ -86,7 +86,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
                 <input matInput formControlName="name" />
                 <mat-error>{{ t('name_min') }}</mat-error>
               </mat-form-field>
-              <mat-form-field appearance="outline">
+              <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
                 <mat-label>{{ t('email_label') }}</mat-label>
                 <input matInput type="email" [value]="user?.email" disabled />
                 <mat-hint>{{ t('email_not_editable') }}</mat-hint>

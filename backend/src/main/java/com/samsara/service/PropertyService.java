@@ -44,14 +44,26 @@ public class PropertyService {
         return propertyRepository.findAvailableBetween(startDate, endDate, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    public List<Property> findAvailableBetweenForUser(Long userId, String startDate, String endDate) {
+    public List<Property> findAvailableBetweenForUser(Long userId, String startDate, String endDate, String configuration) {
         if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
             throw new IllegalArgumentException("Start date and end date are required");
         }
         if (startDate.compareTo(endDate) > 0) {
             throw new IllegalArgumentException("Start date must be before or equal to end date");
         }
-        return propertyRepository.findAvailableBetweenForUser(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Property> available = propertyRepository.findAvailableBetweenForUser(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+        if (configuration == null || configuration.isBlank()) {
+            return available;
+        }
+        String wanted = normalizeConfiguration(configuration);
+        return available.stream()
+                .filter(p -> p.getConfiguration() != null && wanted.equals(normalizeConfiguration(p.getConfiguration())))
+                .toList();
+    }
+
+    /** The house type is typed freely by owners: "S+2", "s+2", "s + 2" and "S2" are the same type. */
+    private static String normalizeConfiguration(String configuration) {
+        return configuration.replaceAll("[\\s+]", "").toLowerCase();
     }
 
     public Property findById(Long id) {
