@@ -1,6 +1,7 @@
 package com.samsara.controller;
 
 import com.samsara.dto.ReservationDto;
+import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.entity.Reservation;
 import com.samsara.service.ReservationService;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +70,22 @@ public class ReservationController {
                                                     Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(reservationService.updateStatus(id, body.get("status"), userId));
+    }
+
+    @PostMapping("/{id}/early-end")
+    public ResponseEntity<Reservation> endEarly(@PathVariable Long id,
+                                                @RequestBody ReservationEarlyEndDto dto,
+                                                Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.endEarly(id, dto, userId));
+    }
+
+    @PutMapping("/{id}/refund")
+    public ResponseEntity<Reservation> setRefund(@PathVariable Long id,
+                                                 @RequestBody Map<String, Double> body,
+                                                 Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.setRefund(id, body.get("amount"), userId));
     }
 
     @DeleteMapping("/{id}")

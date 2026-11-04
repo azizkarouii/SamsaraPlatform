@@ -15,6 +15,12 @@ export interface Reservation {
   advanceAmount: number;
   totalAmount: number;
   notes?: string;
+  /** Nightly price agreed with the client below the house rates; it carries no samsar margin. */
+  negotiatedPricePerDay?: number | null;
+  /** Planned end, kept when the stay stopped early. */
+  originalEndDate?: string | null;
+  /** Money the owner gave back to the client; hidden from other samsars of the house. */
+  refundAmount?: number | null;
   /** Price of the stay at the house rates when booked; hidden from other samsars of the house. */
   baseAmount?: number | null;
   /** Deal frozen when the samsar booked; hidden from other samsars of the house. */
@@ -67,6 +73,33 @@ export function isRevenueStatus(status?: string | null): boolean {
 /** The owner's part of a booking: the total minus what the samsar earns. */
 export function ownerShareOf(reservation: Reservation): number {
   return (reservation.totalAmount || 0) - (reservation.samsarGain || 0);
+}
+
+/**
+ * Money the owner really has from a booking: the advance as soon as it is paid (and it stays if the booking
+ * is cancelled), his whole share once the stay has started, minus what he gave back.
+ */
+export function ownerEarned(reservation: Reservation): number {
+  const share = ownerShareOf(reservation);
+  switch (normalizeReservationStatus(reservation.status)) {
+    case 'in-progress':
+    case 'completed':
+      return share - (reservation.refundAmount || 0);
+    case 'confirmed':
+    case 'cancelled':
+      return Math.min(reservation.advanceAmount || 0, share);
+    default:
+      return 0;
+  }
+}
+
+/** A samsar earns nothing on the advance: his gain comes once the stay has started. */
+export function samsarEarned(reservation: Reservation): number {
+  return isStayStarted(reservation) ? reservation.samsarGain || 0 : 0;
+}
+
+export function isStayStarted(reservation: Reservation): boolean {
+  return ['in-progress', 'completed'].includes(normalizeReservationStatus(reservation.status));
 }
 
 /** Translation key of a status label, e.g. "status_in_progress". */

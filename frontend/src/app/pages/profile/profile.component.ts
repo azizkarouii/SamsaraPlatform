@@ -17,7 +17,7 @@ import { PropertySamsarService } from '../../services/property-samsar.service';
 import { ReservationService } from '../../services/reservation.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
-import { Reservation, isRevenueStatus, ownerShareOf } from '../../models/reservation.model';
+import { Reservation, ownerEarned, samsarEarned } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
 import { UserAvatarComponent } from '../../shared/user-avatar.component';
 import { ACCEPT_ATTRIBUTE, checkImageFile, compressImage } from '../../shared/image-utils';
@@ -259,8 +259,7 @@ export class ProfileComponent implements OnInit {
       const reservations = isSamsar ? all.filter(r => r.samsarId === this.user?.id) : all;
       this.propertyCount = count.length;
       this.reservationCount = reservations.length;
-      this.totalRevenue = reservations.filter(r => isRevenueStatus(r.status))
-        .reduce((sum, r) => sum + (isSamsar ? r.samsarGain || 0 : ownerShareOf(r)), 0);
+      this.totalRevenue = reservations.reduce((sum, r) => sum + (isSamsar ? samsarEarned(r) : ownerEarned(r)), 0);
     });
   }
 

@@ -25,10 +25,17 @@ export interface Property {
   createdAt: string;
   updatedAt: string;
   images?: PropertyImage[];
+  /** External links (video, social post...) shown with the photos. */
+  links?: PropertyLink[];
   /** Nightly prices by period; outside them the main price (pricePerDay) applies. */
   seasonalPrices?: SeasonalPrice[];
   /** Storage key of the cover photo, if the property has photos. */
   coverImage?: string;
+}
+
+export interface PropertyLink {
+  id?: number;
+  url: string;
 }
 
 /** A period coming back every year: dates are "MM-dd", a start after the end crosses the new year. */

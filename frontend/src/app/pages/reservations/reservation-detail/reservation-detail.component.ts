@@ -21,8 +21,12 @@ import {
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
-import { todayIso } from '../../../shared/calendar-utils';
+import { formatIsoDate, parseIsoDate, todayIso } from '../../../shared/calendar-utils';
 
+import { FormsModule } from '@angular/forms';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { Observable } from 'rxjs';
 @Component({
   selector: 'app-reservation-detail',
   standalone: true,
@@ -35,6 +39,9 @@ import { todayIso } from '../../../shared/calendar-utils';
     MatDividerModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    FormsModule,
+    MatFormFieldModule,
+    MatInputModule,
   ],
   template: `
     <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
@@ -84,6 +91,42 @@ import { todayIso } from '../../../shared/calendar-utils';
             </button>
             <span class="hint" *ngIf="startsLater">{{ t('auto_start_hint') }}</span>
           </div>
+
+          <div class="status-actions" *ngIf="canEndEarly || canRefund">
+            <span class="hint">{{ t('stay_changes') }}</span>
+            <button mat-stroked-button *ngIf="canEndEarly" (click)="openPanel('early')"><mat-icon>event_busy</mat-icon> {{ t('end_early') }}</button>
+            <button mat-stroked-button *ngIf="canRefund" (click)="openPanel('refund')"><mat-icon>undo</mat-icon> {{ t('give_money_back') }}</button>
+          </div>
+
+          <form class="stay-panel" *ngIf="panel === 'early'" (ngSubmit)="submitEarlyEnd()">
+            <p>{{ t('end_early_explained') }}</p>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ t('new_end_date') }}</mat-label>
+              <input matInput type="date" name="earlyEndDate" required [min]="r.startDate" [max]="latestEarlyEnd" [(ngModel)]="earlyEndDate" />
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="isHouseOwner">
+              <mat-label>{{ t('money_given_back_optional') }}</mat-label>
+              <input matInput type="number" name="earlyRefund" min="0" [(ngModel)]="refundInput" />
+              <span matTextSuffix>TND</span>
+            </mat-form-field>
+            <div class="panel-actions">
+              <button mat-button type="button" (click)="panel = null">{{ t('cancel') }}</button>
+              <button mat-raised-button color="primary" type="submit" [disabled]="updating || !earlyEndDate">{{ t('confirm_end_early') }}</button>
+            </div>
+          </form>
+
+          <form class="stay-panel" *ngIf="panel === 'refund'" (ngSubmit)="submitRefund()">
+            <p>{{ t('give_money_back_explained') }}</p>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ t('money_given_back') }}</mat-label>
+              <input matInput type="number" name="refund" min="0" [max]="ownerShare" [(ngModel)]="refundInput" />
+              <span matTextSuffix>TND</span>
+            </mat-form-field>
+            <div class="panel-actions">
+              <button mat-button type="button" (click)="panel = null">{{ t('cancel') }}</button>
+              <button mat-raised-button color="primary" type="submit" [disabled]="updating">{{ t('save_changes') }}</button>
+            </div>
+          </form>
         </mat-card-content>
       </mat-card>
 
@@ -99,6 +142,10 @@ import { todayIso } from '../../../shared/calendar-utils';
               <div class="info-item">
                 <span class="label">{{ t('departure') }}</span>
                 <span class="value">{{ r.endDate | date:'dd/MM/yyyy' }} · {{ r.checkOutTime }}</span>
+              </div>
+              <div class="info-item" *ngIf="r.originalEndDate">
+                <span class="label">{{ t('planned_end') }}</span>
+                <span class="value">{{ r.originalEndDate | date:'dd/MM/yyyy' }}</span>
               </div>
               <div class="info-item">
                 <span class="label">{{ t('days_count') }}</span>
@@ -145,12 +192,14 @@ import { todayIso } from '../../../shared/calendar-utils';
             <h3>{{ t('financial_details') }}</h3>
             <div class="money">
               <div><span>{{ t('total_amount_label') }}</span><strong class="total">{{ r.totalAmount | number:'1.0-0' }} TND</strong></div>
+              <div *ngIf="r.negotiatedPricePerDay"><span>{{ t('negotiated_price') }}</span><strong>{{ r.negotiatedPricePerDay | number:'1.0-2' }} TND</strong></div>
               <div><span>{{ t('advance_paid') }}</span><strong>{{ r.advanceAmount | number:'1.0-0' }} TND</strong></div>
               <div class="balance"><span>{{ t('balance_due') }}</span><strong>{{ r.totalAmount - r.advanceAmount | number:'1.0-0' }} TND</strong></div>
               <ng-container *ngIf="showsShares">
                 <div><span>{{ r.samsarId === currentUserId ? t('your_gain') : t('samsar_gain') }}<ng-container *ngIf="r.samsarCommissionPercent"> ({{ r.samsarCommissionPercent }} %)</ng-container></span><strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong></div>
                 <div><span>{{ t('owner_share') }}</span><strong>{{ ownerShare | number:'1.0-2' }} TND</strong></div>
               </ng-container>
+              <div *ngIf="r.refundAmount"><span>{{ t('money_given_back') }}</span><strong>- {{ r.refundAmount | number:'1.0-2' }} TND</strong></div>
             </div>
             <div class="meta">
               <span>{{ t('created_label') }} {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
@@ -169,6 +218,9 @@ import { todayIso } from '../../../shared/calendar-utils';
     .link { color: var(--primary); text-decoration: none; }
     .muted { color: var(--text-secondary); font-weight: 400; }
     .notes { white-space: pre-line; margin: 0.5rem 0 0; }
+    .stay-panel { display: grid; gap: 0.75rem; max-width: 420px; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: var(--surface-subtle); }
+    .stay-panel p { margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
+    .panel-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 
     .workflow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .step { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 120px; color: var(--text-secondary); }
@@ -204,6 +256,9 @@ export class ReservationDetailComponent implements OnInit {
   loading = true;
   updating = false;
   currentUserId?: number;
+  panel: 'early' | 'refund' | null = null;
+  earlyEndDate = '';
+  refundInput: number | null = null;
   readonly workflowSteps: ReservationStatus[] = RESERVATION_STATUSES.filter(s => s !== 'cancelled');
   readonly statusKey = statusKey;
 
@@ -259,6 +314,67 @@ export class ReservationDetailComponent implements OnInit {
 
   get ownerShare(): number {
     return this.reservation ? ownerShareOf(this.reservation) : 0;
+  }
+
+  get isHouseOwner(): boolean {
+    return !!this.reservation && this.reservation.property?.createdBy === this.currentUserId;
+  }
+
+  /** A one-day stay cannot end sooner. */
+  get canEndEarly(): boolean {
+    const r = this.reservation;
+    return this.canManage && this.status === 'in-progress' && !!r && r.startDate < r.endDate;
+  }
+
+  /** A refund is the owner's decision. */
+  get canRefund(): boolean {
+    return this.isHouseOwner && (this.status === 'in-progress' || this.status === 'completed');
+  }
+
+  get latestEarlyEnd(): string {
+    const dayBefore = parseIsoDate(this.reservation!.endDate);
+    dayBefore.setDate(dayBefore.getDate() - 1);
+    return formatIsoDate(dayBefore);
+  }
+
+  openPanel(panel: 'early' | 'refund'): void {
+    this.panel = panel;
+    this.refundInput = this.reservation?.refundAmount ?? null;
+    if (panel === 'early') {
+      const today = todayIso();
+      this.earlyEndDate = today < this.latestEarlyEnd ? today : this.latestEarlyEnd;
+      this.refundInput = null;
+    }
+  }
+
+  submitEarlyEnd(): void {
+    this.applyStayChange(
+      this.reservationService.endEarly(this.reservation!.id, this.earlyEndDate, Number(this.refundInput || 0) || undefined),
+      this.t('stay_ended_early'),
+    );
+  }
+
+  submitRefund(): void {
+    this.applyStayChange(
+      this.reservationService.setRefund(this.reservation!.id, Number(this.refundInput || 0)),
+      this.t('refund_saved'),
+    );
+  }
+
+  private applyStayChange(change: Observable<Reservation>, message: string): void {
+    this.updating = true;
+    change.subscribe({
+      next: (updated) => {
+        this.reservation = updated;
+        this.updating = false;
+        this.panel = null;
+        this.snackBar.open(message, this.t('close'), { duration: 3000 });
+      },
+      error: (err) => {
+        this.updating = false;
+        this.snackBar.open(err.error?.message || this.t('reservation_update_failed'), this.t('close'), { duration: 4000 });
+      },
+    });
   }
 
   get editable(): boolean {

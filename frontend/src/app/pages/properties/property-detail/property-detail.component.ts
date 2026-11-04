@@ -83,6 +83,11 @@ import { toDayMonth } from '../../../shared/pricing';
         <div class="layout">
           <div class="main-col">
             <app-property-gallery [propertyId]="p.id" [title]="p.title"></app-property-gallery>
+            <div class="external-links" *ngIf="p.links?.length" [attr.aria-label]="t('external_links')">
+              <a class="pill" *ngFor="let link of p.links" [href]="link.url" target="_blank" rel="noopener noreferrer">
+                <mat-icon inline aria-hidden="true">open_in_new</mat-icon> {{ hostOf(link.url) }}
+              </a>
+            </div>
             <mat-card>
               <mat-card-content>
                 <div class="tags" *ngIf="p.hautStanding || p.appartientResidence">
@@ -255,6 +260,8 @@ import { toDayMonth } from '../../../shared/pricing';
     .price-main strong { font-size: 2rem; }
     .margin-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
     .price-lines { display: grid; gap: 0.35rem; margin: 0.75rem 0 1rem; }
+    .external-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .external-links a { color: var(--primary); text-decoration: none; }
     .season-lines { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.2rem; font-size: 0.8rem; font-weight: 400; color: var(--text-secondary); }
     .season-lines li { display: flex; justify-content: space-between; gap: 0.75rem; }
     .price-lines div { display: flex; justify-content: space-between; font-size: 0.9rem; }
@@ -460,6 +467,15 @@ export class PropertyDetailComponent implements OnInit {
   }
 
   readonly dayMonth = toDayMonth;
+
+  /** "https://www.tiktok.com/@x/video/1" -> "tiktok.com" */
+  hostOf(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return url;
+    }
+  }
 
   updateMargin(s: PropertySamsar, deal: SamsarDeal): void {
     if (sameDeal(s, deal)) return;

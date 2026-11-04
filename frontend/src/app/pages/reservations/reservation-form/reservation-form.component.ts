@@ -158,6 +158,19 @@ import { PriceStretch, priceStretches, stretchesTotal } from '../../../shared/pr
                 <strong>{{ stretch.days * (stretch.pricePerDay + deal.margin) | number:'1.0-0' }} TND</strong>
               </div>
             </ng-container>
+            <button mat-button type="button" color="primary" class="negotiate-toggle"
+                    *ngIf="!showNegotiated && selected?.property?.pricePerDay" (click)="openNegotiated()">
+              <mat-icon>add</mat-icon> {{ t('add_negotiated_price') }}
+            </button>
+            <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic" *ngIf="showNegotiated">
+              <mat-label>{{ t('negotiated_price') }}</mat-label>
+              <input matInput type="number" min="1" formControlName="negotiatedPrice" (input)="applyNegotiatedTotal()" />
+              <span matTextSuffix>TND</span>
+              <button mat-icon-button matSuffix type="button" (click)="closeNegotiated()"
+                      [attr.aria-label]="t('remove_negotiated_price')"><mat-icon>close</mat-icon></button>
+              <mat-hint>{{ isSamsar ? t('negotiated_hint_samsar') : t('negotiated_hint_owner') }}</mat-hint>
+            </mat-form-field>
+            <div class="inline-error" *ngIf="negotiatedTooHigh"><mat-icon>error</mat-icon>{{ t('negotiated_too_high') }}</div>
             <div class="summary-line suggested" *ngIf="suggestedTotal">
               <span>{{ t('suggested_total') }}</span>
               <strong>{{ suggestedTotal | number:'1.0-0' }} TND</strong>
@@ -193,7 +206,7 @@ import { PriceStretch, priceStretches, stretchesTotal } from '../../../shared/pr
               <strong>{{ balance | number:'1.0-0' }} TND</strong>
             </div>
 
-            <button mat-raised-button color="primary" type="submit" class="submit" [disabled]="form.invalid || loading || rangeConflict || exceedsMax">
+            <button mat-raised-button color="primary" type="submit" class="submit" [disabled]="form.invalid || loading || rangeConflict || exceedsMax || negotiatedTooHigh">
               <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
               <span *ngIf="!loading">{{ isEdit ? t('update_reservation') : t('create_reservation') }}</span>
             </button>
@@ -212,6 +225,7 @@ import { PriceStretch, priceStretches, stretchesTotal } from '../../../shared/pr
     .summary-line.balance { border-top: 1px solid var(--border-color); margin: 0.25rem 0 1rem; padding-top: 0.75rem; font-size: 1rem; }
     .option-price { color: var(--text-secondary); font-size: 0.85em; }
     .hint { font-size: 0.78rem; color: var(--text-secondary); margin: 0.25rem 0 0.75rem; }
+    .negotiate-toggle { display: block; margin: 0 0 0.5rem; }
     .submit { width: 100%; height: 44px; }
     .submit mat-spinner { margin: 0 auto; }
     .inline-error { display: flex; align-items: center; gap: 0.35rem; color: var(--status-cancelled); font-size: 0.82rem; margin: -0.5rem 0 0.75rem; }
@@ -251,7 +265,9 @@ export class ReservationFormComponent implements OnInit {
     totalAmount: [0, [Validators.required, Validators.min(0)]],
     advanceAmount: [0, Validators.min(0)],
     notes: [''],
+    negotiatedPrice: [null as number | null, Validators.min(1)],
   }, { validators: dateRangeValidator });
+  showNegotiated = false;
 
   constructor(
     private fb: FormBuilder,
@@ -333,6 +349,7 @@ export class ReservationFormComponent implements OnInit {
           commissionPercent: reservation.samsarCommissionPercent || 0,
         };
         this.frozenBaseAmount = reservation.baseAmount;
+        this.showNegotiated = !!reservation.negotiatedPricePerDay;
         this.totalTouched = true;
         this.pendingPropertyId = reservation.propertyId;
         this.form.patchValue({
@@ -346,6 +363,7 @@ export class ReservationFormComponent implements OnInit {
           totalAmount: reservation.totalAmount,
           advanceAmount: reservation.advanceAmount,
           notes: reservation.notes || '',
+          negotiatedPrice: reservation.negotiatedPricePerDay ?? null,
         });
         // The property cannot be changed once the reservation exists
         this.form.get('propertyId')?.disable();
@@ -375,12 +393,45 @@ export class ReservationFormComponent implements OnInit {
     return (item.property.pricePerDay || 0) + (item === this.selected ? this.deal.margin : item.margin);
   }
 
+  get isSamsar(): boolean {
+    return this.authService.getCurrentUser()?.role === 'SAMSAR';
+  }
+
   get showsGain(): boolean {
-    return this.authService.getCurrentUser()?.role === 'SAMSAR' && !!(this.deal.margin || this.deal.commissionPercent);
+    return this.isSamsar && !!(this.deal.margin || this.deal.commissionPercent);
+  }
+
+  private get negotiated(): number {
+    return this.showNegotiated ? Number(this.form.value.negotiatedPrice || 0) : 0;
+  }
+
+  /** Must stay below the usual price of the stay, like on the server. */
+  get negotiatedTooHigh(): boolean {
+    return this.negotiated > 0 && this.baseAmount > 0 && this.negotiated * this.days >= this.baseAmount;
+  }
+
+  openNegotiated(): void {
+    this.showNegotiated = true;
+  }
+
+  closeNegotiated(): void {
+    this.showNegotiated = false;
+    this.form.patchValue({ negotiatedPrice: null });
+    this.applyNegotiatedTotal();
+  }
+
+  /** Choosing or removing a negotiated price is an explicit change of the amount to pay. */
+  applyNegotiatedTotal(): void {
+    if (this.suggestedTotal) {
+      this.form.patchValue({ totalAmount: this.suggestedTotal });
+    }
   }
 
   /** Mirrors the server: a commission on the total, or what is charged above the house price. */
   get estimatedGain(): number {
+    if (this.negotiated) {
+      return 0;
+    }
     const total = Number(this.form.value.totalAmount || 0);
     if (this.deal.commissionPercent) {
       return Math.round(total * this.deal.commissionPercent) / 100;
@@ -415,6 +466,9 @@ export class ReservationFormComponent implements OnInit {
   }
 
   get suggestedTotal(): number {
+    if (this.negotiated) {
+      return this.negotiated * this.days;
+    }
     return this.selected?.property.pricePerDay ? this.baseAmount + this.days * this.deal.margin : 0;
   }
 
@@ -488,7 +542,7 @@ export class ReservationFormComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.form.invalid || this.rangeConflict) return;
+    if (this.form.invalid || this.rangeConflict || this.negotiatedTooHigh) return;
     const value = this.form.getRawValue();
     const dto: CreateReservationDto = {
       propertyId: value.propertyId!,
@@ -501,6 +555,7 @@ export class ReservationFormComponent implements OnInit {
       totalAmount: Number(value.totalAmount),
       advanceAmount: Number(value.advanceAmount || 0),
       notes: value.notes || undefined,
+      negotiatedPricePerDay: this.negotiated,
     };
 
     this.loading = true;

@@ -33,6 +33,8 @@ public class PropertyDto {
     private String description;
     /** Full list of prices by period; null leaves the existing ones untouched. */
     private List<PropertySeasonalPriceDto> seasonalPrices;
+    /** Full list of external links; null leaves the existing ones untouched. */
+    private List<String> links;
     private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

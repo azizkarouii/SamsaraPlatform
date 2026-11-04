@@ -1,6 +1,6 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AbstractControl, FormArray, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators, FormGroup } from '@angular/forms';
+import { AbstractControl, FormArray, FormControl, ReactiveFormsModule, FormBuilder, ValidationErrors, Validators, FormGroup } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -227,6 +227,25 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
             <mat-divider class="section-divider"></mat-divider>
             <app-property-photos-editor #photos [propertyId]="propertyId"></app-property-photos-editor>
 
+            <div class="links" formArrayName="links">
+              <h3>{{ t('external_links') }}</h3>
+              <p class="seasons-hint">{{ t('external_links_hint') }}</p>
+              <div class="link-row" *ngFor="let link of linkRows.controls; let i = index">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ t('link_address') }}</mat-label>
+                  <input matInput type="url" [formControlName]="i" placeholder="https://www.tiktok.com/..." (blur)="completeLink(i)" />
+                  <mat-error>{{ t('link_invalid') }}</mat-error>
+                </mat-form-field>
+                <button mat-icon-button type="button" color="warn" (click)="linkRows.removeAt(i)"
+                        [matTooltip]="t('remove_link')" [attr.aria-label]="t('remove_link')">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+              <button mat-stroked-button type="button" color="primary" *ngIf="linkRows.length < 10" (click)="addLinkRow()">
+                <mat-icon>add_link</mat-icon> {{ t('add_link') }}
+              </button>
+            </div>
+
             <div class="form-actions">
               <button mat-stroked-button type="button" routerLink="/properties">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="propertyForm.invalid || loading">
@@ -258,6 +277,9 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
       margin-bottom: 0.5rem;
       font-weight: 500;
     }
+    .links { margin: 1.5rem 0; }
+    .links h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .link-row { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 0.75rem; margin-bottom: 0.75rem; }
     .seasons { margin-bottom: 1.5rem; }
     .seasons h3 { margin: 0; font-size: 1rem; font-weight: 600; }
     .seasons-hint { margin: 0.25rem 0 0.75rem; font-size: 0.82rem; color: var(--text-secondary); }
@@ -295,6 +317,21 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
   `]
 })
 export class PropertyFormComponent implements OnInit {
+  get linkRows(): FormArray<FormControl<string | null>> {
+    return this.propertyForm.get('links') as FormArray<FormControl<string | null>>;
+  }
+
+  addLinkRow(url = ''): void {
+    this.linkRows.push(this.fb.control(url, [Validators.required, Validators.pattern(/^https?:\/\/\S+\.\S+$/i)]));
+  }
+
+  /** People paste "www.tiktok.com/..." without the scheme. */
+  completeLink(index: number): void {
+    const control = this.linkRows.at(index);
+    const value = (control.value ?? '').trim();
+    control.setValue(value && !/^[a-z]+:/i.test(value) ? `https://${value}` : value);
+  }
+
   get seasonalRows(): FormArray<FormGroup> {
     return this.propertyForm.get('seasonalPrices') as FormArray<FormGroup>;
   }
@@ -345,6 +382,7 @@ export class PropertyFormComponent implements OnInit {
     seaView: [false],
     terrace: [false],
     seasonalPrices: this.fb.array<FormGroup>([], seasonsDoNotOverlap),
+    links: this.fb.array<FormControl<string | null>>([]),
   }, { validators: seasonsNeedMainPrice });
 
   constructor(
@@ -388,6 +426,7 @@ export class PropertyFormComponent implements OnInit {
     this.propertyService.findOne(id).subscribe({
       next: (property) => {
         property.seasonalPrices?.forEach(price => this.addSeasonalRow(price));
+        property.links?.forEach(link => this.addLinkRow(link.url));
         this.propertyForm.patchValue({
           title: property.title,
           configuration: property.configuration || '',
@@ -424,6 +463,7 @@ export class PropertyFormComponent implements OnInit {
     this.loading = true;
     const dto = {
       ...this.propertyForm.value,
+      links: this.linkRows.getRawValue().map(url => (url ?? '').trim()),
       seasonalPrices: this.seasonalRows.getRawValue().map(row => ({
         startDate: toMonthDay(row['startDate']),
         endDate: toMonthDay(row['endDate']),

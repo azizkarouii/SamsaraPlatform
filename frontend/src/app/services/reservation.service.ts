@@ -15,6 +15,8 @@ export interface CreateReservationDto {
   advanceAmount: number;
   totalAmount: number;
   notes?: string;
+  /** Agreed nightly price; on an edit, 0 removes it. */
+  negotiatedPricePerDay?: number;
 }
 
 @Injectable({
@@ -55,6 +57,16 @@ export class ReservationService {
 
   updateStatus(id: number, status: string): Observable<Reservation> {
     return this.http.patch<Reservation>(`${this.apiUrl}/${id}/status`, { status });
+  }
+
+  /** The stay stops before its planned end; the following days become free again. */
+  endEarly(id: number, endDate: string, refundAmount?: number): Observable<Reservation> {
+    return this.http.post<Reservation>(`${this.apiUrl}/${id}/early-end`, { endDate, refundAmount });
+  }
+
+  /** What the owner gave back to the client (0 removes it). */
+  setRefund(id: number, amount: number): Observable<Reservation> {
+    return this.http.put<Reservation>(`${this.apiUrl}/${id}/refund`, { amount });
   }
 
   remove(id: number): Observable<void> {

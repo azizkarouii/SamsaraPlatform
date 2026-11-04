@@ -87,6 +87,13 @@ public class NotificationService {
         notifyStakeholders(reservation, property, actor, title, message, "reservation_" + status.replace('-', '_'), true);
     }
 
+    public void notifyReservationEndedEarly(Reservation reservation, Property property, User actor) {
+        String message = "Le séjour de " + reservation.getClientName() + " sur " + property.getTitle()
+                + " se termine plus tôt que prévu : le " + reservation.getEndDate()
+                + " au lieu du " + reservation.getOriginalEndDate() + ". Les jours restants sont de nouveau disponibles";
+        notifyStakeholders(reservation, property, actor, "Fin de séjour anticipée", message, "reservation_ended_early", true);
+    }
+
     /** A pending request lost its dates to another booking confirmed first. */
     public void notifyReservationOverridden(Reservation reservation, Property property) {
         String message = "La réservation en attente de " + reservation.getClientName() + " sur " + property.getTitle()

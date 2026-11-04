@@ -1,6 +1,7 @@
 package com.samsara.service;
 
 import com.samsara.dto.ReservationDto;
+import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.entity.Property;
 import com.samsara.entity.PropertySeasonalPrice;
 import com.samsara.entity.Reservation;
@@ -73,6 +74,7 @@ public class ReservationService {
         if (!userId.equals(reservation.getSamsarId()) && !accessService.isOwner(property, userId)) {
             reservation.setSamsarGain(null);
             reservation.setBaseAmount(null);
+            reservation.setRefundAmount(null);
             reservation.setSamsarMarginTnd(null);
             reservation.setSamsarCommissionPercent(null);
         }
@@ -217,6 +219,7 @@ public class ReservationService {
                 .advanceAmount(dto.getAdvanceAmount() != null ? dto.getAdvanceAmount() : 0.0)
                 .totalAmount(dto.getTotalAmount())
                 .notes(dto.getNotes())
+                .negotiatedPricePerDay(dto.getNegotiatedPricePerDay() != null && dto.getNegotiatedPricePerDay() > 0 ? dto.getNegotiatedPricePerDay() : null)
                 .build();
 
         freezeSamsarDeal(reservation, property, userId);
@@ -361,10 +364,17 @@ public class ReservationService {
         if (dto.getAdvanceAmount() != null) reservation.setAdvanceAmount(dto.getAdvanceAmount());
         if (dto.getTotalAmount() != null) reservation.setTotalAmount(dto.getTotalAmount());
         if (dto.getNotes() != null) reservation.setNotes(dto.getNotes());
+        if (dto.getNegotiatedPricePerDay() != null) {
+            reservation.setNegotiatedPricePerDay(dto.getNegotiatedPricePerDay() > 0 ? dto.getNegotiatedPricePerDay() : null);
+        }
 
         Property property = reservation.getProperty();
         validate(reservation, property, reservation.getSamsarId());
         reservation.setSamsarGain(computeSamsarGain(reservation, property));
+        if (reservation.getRefundAmount() != null
+                && reservation.getRefundAmount() > reservation.getTotalAmount() - reservation.getSamsarGain()) {
+            throw new IllegalArgumentException("The total cannot go below what was already refunded");
+        }
         reservation = reservationRepository.save(reservation);
         syncRevenue(reservation);
 
@@ -379,6 +389,64 @@ public class ReservationService {
         }
         overridePendingOverlaps(reservation, property);
         return reservation;
+    }
+
+    /**
+     * The stay stops before its planned end: the following days become free again. The price stays as agreed;
+     * any money given back goes through the refund. A new end already reached closes the stay right away.
+     */
+    @Transactional
+    public Reservation endEarly(Long id, ReservationEarlyEndDto dto, Long userId) {
+        Reservation reservation = getReservation(id);
+        accessService.requireReservationAccess(reservation, userId);
+        if (!IN_PROGRESS.equals(normalizeStatus(reservation.getStatus()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a stay in progress can end early");
+        }
+        LocalDate newEnd = parseDate(dto.getEndDate(), "end date");
+        if (newEnd.isBefore(LocalDate.parse(reservation.getStartDate()))
+                || !newEnd.isBefore(LocalDate.parse(reservation.getEndDate()))) {
+            throw new IllegalArgumentException("The new end must be between the arrival and the planned end");
+        }
+        Property property = reservation.getProperty();
+        if (dto.getRefundAmount() != null && dto.getRefundAmount() > 0) {
+            applyRefund(reservation, property, dto.getRefundAmount(), userId);
+        }
+        if (reservation.getOriginalEndDate() == null) {
+            reservation.setOriginalEndDate(reservation.getEndDate());
+        }
+        reservation.setEndDate(newEnd.toString());
+        if (!newEnd.isAfter(LocalDate.now())) {
+            reservation.setStatus(COMPLETED);
+        }
+        reservation = reservationRepository.save(reservation);
+        syncRevenue(reservation);
+
+        User actor = userRepository.findById(userId).orElse(null);
+        notificationService.notifyReservationEndedEarly(reservation, property, actor);
+        return reservation;
+    }
+
+    /** Sets what the owner gave back to the client (0 removes it). */
+    @Transactional
+    public Reservation setRefund(Long id, Double amount, Long userId) {
+        Reservation reservation = getReservation(id);
+        applyRefund(reservation, reservation.getProperty(), amount, userId);
+        return reservationRepository.save(reservation);
+    }
+
+    /** Only the owner decides a refund. It comes out of his share: the samsar keeps his gain. */
+    private void applyRefund(Reservation reservation, Property property, Double amount, Long userId) {
+        accessService.requireOwner(property.getId(), userId);
+        String status = normalizeStatus(reservation.getStatus());
+        if (!IN_PROGRESS.equals(status) && !COMPLETED.equals(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a stay in progress or completed can be refunded");
+        }
+        double gain = reservation.getSamsarGain() != null ? reservation.getSamsarGain() : 0.0;
+        if (amount == null || amount < 0 || amount > reservation.getTotalAmount() - gain) {
+            throw new IllegalArgumentException("A refund must be between 0 and the owner's share");
+        }
+        reservation.setRefundAmount(amount > 0 ? amount : null);
+        upsertRevenue(reservation, "refund", amount);
     }
 
     @Transactional
@@ -429,10 +497,11 @@ public class ReservationService {
 
     /**
      * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
-     * Fixed margin: what was charged above the house price. The owner's own bookings earn no samsar anything.
+     * Fixed margin: what was charged above the house price. The owner's own bookings and negotiated prices
+     * earn no samsar anything.
      */
     private double computeSamsarGain(Reservation reservation, Property property) {
-        if (accessService.isOwner(property, reservation.getSamsarId())) {
+        if (accessService.isOwner(property, reservation.getSamsarId()) || reservation.getNegotiatedPricePerDay() != null) {
             return 0.0;
         }
         double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
@@ -476,10 +545,14 @@ public class ReservationService {
         if (reservation.getBaseAmount() == null) {
             reservation.setBaseAmount(computeBaseAmount(property, start, end));
         }
-        if (reservation.getBaseAmount() != null && !accessService.isOwner(property, bookerId)) {
-            long days = ChronoUnit.DAYS.between(start, end) + 1;
+        long days = ChronoUnit.DAYS.between(start, end) + 1;
+        Double negotiated = reservation.getNegotiatedPricePerDay();
+        if (negotiated != null && reservation.getBaseAmount() != null && negotiated * days >= reservation.getBaseAmount()) {
+            throw new IllegalArgumentException("A negotiated price must be below the usual price of the stay");
+        }
+        if ((negotiated != null || reservation.getBaseAmount() != null) && !accessService.isOwner(property, bookerId)) {
             int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
-            double max = reservation.getBaseAmount() + days * margin;
+            double max = negotiated != null ? negotiated * days : reservation.getBaseAmount() + days * margin;
             if (total > max + 0.001) {
                 throw new IllegalArgumentException(String.format(
                         "Total exceeds the allowed maximum of %.0f TND", max));

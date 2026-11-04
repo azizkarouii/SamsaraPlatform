@@ -18,6 +18,8 @@ public class ReservationDto {
     private Double advanceAmount;
     private Double totalAmount;
     private String notes;
+    /** Agreed nightly price; on an edit, null leaves it untouched and 0 removes it. */
+    private Double negotiatedPricePerDay;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

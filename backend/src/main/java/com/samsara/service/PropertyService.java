@@ -3,6 +3,7 @@ package com.samsara.service;
 import com.samsara.dto.PropertyDto;
 import com.samsara.dto.PropertySeasonalPriceDto;
 import com.samsara.entity.Property;
+import com.samsara.entity.PropertyLink;
 import com.samsara.entity.PropertySeasonalPrice;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
@@ -24,6 +27,7 @@ import org.springframework.data.domain.Sort;
 public class PropertyService {
 
     private static final int REFERENCE_LEAP_YEAR = 2024;
+    private static final int MAX_LINKS = 10;
 
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
@@ -34,6 +38,7 @@ public class PropertyService {
     private final PropertyImageService propertyImageService;
     private final PropertySamsarRepository propertySamsarRepository;
     private final PropertySeasonalPriceRepository seasonalPriceRepository;
+    private final PropertyLinkRepository propertyLinkRepository;
     private final AccessService accessService;
 
     public List<Property> findAll() {
@@ -122,6 +127,7 @@ public class PropertyService {
                 .build();
         Property saved = propertyRepository.save(property);
         saveSeasonalPrices(saved, dto.getSeasonalPrices());
+        saveLinks(saved, dto.getLinks());
         return saved;
     }
 
@@ -155,6 +161,7 @@ public class PropertyService {
         if (dto.getDescription() != null) property.setDescription(dto.getDescription());
         Property saved = propertyRepository.save(property);
         saveSeasonalPrices(saved, dto.getSeasonalPrices());
+        saveLinks(saved, dto.getLinks());
         return saved;
     }
 
@@ -178,8 +185,38 @@ public class PropertyService {
         availabilityRepository.deleteByPropertyId(id);
         propertyImageService.deleteAllOfProperty(id);
         seasonalPriceRepository.deleteByPropertyId(id);
+        propertyLinkRepository.deleteByPropertyId(id);
         propertySamsarRepository.deleteByPropertyId(id);
         propertyRepository.delete(property);
+    }
+
+    /** Replaces the external links of a house. Only http(s): these end up as clickable links for everyone. */
+    private void saveLinks(Property property, List<String> requested) {
+        if (requested == null) {
+            return;
+        }
+        if (requested.size() > MAX_LINKS) {
+            throw new IllegalArgumentException("A house can have at most " + MAX_LINKS + " links");
+        }
+        List<PropertyLink> links = requested.stream()
+                .map(url -> PropertyLink.builder().propertyId(property.getId()).url(validLink(url)).build())
+                .toList();
+        propertyLinkRepository.deleteByPropertyId(property.getId());
+        property.setLinks(propertyLinkRepository.saveAll(links));
+    }
+
+    private String validLink(String url) {
+        String trimmed = url == null ? "" : url.trim();
+        try {
+            URI uri = new URI(trimmed);
+            boolean web = "http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme());
+            if (web && uri.getHost() != null && trimmed.length() <= 1000) {
+                return trimmed;
+            }
+        } catch (URISyntaxException e) {
+            // Reported below with the same message
+        }
+        throw new IllegalArgumentException("Links must be valid web addresses (http or https)");
     }
 
     /** Replaces the prices by period of a house; they complete the main price, which must exist. */

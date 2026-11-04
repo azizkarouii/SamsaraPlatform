@@ -18,9 +18,10 @@ import { User } from '../../models/auth.model';
 import {
   Reservation,
   RESERVATION_STATUSES,
-  isRevenueStatus,
+  isStayStarted,
   normalizeReservationStatus,
-  ownerShareOf,
+  ownerEarned,
+  samsarEarned,
   statusKey,
 } from '../../models/reservation.model';
 import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
@@ -63,6 +64,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             <div>
               <div class="metric-label">{{ isSamsar ? t('my_gains') : t('total_revenue') }}</div>
               <div class="metric-value">{{ totalRevenue | number:'1.0-0' }} <small>TND</small></div>
+              <div class="metric-sub" *ngIf="isSamsar && upcomingGains">{{ t('upcoming_gains') }} : {{ upcomingGains | number:'1.0-2' }} TND</div>
             </div>
           </div>
           <a class="metric clickable" routerLink="/reservations">
@@ -207,6 +209,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     .metric-icon.houses { background: var(--primary-soft); color: var(--primary); }
     .metric-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
     .metric-value { font-size: 1.6rem; font-weight: 700; }
+    .metric-sub { font-size: 0.75rem; color: var(--text-secondary); }
     .metric-value small { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
 
     .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 1.25rem; }
@@ -293,9 +296,16 @@ export class DashboardComponent implements OnInit {
     return this.user?.role === 'SAMSAR';
   }
 
-  /** What this user really earns on a booking: the samsar's gain, or the owner's part after it. */
+  /** Money this user really has from a booking so far. */
   private earnedOn(reservation: Reservation): number {
-    return this.isSamsar ? reservation.samsarGain || 0 : ownerShareOf(reservation);
+    return this.isSamsar ? samsarEarned(reservation) : ownerEarned(reservation);
+  }
+
+  /** Gains of confirmed bookings: they come once the stay has started. */
+  get upcomingGains(): number {
+    return this.filtered
+      .filter(r => normalizeReservationStatus(r.status) === 'confirmed')
+      .reduce((sum, r) => sum + (r.samsarGain || 0), 0);
   }
 
   loadData(): void {
@@ -328,7 +338,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get totalRevenue(): number {
-    return this.filtered.filter(r => isRevenueStatus(r.status)).reduce((sum, r) => sum + this.earnedOn(r), 0);
+    return this.filtered.reduce((sum, r) => sum + this.earnedOn(r), 0);
   }
 
   get months(): MonthBucket[] {
@@ -342,9 +352,7 @@ export class DashboardComponent implements OnInit {
       }
       const bucket = buckets.get(key)!;
       bucket.count++;
-      if (isRevenueStatus(r.status)) {
-        bucket.revenue += this.earnedOn(r);
-      }
+      bucket.revenue += this.earnedOn(r);
     }
     return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key)).slice(-12);
   }
@@ -355,7 +363,7 @@ export class DashboardComponent implements OnInit {
 
   get revenueByProperty(): { title: string; amount: number }[] {
     const totals = new Map<string, number>();
-    for (const r of this.filtered.filter(item => isRevenueStatus(item.status))) {
+    for (const r of this.filtered.filter(item => this.earnedOn(item) > 0)) {
       const key = r.property?.title || '#' + r.propertyId;
       totals.set(key, (totals.get(key) || 0) + this.earnedOn(r));
     }
@@ -372,7 +380,7 @@ export class DashboardComponent implements OnInit {
   /** The samsar's own rentals that count as earned, most recent stay first. */
   get gainsByRental(): Reservation[] {
     return this.filtered
-      .filter(r => isRevenueStatus(r.status))
+      .filter(isStayStarted)
       .sort((a, b) => b.startDate.localeCompare(a.startDate));
   }
 

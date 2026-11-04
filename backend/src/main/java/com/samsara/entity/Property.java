@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.Formula;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -99,9 +101,17 @@ public class Property {
      * every screen showing a house needs them to compute what a stay costs.
      */
     @OneToMany(mappedBy = "property", fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SELECT)
     @BatchSize(size = 50)
     @OrderBy("startDate ASC")
     private List<PropertySeasonalPrice> seasonalPrices;
+
+    /** External links (video, social post...), shown with the photos on every property page. */
+    @OneToMany(mappedBy = "property", fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SELECT)
+    @BatchSize(size = 50)
+    @OrderBy("id ASC")
+    private List<PropertyLink> links;
 
     /** Storage key of the cover photo (position 0), loaded with the property so lists need no extra request. */
     @Formula("(SELECT pi.image_path FROM property_images pi WHERE pi.property_id = id ORDER BY pi.position, pi.id LIMIT 1)")
