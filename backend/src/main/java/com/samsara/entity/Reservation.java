@@ -63,7 +63,8 @@ public class Reservation {
 
     /**
      * Nightly price agreed with the client below the house rates (optional). It replaces the rates for this
-     * booking and carries no samsar margin: the samsar earns nothing on it, whatever his deal.
+     * booking and carries no added margin: a samsar on commission still earns his percentage of the new total,
+     * a samsar on a fixed margin earns nothing on it.
      */
     @Column(name = "negotiated_price_per_day")
     private Double negotiatedPricePerDay;
@@ -72,9 +73,13 @@ public class Reservation {
     @Column(name = "original_end_date")
     private String originalEndDate;
 
-    /** Money the owner gave back to the client; it comes out of the owner's share. */
+    /** Money the owner chose to give back to the client; it comes out of the owner's share. */
     @Column(name = "refund_amount")
     private Double refundAmount;
+
+    /** Money the booking samsar chose to give back to the client; it comes out of his gain. */
+    @Column(name = "samsar_refund_amount")
+    private Double samsarRefundAmount;
 
     /** Deal in force when the samsar booked: later changes by the owner do not touch existing bookings. */
     @Column(name = "samsar_margin_tnd")

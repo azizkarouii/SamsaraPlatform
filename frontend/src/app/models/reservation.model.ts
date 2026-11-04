@@ -21,6 +21,8 @@ export interface Reservation {
   originalEndDate?: string | null;
   /** Money the owner gave back to the client; hidden from other samsars of the house. */
   refundAmount?: number | null;
+  /** Money the booking samsar gave back to the client; hidden from other samsars of the house. */
+  samsarRefundAmount?: number | null;
   /** Price of the stay at the house rates when booked; hidden from other samsars of the house. */
   baseAmount?: number | null;
   /** Deal frozen when the samsar booked; hidden from other samsars of the house. */
@@ -76,8 +78,8 @@ export function ownerShareOf(reservation: Reservation): number {
 }
 
 /**
- * Money the owner really has from a booking: the advance as soon as it is paid (and it stays if the booking
- * is cancelled), his whole share once the stay has started, minus what he gave back.
+ * Money the owner really has from a booking: the advance as soon as it is paid (it stays if the booking is
+ * cancelled, unless he chooses to give it back), his whole share once the stay has started, minus what he gave back.
  */
 export function ownerEarned(reservation: Reservation): number {
   const share = ownerShareOf(reservation);
@@ -86,16 +88,17 @@ export function ownerEarned(reservation: Reservation): number {
     case 'completed':
       return share - (reservation.refundAmount || 0);
     case 'confirmed':
-    case 'cancelled':
       return Math.min(reservation.advanceAmount || 0, share);
+    case 'cancelled':
+      return Math.max(0, Math.min(reservation.advanceAmount || 0, share) - (reservation.refundAmount || 0));
     default:
       return 0;
   }
 }
 
-/** A samsar earns nothing on the advance: his gain comes once the stay has started. */
+/** A samsar earns nothing on the advance: his gain comes once the stay has started, minus what he gave back. */
 export function samsarEarned(reservation: Reservation): number {
-  return isStayStarted(reservation) ? reservation.samsarGain || 0 : 0;
+  return isStayStarted(reservation) ? (reservation.samsarGain || 0) - (reservation.samsarRefundAmount || 0) : 0;
 }
 
 export function isStayStarted(reservation: Reservation): boolean {

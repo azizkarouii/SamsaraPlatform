@@ -168,7 +168,7 @@ import { PriceStretch, priceStretches, stretchesTotal } from '../../../shared/pr
               <span matTextSuffix>TND</span>
               <button mat-icon-button matSuffix type="button" (click)="closeNegotiated()"
                       [attr.aria-label]="t('remove_negotiated_price')"><mat-icon>close</mat-icon></button>
-              <mat-hint>{{ isSamsar ? t('negotiated_hint_samsar') : t('negotiated_hint_owner') }}</mat-hint>
+              <mat-hint>{{ negotiatedHint }}</mat-hint>
             </mat-form-field>
             <div class="inline-error" *ngIf="negotiatedTooHigh"><mat-icon>error</mat-icon>{{ t('negotiated_too_high') }}</div>
             <div class="summary-line suggested" *ngIf="suggestedTotal">
@@ -405,6 +405,13 @@ export class ReservationFormComponent implements OnInit {
     return this.showNegotiated ? Number(this.form.value.negotiatedPrice || 0) : 0;
   }
 
+  get negotiatedHint(): string {
+    if (!this.isSamsar) return this.t('negotiated_hint_owner');
+    return this.deal.commissionPercent
+      ? this.t('negotiated_hint_commission').replace('{{percent}}', '' + this.deal.commissionPercent)
+      : this.t('negotiated_hint_samsar');
+  }
+
   /** Must stay below the usual price of the stay, like on the server. */
   get negotiatedTooHigh(): boolean {
     return this.negotiated > 0 && this.baseAmount > 0 && this.negotiated * this.days >= this.baseAmount;
@@ -427,14 +434,14 @@ export class ReservationFormComponent implements OnInit {
     }
   }
 
-  /** Mirrors the server: a commission on the total, or what is charged above the house price. */
+  /** Mirrors the server: a commission on the total, or what is charged above the house price (nothing on a negotiated price). */
   get estimatedGain(): number {
-    if (this.negotiated) {
-      return 0;
-    }
     const total = Number(this.form.value.totalAmount || 0);
     if (this.deal.commissionPercent) {
       return Math.round(total * this.deal.commissionPercent) / 100;
+    }
+    if (this.negotiated) {
+      return 0;
     }
     return Math.max(0, total - this.baseAmount);
   }

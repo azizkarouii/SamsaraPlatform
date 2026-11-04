@@ -10,6 +10,7 @@ import com.samsara.entity.User;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -75,6 +76,7 @@ public class ReservationService {
             reservation.setSamsarGain(null);
             reservation.setBaseAmount(null);
             reservation.setRefundAmount(null);
+            reservation.setSamsarRefundAmount(null);
             reservation.setSamsarMarginTnd(null);
             reservation.setSamsarCommissionPercent(null);
         }
@@ -375,6 +377,9 @@ public class ReservationService {
                 && reservation.getRefundAmount() > reservation.getTotalAmount() - reservation.getSamsarGain()) {
             throw new IllegalArgumentException("The total cannot go below what was already refunded");
         }
+        if (reservation.getSamsarRefundAmount() != null && reservation.getSamsarRefundAmount() > reservation.getSamsarGain()) {
+            throw new IllegalArgumentException("The samsar gain cannot go below what he already refunded");
+        }
         reservation = reservationRepository.save(reservation);
         syncRevenue(reservation);
 
@@ -426,7 +431,7 @@ public class ReservationService {
         return reservation;
     }
 
-    /** Sets what the owner gave back to the client (0 removes it). */
+    /** Sets what the caller gave back to the client, out of his own part (0 removes it). */
     @Transactional
     public Reservation setRefund(Long id, Double amount, Long userId) {
         Reservation reservation = getReservation(id);
@@ -434,19 +439,35 @@ public class ReservationService {
         return reservationRepository.save(reservation);
     }
 
-    /** Only the owner decides a refund. It comes out of his share: the samsar keeps his gain. */
+    /**
+     * Giving money back is always voluntary, and each one gives from his own part: the owner from his share,
+     * the samsar who booked from his gain. An advance is not returned on cancellation unless the owner
+     * chooses to, in full or in part; a samsar has earned nothing on a cancelled booking.
+     */
     private void applyRefund(Reservation reservation, Property property, Double amount, Long userId) {
-        accessService.requireOwner(property.getId(), userId);
+        boolean owner = accessService.isOwner(property, userId);
+        if (!owner && !userId.equals(reservation.getSamsarId())) {
+            throw new AccessDeniedException("You cannot give money back on this reservation");
+        }
         String status = normalizeStatus(reservation.getStatus());
-        if (!IN_PROGRESS.equals(status) && !COMPLETED.equals(status)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a stay in progress or completed can be refunded");
+        boolean stayStarted = IN_PROGRESS.equals(status) || COMPLETED.equals(status);
+        if (!stayStarted && !(owner && CANCELLED.equals(status))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Money cannot be given back at this stage of the reservation");
         }
         double gain = reservation.getSamsarGain() != null ? reservation.getSamsarGain() : 0.0;
-        if (amount == null || amount < 0 || amount > reservation.getTotalAmount() - gain) {
-            throw new IllegalArgumentException("A refund must be between 0 and the owner's share");
+        double share = reservation.getTotalAmount() - gain;
+        double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
+        double limit = !owner ? gain : stayStarted ? share : Math.min(advance, share);
+        if (amount == null || amount < 0 || amount > limit) {
+            throw new IllegalArgumentException(String.format("The amount given back must be between 0 and %.2f TND", limit));
         }
-        reservation.setRefundAmount(amount > 0 ? amount : null);
-        upsertRevenue(reservation, "refund", amount);
+        if (owner) {
+            reservation.setRefundAmount(amount > 0 ? amount : null);
+            upsertRevenue(reservation, "refund", amount);
+        } else {
+            reservation.setSamsarRefundAmount(amount > 0 ? amount : null);
+            upsertRevenue(reservation, "samsar_refund", amount);
+        }
     }
 
     @Transactional
@@ -497,18 +518,18 @@ public class ReservationService {
 
     /**
      * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
-     * Fixed margin: what was charged above the house price. The owner's own bookings and negotiated prices
-     * earn no samsar anything.
+     * Fixed margin: what was charged above the house price, so nothing on a negotiated price.
+     * The owner's own bookings earn no samsar anything.
      */
     private double computeSamsarGain(Reservation reservation, Property property) {
-        if (accessService.isOwner(property, reservation.getSamsarId()) || reservation.getNegotiatedPricePerDay() != null) {
+        if (accessService.isOwner(property, reservation.getSamsarId())) {
             return 0.0;
         }
         double total = reservation.getTotalAmount() != null ? reservation.getTotalAmount() : 0.0;
         double gain = 0.0;
         if (reservation.getSamsarCommissionPercent() != null) {
             gain = total * reservation.getSamsarCommissionPercent() / 100.0;
-        } else if (reservation.getBaseAmount() != null) {
+        } else if (reservation.getNegotiatedPricePerDay() == null && reservation.getBaseAmount() != null) {
             gain = Math.max(0.0, total - reservation.getBaseAmount());
         }
         return Math.round(gain * 100.0) / 100.0;

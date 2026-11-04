@@ -104,9 +104,9 @@ import { Observable } from 'rxjs';
               <mat-label>{{ t('new_end_date') }}</mat-label>
               <input matInput type="date" name="earlyEndDate" required [min]="r.startDate" [max]="latestEarlyEnd" [(ngModel)]="earlyEndDate" />
             </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="isHouseOwner">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="maxRefund > 0">
               <mat-label>{{ t('money_given_back_optional') }}</mat-label>
-              <input matInput type="number" name="earlyRefund" min="0" [(ngModel)]="refundInput" />
+              <input matInput type="number" name="earlyRefund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
               <span matTextSuffix>TND</span>
             </mat-form-field>
             <div class="panel-actions">
@@ -116,10 +116,10 @@ import { Observable } from 'rxjs';
           </form>
 
           <form class="stay-panel" *ngIf="panel === 'refund'" (ngSubmit)="submitRefund()">
-            <p>{{ t('give_money_back_explained') }}</p>
+            <p>{{ t(refundExplanationKey) }}</p>
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>{{ t('money_given_back') }}</mat-label>
-              <input matInput type="number" name="refund" min="0" [max]="ownerShare" [(ngModel)]="refundInput" />
+              <input matInput type="number" name="refund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
               <span matTextSuffix>TND</span>
             </mat-form-field>
             <div class="panel-actions">
@@ -199,7 +199,8 @@ import { Observable } from 'rxjs';
                 <div><span>{{ r.samsarId === currentUserId ? t('your_gain') : t('samsar_gain') }}<ng-container *ngIf="r.samsarCommissionPercent"> ({{ r.samsarCommissionPercent }} %)</ng-container></span><strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong></div>
                 <div><span>{{ t('owner_share') }}</span><strong>{{ ownerShare | number:'1.0-2' }} TND</strong></div>
               </ng-container>
-              <div *ngIf="r.refundAmount"><span>{{ t('money_given_back') }}</span><strong>- {{ r.refundAmount | number:'1.0-2' }} TND</strong></div>
+              <div *ngIf="r.refundAmount"><span>{{ t('refund_by_owner') }}</span><strong>- {{ r.refundAmount | number:'1.0-2' }} TND</strong></div>
+              <div *ngIf="r.samsarRefundAmount"><span>{{ t('refund_by_samsar') }}</span><strong>- {{ r.samsarRefundAmount | number:'1.0-2' }} TND</strong></div>
             </div>
             <div class="meta">
               <span>{{ t('created_label') }} {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
@@ -326,9 +327,23 @@ export class ReservationDetailComponent implements OnInit {
     return this.canManage && this.status === 'in-progress' && !!r && r.startDate < r.endDate;
   }
 
-  /** A refund is the owner's decision. */
+  /** Most the caller can give back, from his own part; the server enforces the same limits. */
+  get maxRefund(): number {
+    const r = this.reservation;
+    if (!r) return 0;
+    if (!this.isHouseOwner) return r.samsarGain || 0;
+    return this.status === 'cancelled' ? Math.min(r.advanceAmount || 0, this.ownerShare) : this.ownerShare;
+  }
+
+  /** Always voluntary: the owner also on a cancelled booking (its advance), a samsar once the stay has started. */
   get canRefund(): boolean {
-    return this.isHouseOwner && (this.status === 'in-progress' || this.status === 'completed');
+    const started = this.status === 'in-progress' || this.status === 'completed';
+    return this.canManage && this.maxRefund > 0 && (started || (this.isHouseOwner && this.status === 'cancelled'));
+  }
+
+  get refundExplanationKey(): string {
+    if (!this.isHouseOwner) return 'give_back_samsar';
+    return this.status === 'cancelled' ? 'give_back_cancelled' : 'give_back_owner';
   }
 
   get latestEarlyEnd(): string {
@@ -339,7 +354,7 @@ export class ReservationDetailComponent implements OnInit {
 
   openPanel(panel: 'early' | 'refund'): void {
     this.panel = panel;
-    this.refundInput = this.reservation?.refundAmount ?? null;
+    this.refundInput = (this.isHouseOwner ? this.reservation?.refundAmount : this.reservation?.samsarRefundAmount) ?? null;
     if (panel === 'early') {
       const today = todayIso();
       this.earlyEndDate = today < this.latestEarlyEnd ? today : this.latestEarlyEnd;

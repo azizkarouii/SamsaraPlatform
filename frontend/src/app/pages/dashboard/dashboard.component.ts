@@ -171,7 +171,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
                 </div>
                 <span class="status-chip" [ngClass]="'status-' + normalize(r.status)">{{ t(statusKey(r.status)) }}</span>
                 <div class="rental-money">
-                  <strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong>
+                  <strong>{{ earnedOn(r) | number:'1.0-2' }} TND</strong>
                   <span>{{ t('total_amount_label') }} : {{ r.totalAmount | number:'1.0-0' }} TND</span>
                 </div>
               </a>
@@ -297,7 +297,7 @@ export class DashboardComponent implements OnInit {
   }
 
   /** Money this user really has from a booking so far. */
-  private earnedOn(reservation: Reservation): number {
+  earnedOn(reservation: Reservation): number {
     return this.isSamsar ? samsarEarned(reservation) : ownerEarned(reservation);
   }
 
