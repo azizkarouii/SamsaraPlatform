@@ -11,6 +11,13 @@ import java.util.List;
 public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByCreatedBy(Long createdBy, Sort sort);
 
+    /**
+     * Takes a row lock until the end of the transaction: checks then writes on a house's calendar run one at a
+     * time, so two simultaneous bookings cannot both pass the overlap check.
+     */
+    @Query(value = "SELECT id FROM properties WHERE id = :id FOR UPDATE", nativeQuery = true)
+    Long lockById(@Param("id") Long id);
+
     @Query("SELECT DISTINCT p FROM Property p WHERE p.id NOT IN (" +
         "SELECT r.property.id FROM Reservation r " +
         "WHERE r.status IN ('confirmed', 'in-progress') " +

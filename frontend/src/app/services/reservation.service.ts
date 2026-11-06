@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Reservation } from '../models/reservation.model';
+import { Reservation, ReservationEarning, ReservationPage } from '../models/reservation.model';
 
 export interface CreateReservationDto {
   propertyId: number;
@@ -55,8 +55,19 @@ export class ReservationService {
     return this.http.patch<Reservation>(`${this.apiUrl}/${id}`, dto);
   }
 
-  updateStatus(id: number, status: string): Observable<Reservation> {
-    return this.http.patch<Reservation>(`${this.apiUrl}/${id}/status`, { status });
+  /** paidAfterAdvance: what the client had paid beyond the advance, when a stay in progress is cancelled. */
+  updateStatus(id: number, status: string, paidAfterAdvance?: number): Observable<Reservation> {
+    return this.http.patch<Reservation>(`${this.apiUrl}/${id}/status`, { status, paidAfterAdvance });
+  }
+
+  findEarnings(): Observable<ReservationEarning[]> {
+    return this.http.get<ReservationEarning[]>(`${this.apiUrl}/earnings`);
+  }
+
+  findPage(query: { status: string; search: string; page: number; size: number; sort: string; direction: string }): Observable<ReservationPage> {
+    let params = new HttpParams();
+    Object.entries(query).forEach(([key, value]) => params = params.set(key, String(value)));
+    return this.http.get<ReservationPage>(`${this.apiUrl}/page`, { params });
   }
 
   /** The stay stops before its planned end; the following days become free again. */

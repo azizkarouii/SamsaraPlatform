@@ -1,6 +1,8 @@
 package com.samsara.repository;
 
 import com.samsara.entity.Reservation;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,6 +10,23 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+    String VISIBLE_TO_USER = "(r.samsarId = :userId OR p.createdBy = :userId "
+            + "OR r.propertyId IN (SELECT ps.propertyId FROM PropertySamsar ps WHERE ps.samsarId = :userId))";
+    String MATCHES_SEARCH = "(LOWER(r.clientName) LIKE :search OR LOWER(COALESCE(r.clientPhone, '')) LIKE :search "
+            + "OR LOWER(p.title) LIKE :search)";
+
+    /** One page of what a user can see; an empty status means every status. */
+    @Query(value = "SELECT r FROM Reservation r JOIN FETCH r.property p JOIN FETCH r.samsar s WHERE " + VISIBLE_TO_USER
+            + " AND " + MATCHES_SEARCH + " AND (:status = '' OR r.status = :status)",
+           countQuery = "SELECT COUNT(r) FROM Reservation r JOIN r.property p WHERE " + VISIBLE_TO_USER
+            + " AND " + MATCHES_SEARCH + " AND (:status = '' OR r.status = :status)")
+    Page<Reservation> findPage(@Param("userId") Long userId, @Param("status") String status,
+                               @Param("search") String search, Pageable pageable);
+
+    @Query("SELECT r.status, COUNT(r) FROM Reservation r JOIN r.property p WHERE " + VISIBLE_TO_USER
+            + " AND " + MATCHES_SEARCH + " GROUP BY r.status")
+    List<Object[]> countByStatus(@Param("userId") Long userId, @Param("search") String search);
+
     @Override
     @Query("SELECT r FROM Reservation r JOIN FETCH r.property JOIN FETCH r.samsar WHERE r.id = :id")
     Optional<Reservation> findById(@Param("id") Long id);

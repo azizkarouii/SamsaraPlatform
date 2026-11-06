@@ -1,3 +1,4 @@
+import { UiPreferencesService } from '../services/ui-preferences.service';
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
@@ -7,6 +8,7 @@ import { catchError, throwError } from 'rxjs';
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const token = localStorage.getItem('token');
+  req = req.clone({ setHeaders: { 'Accept-Language': inject(UiPreferencesService).getLanguage() } });
 
   if (token) {
     req = req.clone({

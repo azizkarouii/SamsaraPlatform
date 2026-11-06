@@ -2,6 +2,7 @@ package com.samsara.service;
 
 import com.samsara.entity.PropertyAvailability;
 import com.samsara.repository.PropertyAvailabilityRepository;
+import com.samsara.repository.PropertyRepository;
 import com.samsara.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,7 @@ public class PropertyAvailabilityService {
     private final PropertyAvailabilityRepository availabilityRepository;
     private final ReservationRepository reservationRepository;
     private final AccessService accessService;
+    private final PropertyRepository propertyRepository;
 
     public List<PropertyAvailability> findByProperty(Long propertyId, Long userId) {
         accessService.requireWorkOn(propertyId, userId);
@@ -54,6 +56,7 @@ public class PropertyAvailabilityService {
     public List<PropertyAvailability> setRange(Long propertyId, String startDate, String endDate,
                                                String status, String notes, Long userId) {
         accessService.requireOwner(propertyId, userId);
+        propertyRepository.lockById(propertyId);
         String normalized = status == null ? "available" : status.trim().toLowerCase();
         if ("blocked".equals(normalized)) normalized = "unavailable";
         if (!STATUSES.contains(normalized)) {

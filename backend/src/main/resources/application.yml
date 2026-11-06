@@ -1,33 +1,54 @@
 server:
-  port: 3001
+  port: ${PORT:3001}
   servlet:
     context-path: /api
 
 spring:
+  config:
+    # Local secrets, never committed (see .env.example). In production, use real environment variables.
+    import: optional:file:.env[.properties],optional:file:backend/.env[.properties]
   servlet:
     multipart:
       # 10 photos of 5 MB at most (the browser already compresses them to ~1600px before sending)
       max-file-size: 5MB
       max-request-size: 52MB
   datasource:
-    url: jdbc:postgresql://localhost:5432/Samsara
-    username: postgres
-    password: system
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/Samsara}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      # The schema is owned by the Flyway migrations (db/migration); Hibernate only checks it matches
+      ddl-auto: validate
     open-in-view: false
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+  flyway:
+    # A database created before Flyway is taken as being at version 1
+    baseline-on-migrate: true
+    baseline-version: 1
 
 application:
+  frontend-url: ${FRONTEND_URL:http://localhost:4300}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
   storage:
-    # Local folder for uploaded photos (development); replaced by a cloud storage at deployment
-    local-dir: uploads
+    # local: files on this server's disk; s3: any S3-compatible service (AWS S3, Cloudflare R2, Supabase...)
+    type: ${STORAGE_TYPE:local}
+    local-dir: ${STORAGE_LOCAL_DIR:uploads}
+    s3:
+      endpoint: ${S3_ENDPOINT:}
+      region: ${S3_REGION:auto}
+      bucket: ${S3_BUCKET:}
+      access-key: ${S3_ACCESS_KEY:}
+      secret-key: ${S3_SECRET_KEY:}
+      public-base-url: ${S3_PUBLIC_BASE_URL:}
   jwt:
-    secret: samsara-secret-key-change-in-production
+    secret: ${JWT_SECRET}
     expiration: 86400000
+  mail:
+    from: ${MAIL_FROM:no-reply@samsara.local}

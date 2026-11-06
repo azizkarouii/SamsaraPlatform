@@ -17,7 +17,7 @@ import { PropertySamsarService } from '../../services/property-samsar.service';
 import { ReservationService } from '../../services/reservation.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { User } from '../../models/auth.model';
-import { Reservation, ownerEarned, samsarEarned } from '../../models/reservation.model';
+import { Reservation, ReservationEarning } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
 import { UserAvatarComponent } from '../../shared/user-avatar.component';
 import { ACCEPT_ATTRIBUTE, checkImageFile, compressImage } from '../../shared/image-utils';
@@ -253,13 +253,14 @@ export class ProfileComponent implements OnInit {
     const houses$: Observable<unknown[]> = isSamsar ? this.propertySamsarService.findMine() : this.propertyService.findMine();
     forkJoin({
       count: houses$.pipe(catchError(() => of([]))),
+      earnings: this.reservationService.findEarnings().pipe(catchError(() => of([] as ReservationEarning[]))),
       reservations: (isSamsar ? this.reservationService.findMine() : this.reservationService.findByOwner()).pipe(catchError(() => of([] as Reservation[]))),
-    }).subscribe(({ count, reservations: all }) => {
+    }).subscribe(({ count, reservations: all, earnings }) => {
       // A samsar also reads the other bookings of his houses, but his figures only count his own
       const reservations = isSamsar ? all.filter(r => r.samsarId === this.user?.id) : all;
       this.propertyCount = count.length;
       this.reservationCount = reservations.length;
-      this.totalRevenue = reservations.reduce((sum, r) => sum + (isSamsar ? samsarEarned(r) : ownerEarned(r)), 0);
+      this.totalRevenue = earnings.reduce((sum, item) => sum + item.earned, 0);
     });
   }
 

@@ -1,6 +1,8 @@
 package com.samsara.controller;
 
 import com.samsara.dto.ReservationDto;
+import com.samsara.dto.ReservationPageDto;
+import com.samsara.dto.ReservationEarning;
 import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.entity.Reservation;
 import com.samsara.service.ReservationService;
@@ -23,6 +25,23 @@ public class ReservationController {
     public ResponseEntity<List<Reservation>> findAll(Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(reservationService.findVisibleTo(userId));
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<ReservationPageDto> findPage(@RequestParam(required = false) String status,
+                                                       @RequestParam(required = false) String search,
+                                                       @RequestParam(defaultValue = "0") int page,
+                                                       @RequestParam(defaultValue = "10") int size,
+                                                       @RequestParam(defaultValue = "startDate") String sort,
+                                                       @RequestParam(defaultValue = "desc") String direction,
+                                                       Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(reservationService.findPage(userId, status, search, page, size, sort, direction));
+    }
+
+    @GetMapping("/earnings")
+    public ResponseEntity<List<ReservationEarning>> findEarnings(Authentication authentication) {
+        return ResponseEntity.ok(reservationService.findEarnings((Long) authentication.getPrincipal()));
     }
 
     @GetMapping("/{id}")
@@ -66,10 +85,11 @@ public class ReservationController {
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<Reservation> updateStatus(@PathVariable Long id,
-                                                    @RequestBody Map<String, String> body,
+                                                    @RequestBody Map<String, Object> body,
                                                     Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        return ResponseEntity.ok(reservationService.updateStatus(id, body.get("status"), userId));
+        Double paidAfterAdvance = body.get("paidAfterAdvance") instanceof Number paid ? paid.doubleValue() : null;
+        return ResponseEntity.ok(reservationService.updateStatus(id, String.valueOf(body.get("status")), paidAfterAdvance, userId));
     }
 
     @PostMapping("/{id}/early-end")

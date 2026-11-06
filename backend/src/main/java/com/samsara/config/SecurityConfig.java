@@ -37,7 +37,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Error dispatches carry no JWT: without this, every 403/404 would be turned into a 401
                 .requestMatchers("/error").permitAll()
-                .requestMatchers("/auth/register", "/auth/login").permitAll()
+                .requestMatchers("/auth/register", "/auth/login", "/auth/forgot-password", "/auth/reset-password").permitAll()
                 .requestMatchers("/properties/mine", "/properties/available").authenticated()
                 .requestMatchers(HttpMethod.GET, "/properties/*", "/properties/*/occupancy", "/properties/*/images").permitAll()
                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()

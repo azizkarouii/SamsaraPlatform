@@ -13,6 +13,9 @@ import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { Notification } from '../../models/notification.model';
 import { t } from '../../shared/translations';
 
+
+const PAGE_SIZE = 20;
+
 @Component({
   selector: 'app-notifications',
   standalone: true,
@@ -35,7 +38,7 @@ import { t } from '../../shared/translations';
           <p class="subtitle">{{ unreadCount }} {{ t('unread') }}</p>
         </div>
         <div class="header-actions">
-          <mat-button-toggle-group [value]="filter" (change)="filter = $event.value">
+          <mat-button-toggle-group [value]="filter" (change)="setFilter($event.value)">
             <mat-button-toggle value="all">{{ t('all') }}</mat-button-toggle>
             <mat-button-toggle value="unread">{{ t('unread') }}</mat-button-toggle>
           </mat-button-toggle-group>
@@ -49,20 +52,20 @@ import { t } from '../../shared/translations';
         <mat-card-content>
           <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
-          <div *ngIf="!loading && !visible.length" class="empty-state">
+          <div *ngIf="!loading && !notifications.length" class="empty-state">
             <mat-icon>notifications_none</mat-icon>
             <p>{{ t('no_notifications') }}</p>
           </div>
 
-          <div class="list" *ngIf="!loading && visible.length">
-            <div class="item" *ngFor="let notif of visible" [class.unread]="!notif.isRead" (click)="open(notif)">
+          <div class="list" *ngIf="notifications.length">
+            <div class="item" *ngFor="let notif of notifications" [class.unread]="!notif.isRead" (click)="open(notif)">
               <div class="icon" [ngClass]="tone(notif.type)"><mat-icon>{{ icon(notif.type) }}</mat-icon></div>
               <div class="body">
                 <div class="title">
-                  {{ notif.title }}
+                  {{ titleOf(notif) }}
                   <span class="dot" *ngIf="!notif.isRead"></span>
                 </div>
-                <div class="message">{{ notif.message }}</div>
+                <div class="message">{{ messageOf(notif) }}</div>
                 <div class="time">{{ notif.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
               </div>
               <button mat-icon-button (click)="$event.stopPropagation(); deleteNotification(notif)" [matTooltip]="t('delete')">
@@ -70,12 +73,16 @@ import { t } from '../../shared/translations';
               </button>
             </div>
           </div>
+          <div class="more" *ngIf="notifications.length < total">
+            <button mat-stroked-button (click)="loadMore()" [disabled]="loading">{{ t('load_more') }}</button>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
   `,
   styles: [`
     .narrow { max-width: 900px; }
+    .more { display: flex; justify-content: center; margin-top: 1rem; }
     .list { display: grid; }
     .item {
       display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.9rem 0.5rem; cursor: pointer;
@@ -100,6 +107,9 @@ export class NotificationsComponent implements OnInit {
   notifications: Notification[] = [];
   loading = true;
   filter: 'all' | 'unread' = 'all';
+  unreadCount = 0;
+  total = 0;
+  private page = 0;
 
   constructor(
     private notificationService: NotificationService,
@@ -110,28 +120,64 @@ export class NotificationsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadNotifications();
+    this.loadUnreadCount();
   }
 
   t(key: string): string {
     return t(key, this.uiPrefs.getLanguage());
   }
 
-  get unreadCount(): number {
-    return this.notifications.filter(n => !n.isRead).length;
+  /** Text in the reader's language; older notifications only have their French text. */
+  titleOf(notif: Notification): string {
+    return notif.messageKey ? this.t(`notif_${notif.messageKey}_title`) : notif.title;
   }
 
-  get visible(): Notification[] {
-    return this.filter === 'unread' ? this.notifications.filter(n => !n.isRead) : this.notifications;
+  messageOf(notif: Notification): string {
+    if (!notif.messageKey) return notif.message;
+    let params: Record<string, string> = {};
+    try {
+      params = JSON.parse(notif.messageParams || '{}');
+    } catch {
+      return notif.message;
+    }
+    let text = this.t(`notif_${notif.messageKey}_msg`);
+    const isStatus = ['confirmed', 'in_progress', 'completed', 'cancelled'].some(s => notif.messageKey === `reservation_${s}`);
+    if (isStatus && params['actor']) {
+      text += ' ' + this.t('notif_by');
+    }
+    Object.entries(params).forEach(([name, value]) => {
+      const shown = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-').reverse().join('/') : value;
+      text = text.split(`{{${name}}}`).join(shown);
+    });
+    return text;
+  }
+
+  setFilter(filter: 'all' | 'unread'): void {
+    this.filter = filter;
+    this.page = 0;
+    this.notifications = [];
+    this.loadNotifications();
+  }
+
+  loadMore(): void {
+    this.page++;
+    this.loadNotifications();
   }
 
   private loadNotifications(): void {
-    this.notificationService.findAll().subscribe({
-      next: (notifs) => {
-        this.notifications = notifs;
+    this.loading = true;
+    this.notificationService.findPage(this.filter === 'unread', this.page, PAGE_SIZE).subscribe({
+      next: (result) => {
+        this.notifications = [...this.notifications, ...result.content];
+        this.total = result.totalElements;
         this.loading = false;
       },
       error: () => this.loading = false,
     });
+  }
+
+  private loadUnreadCount(): void {
+    this.notificationService.getUnreadCount().subscribe(count => this.unreadCount = count);
   }
 
   /** Marks as read then opens the related reservation (or property) — spec F9. */
@@ -140,6 +186,7 @@ export class NotificationsComponent implements OnInit {
       this.notificationService.markAsRead(notif.id).subscribe({
         next: () => {
           notif.isRead = true;
+          this.loadUnreadCount();
           this.notificationService.unreadCountChange$.next();
         },
       });
@@ -155,6 +202,7 @@ export class NotificationsComponent implements OnInit {
     this.notificationService.markAllAsRead().subscribe({
       next: () => {
         this.notifications.forEach(n => n.isRead = true);
+        this.unreadCount = 0;
         this.notificationService.unreadCountChange$.next();
       },
     });
@@ -164,6 +212,8 @@ export class NotificationsComponent implements OnInit {
     this.notificationService.remove(notif.id).subscribe({
       next: () => {
         this.notifications = this.notifications.filter(n => n.id !== notif.id);
+        this.total--;
+        this.loadUnreadCount();
         this.notificationService.unreadCountChange$.next();
         this.snackBar.open(this.t('notification_deleted'), this.t('close'), { duration: 2000 });
       },
@@ -180,6 +230,7 @@ export class NotificationsComponent implements OnInit {
       case 'reservation_completed': return 'task_alt';
       case 'reservation_cancelled': return 'event_busy';
       case 'reservation_deleted': return 'delete';
+      case 'reservation_ended_early': return 'event_busy';
       case 'property_assignment': return 'home_work';
       default: return 'notifications';
     }

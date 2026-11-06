@@ -2,6 +2,7 @@ package com.samsara.config;
 
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -10,6 +11,8 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -75,7 +78,13 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<Map<String, String>> error(HttpStatus status, String message) {
         Map<String, String> body = new HashMap<>();
-        body.put("message", message);
+        body.put("message", ApiMessages.translate(message, requestLanguage()));
         return ResponseEntity.status(status).body(body);
+    }
+
+    private static String requestLanguage() {
+        return RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+                ? attributes.getRequest().getHeader(HttpHeaders.ACCEPT_LANGUAGE)
+                : null;
     }
 }

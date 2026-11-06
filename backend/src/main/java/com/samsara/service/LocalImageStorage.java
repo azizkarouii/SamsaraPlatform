@@ -1,6 +1,7 @@
 package com.samsara.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 /** Development storage: files on the local disk, served by {@link com.samsara.config.UploadsConfig}. */
 @Service
+@ConditionalOnProperty(name = "application.storage.type", havingValue = "local", matchIfMissing = true)
 public class LocalImageStorage implements ImageStorage {
 
     private final Path root;

@@ -2,6 +2,7 @@ package com.samsara.config;
 
 import com.samsara.service.LocalImageStorage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -14,6 +15,7 @@ import java.util.concurrent.TimeUnit;
  * (a replaced photo gets a new key), so the files can be cached for a long time.
  */
 @Configuration
+@ConditionalOnProperty(name = "application.storage.type", havingValue = "local", matchIfMissing = true)
 @RequiredArgsConstructor
 public class UploadsConfig implements WebMvcConfigurer {
 

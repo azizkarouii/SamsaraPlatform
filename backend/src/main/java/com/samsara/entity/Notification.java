@@ -35,6 +35,13 @@ public class Notification {
     @Column(nullable = false)
     private String message;
 
+    /** Translation key and JSON parameters, so the text follows the reader's language; null on older rows. */
+    @Column(name = "message_key")
+    private String messageKey;
+
+    @Column(name = "message_params", columnDefinition = "text")
+    private String messageParams;
+
     @Column(name = "is_read")
     private Boolean isRead;
 

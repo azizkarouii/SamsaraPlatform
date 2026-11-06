@@ -44,3 +44,6 @@ node_modules/
 .claude/
 # Uploaded photos (local storage in development)
 backend/uploads/
+
+# Local secrets
+backend/.env

@@ -1,5 +1,6 @@
 package com.samsara.controller;
 
+import com.samsara.dto.NotificationPageDto;
 import com.samsara.entity.Notification;
 import com.samsara.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,15 @@ public class NotificationController {
     public ResponseEntity<List<Notification>> findAll(Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(notificationService.findByUser(userId));
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<NotificationPageDto> findPage(@RequestParam(defaultValue = "false") boolean unreadOnly,
+                                                        @RequestParam(defaultValue = "0") int page,
+                                                        @RequestParam(defaultValue = "20") int size,
+                                                        Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(notificationService.findPage(userId, unreadOnly, page, size));
     }
 
     @GetMapping("/unread-count")

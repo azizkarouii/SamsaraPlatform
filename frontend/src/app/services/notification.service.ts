@@ -17,6 +17,11 @@ export class NotificationService {
     return this.http.get<Notification[]>(this.apiUrl);
   }
 
+  findPage(unreadOnly: boolean, page: number, size: number): Observable<{ content: Notification[]; totalElements: number }> {
+    return this.http.get<{ content: Notification[]; totalElements: number }>(
+      `${this.apiUrl}/page?unreadOnly=${unreadOnly}&page=${page}&size=${size}`);
+  }
+
   markAsRead(id: number): Observable<void> {
     return this.http.patch<void>(`${this.apiUrl}/${id}/read`, {});
   }

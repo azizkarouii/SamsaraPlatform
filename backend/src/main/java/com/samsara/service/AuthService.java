@@ -22,7 +22,10 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private static final int MAX_LOGIN_FAILURES = 5;
+
     private final JwtService jwtService;
+    private final AttemptLimiter attemptLimiter;
     private final ImageStorage imageStorage;
     private final ImageFileValidator imageFileValidator;
 
@@ -45,13 +48,21 @@ public class AuthService {
         return toAuthResponse(user);
     }
 
-    public AuthResponse login(LoginDto dto) {
-        User user = userRepository.findByEmailIgnoreCase(dto.getEmail().trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
-
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+    /** After too many failures for an email from one address, attempts are refused for a while. */
+    public AuthResponse login(LoginDto dto, String clientAddress) {
+        String email = dto.getEmail().trim();
+        String limitKey = "login:" + email.toLowerCase() + ":" + clientAddress;
+        if (attemptLimiter.isBlocked(limitKey, MAX_LOGIN_FAILURES)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many failed attempts: try again in 15 minutes");
+        }
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .filter(found -> passwordEncoder.matches(dto.getPassword(), found.getPassword()))
+                .orElse(null);
+        if (user == null) {
+            attemptLimiter.record(limitKey);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
+        attemptLimiter.reset(limitKey);
         return toAuthResponse(user);
     }
 

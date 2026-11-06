@@ -69,6 +69,7 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
             </button>
           </form>
         </mat-card-content>
+        <a class="forgot-link" routerLink="/forgot-password">{{ t('forgot_password_link') }}</a>
         <mat-card-actions align="end" class="card-actions">
           <span class="register-text">{{ t('no_account') }}</span>
           <button mat-button color="primary" routerLink="/register">{{ t('register') }}</button>
@@ -152,6 +153,8 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
       font-weight: 600;
       box-shadow: 0 10px 22px rgba(15, 118, 110, 0.28);
     }
+    .forgot-link { display: block; margin: -0.5rem 1rem 0.25rem; font-size: 0.85rem; color: var(--primary); text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
     .card-actions {
       padding-top: 0.5rem;
     }

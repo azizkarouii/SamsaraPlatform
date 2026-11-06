@@ -1,9 +1,9 @@
-import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
+import { MatTableModule } from '@angular/material/table';
+import { MatSortModule, Sort } from '@angular/material/sort';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,6 +18,7 @@ import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { Reservation, normalizeReservationStatus, statusKey } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
 
+import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 @Component({
   selector: 'app-reservation-list',
   standalone: true,
@@ -68,14 +69,14 @@ import { t } from '../../../shared/translations';
             <mat-spinner diameter="40"></mat-spinner>
           </div>
 
-          <div *ngIf="!loading && dataSource.filteredData.length === 0" class="empty-state">
+          <div *ngIf="!loading && rows.length === 0" class="empty-state">
             <mat-icon>event_busy</mat-icon>
             <p>{{ t('no_reservations') }}</p>
-            <a mat-raised-button color="primary" routerLink="/reservations/add" *ngIf="!allReservations.length">{{ t('reservation_new_title') }}</a>
+            <a mat-raised-button color="primary" routerLink="/reservations/add" *ngIf="!countFor('all')">{{ t('reservation_new_title') }}</a>
           </div>
 
-          <div class="table-wrap" [hidden]="loading || dataSource.filteredData.length === 0">
-            <table mat-table [dataSource]="dataSource" matSort matSortActive="startDate" matSortDirection="desc" class="reservation-table">
+          <div class="table-wrap" [hidden]="rows.length === 0">
+            <table mat-table [dataSource]="rows" matSort matSortActive="startDate" matSortDirection="desc" (matSortChange)="onSort($event)" class="reservation-table">
               <ng-container matColumnDef="clientName">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('client') }}</th>
                 <td mat-cell *matCellDef="let res">
@@ -131,7 +132,8 @@ import { t } from '../../../shared/translations';
             </table>
           </div>
 
-          <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons [hidden]="loading || dataSource.filteredData.length === 0"></mat-paginator>
+          <mat-paginator [length]="total" [pageIndex]="page" [pageSize]="pageSize" [pageSizeOptions]="[10, 25, 50]" (page)="onPage($event)"
+                         showFirstLastButtons [hidden]="total === 0"></mat-paginator>
         </mat-card-content>
       </mat-card>
     </div>
@@ -152,21 +154,26 @@ import { t } from '../../../shared/translations';
     .clickable-row:hover { background: var(--surface-hover); }
   `]
 })
-export class ReservationListComponent implements OnInit, AfterViewInit {
+export class ReservationListComponent implements OnInit, OnDestroy {
   displayedColumns: string[] = ['clientName', 'propertyTitle', 'startDate', 'status', 'totalAmount', 'actions'];
-  dataSource = new MatTableDataSource<Reservation>([]);
-  allReservations: Reservation[] = [];
+  rows: Reservation[] = [];
+  counts: Record<string, number> = {};
+  total = 0;
+  page = 0;
+  pageSize = 10;
   loading = true;
   activeTab = 'all';
-  searchValue = '';
   isOwner = false;
   currentUserId?: number;
   readonly tabs = ['all', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'];
   readonly statusKey = statusKey;
   readonly normalize = normalizeReservationStatus;
-
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
+  private searchValue = '';
+  private sort = 'startDate';
+  private direction = 'desc';
+  private readonly searches = new Subject<string>();
+  private readonly subscriptions = new Subscription();
+  private loadRequest?: Subscription;
 
   constructor(
     private route: ActivatedRoute,
@@ -184,35 +191,40 @@ export class ReservationListComponent implements OnInit, AfterViewInit {
     if (tab && this.tabs.includes(tab)) {
       this.activeTab = tab;
     }
-    this.loadReservations();
+    // Spec F7: search by client name, phone or property title, once typing pauses
+    this.subscriptions.add(this.searches.pipe(debounceTime(300), distinctUntilChanged()).subscribe(value => {
+      this.searchValue = value;
+      this.page = 0;
+      this.load();
+    }));
+    this.load();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sortingDataAccessor = (item, column) => {
-      switch (column) {
-        case 'propertyTitle': return item.property?.title?.toLowerCase() ?? '';
-        case 'clientName': return item.clientName.toLowerCase();
-        default: return (item as any)[column];
-      }
-    };
-    // Spec F7: search by client name, phone or property title
-    this.dataSource.filterPredicate = (data: Reservation, filter: string) =>
-      [data.clientName, data.clientPhone, data.property?.title]
-        .some(value => (value ?? '').toLowerCase().includes(filter));
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+    this.loadRequest?.unsubscribe();
   }
 
   t(key: string): string {
     return t(key, this.uiPrefs.getLanguage());
   }
 
-  private loadReservations(): void {
-    const obs = this.isOwner ? this.reservationService.findByOwner() : this.reservationService.findMine();
-    obs.subscribe({
-      next: (reservations) => {
-        this.allReservations = reservations;
-        this.applyFilter();
+  /** A newer request replaces one still in flight, so an old answer cannot overwrite the current list. */
+  private load(): void {
+    this.loading = true;
+    this.loadRequest?.unsubscribe();
+    this.loadRequest = this.reservationService.findPage({
+      status: this.activeTab === 'all' ? '' : this.activeTab,
+      search: this.searchValue,
+      page: this.page,
+      size: this.pageSize,
+      sort: this.sort,
+      direction: this.direction,
+    }).subscribe({
+      next: (result) => {
+        this.rows = result.content;
+        this.total = result.totalElements;
+        this.counts = result.counts;
         this.loading = false;
       },
       error: () => {
@@ -223,27 +235,32 @@ export class ReservationListComponent implements OnInit, AfterViewInit {
 
   countFor(tab: string): number {
     return tab === 'all'
-      ? this.allReservations.length
-      : this.allReservations.filter(r => normalizeReservationStatus(r.status) === tab).length;
+      ? Object.values(this.counts).reduce((sum, count) => sum + count, 0)
+      : this.counts[tab] ?? 0;
   }
 
   filterByStatus(status: string): void {
     this.activeTab = status;
+    this.page = 0;
     this.router.navigate([], { queryParams: { tab: status === 'all' ? null : status }, replaceUrl: true });
-    this.applyFilter();
+    this.load();
   }
 
   applySearch(value: string): void {
-    this.searchValue = value;
-    this.dataSource.filter = value.toLowerCase().trim();
-    this.paginator?.firstPage();
+    this.searches.next(value.trim());
   }
 
-  private applyFilter(): void {
-    this.dataSource.data = this.activeTab === 'all'
-      ? this.allReservations
-      : this.allReservations.filter(r => normalizeReservationStatus(r.status) === this.activeTab);
-    this.dataSource.filter = this.searchValue.toLowerCase().trim();
+  onSort(sort: Sort): void {
+    this.sort = sort.direction ? sort.active : 'startDate';
+    this.direction = sort.direction || 'desc';
+    this.page = 0;
+    this.load();
+  }
+
+  onPage(event: PageEvent): void {
+    this.page = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.load();
   }
 
   canEdit(res: Reservation): boolean {

@@ -20,8 +20,7 @@ import {
   RESERVATION_STATUSES,
   isStayStarted,
   normalizeReservationStatus,
-  ownerEarned,
-  samsarEarned,
+  ReservationEarning,
   statusKey,
 } from '../../models/reservation.model';
 import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
@@ -268,6 +267,7 @@ export class DashboardComponent implements OnInit {
   user: User | null = null;
   properties: Property[] = [];
   reservations: Reservation[] = [];
+  private earnings = new Map<number, ReservationEarning>();
   loading = false;
   dateFrom = '';
   dateTo = '';
@@ -296,16 +296,14 @@ export class DashboardComponent implements OnInit {
     return this.user?.role === 'SAMSAR';
   }
 
-  /** Money this user really has from a booking so far. */
+  /** Money this user really has from a booking so far: the server decides, this only adds it up. */
   earnedOn(reservation: Reservation): number {
-    return this.isSamsar ? samsarEarned(reservation) : ownerEarned(reservation);
+    return this.earnings.get(reservation.id)?.earned ?? 0;
   }
 
   /** Gains of confirmed bookings: they come once the stay has started. */
   get upcomingGains(): number {
-    return this.filtered
-      .filter(r => normalizeReservationStatus(r.status) === 'confirmed')
-      .reduce((sum, r) => sum + (r.samsarGain || 0), 0);
+    return this.filtered.reduce((sum, r) => sum + (this.earnings.get(r.id)?.upcoming ?? 0), 0);
   }
 
   loadData(): void {
@@ -319,8 +317,10 @@ export class DashboardComponent implements OnInit {
     forkJoin({
       properties: properties$.pipe(catchError(() => of([] as Property[]))),
       reservations: reservations$.pipe(catchError(() => of([] as Reservation[]))),
-    }).subscribe(({ properties, reservations }) => {
+      earnings: this.reservationService.findEarnings().pipe(catchError(() => of([] as ReservationEarning[]))),
+    }).subscribe(({ properties, reservations, earnings }) => {
       this.properties = properties;
+      this.earnings = new Map(earnings.map(item => [item.reservationId, item]));
       // A samsar also reads the other bookings of his houses, but his figures only count his own
       this.reservations = isSamsar ? reservations.filter(r => r.samsarId === this.user?.id) : reservations;
       this.loading = false;

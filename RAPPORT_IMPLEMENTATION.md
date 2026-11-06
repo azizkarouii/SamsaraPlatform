@@ -38,7 +38,7 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - Page publique : le contact du propriétaire est masqué ; le calendrier utilise `GET /properties/{id}/occupancy` (périodes occupées sans données client).
 
 **Règles métier**
-- Réservation : dates `yyyy-MM-dd` validées (fin ≥ début), acompte ≤ total, **refus des chevauchements** avec une réservation confirmée ou en cours et des jours bloqués (HTTP 409). Une réservation en attente ne bloque plus ses dates depuis le 01/11/2026 (voir plus bas).
+- Réservation (état au 31/10, voir les évolutions de novembre plus bas) : dates `yyyy-MM-dd` validées (fin ≥ début), acompte ≤ total, **refus des chevauchements** avec une réservation confirmée ou en cours et des jours bloqués (HTTP 409). Une réservation en attente ne bloque plus ses dates depuis le 01/11/2026 (voir plus bas).
 - Montant : jours (dernier jour inclus) × prix/jour ; un samsar ne peut pas dépasser prix + sa marge (10/20/30 TND par jour).
 - Workflow strict `pending → confirmed → in-progress → completed`, annulation possible jusqu'à la fin (une réservation avec acompte est confirmée directement, voir plus bas) ; tâche planifiée (toutes les 10 min + au démarrage) qui passe les séjours en cours / terminés et enregistre les revenus (`advance`, `completion`).
 - Notifications envoyées au propriétaire, au samsar de la réservation et aux autres samsars de la maison (sauf l'auteur) pour création, modification, changement de statut et suppression.
@@ -95,6 +95,30 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 
 **Photo de profil**
 - Chaque utilisateur peut ajouter, changer ou supprimer sa photo (`PUT|DELETE /auth/profile/photo`), stockée dans la colonne existante `users.photo_url`. Elle remplace les initiales dans le profil, la barre supérieure et les cartes des samsars ; la barre supérieure se met à jour sans rechargement.
+
+### Prix, réservations et argent (novembre 2026)
+
+- **Tarif du samsar** : +10, +20 ou +30 TND par jour, ou 10 % du total. Le tarif et le montant de base sont figés sur chaque réservation.
+- **Prix par période** : périodes annuelles au format jj/mm (y compris à cheval sur le nouvel an), calcul jour par jour, table `property_seasonal_prices`.
+- **Prix négocié** : ce que paie le client ; le samsar garde son tarif, pris sur la part du propriétaire.
+- **Acompte** : compté pour le propriétaire dès la confirmation, conservé en cas d'annulation sauf décision de le rendre (tout ou partie).
+- **Gain du samsar** : pris sur ce qui est payé après l'acompte, donc acquis au début du séjour. En cas d'annulation d'un séjour en cours, il est limité au montant payé après l'acompte (`paid_after_advance`).
+- **Fin anticipée** : les jours suivants redeviennent disponibles, le prix et le gain ne changent pas.
+- **Argent rendu** : volontaire, chacun sur sa part (`refund_amount`, `samsar_refund_amount`).
+- **Calculs côté serveur** : `GET /reservations/earnings`, règles réunies dans `ReservationEarnings`.
+- **Liens externes** sur les maisons (`property_links`), http(s) uniquement, 10 maximum.
+
+### Sécurité et fiabilité (novembre 2026)
+
+- **Secrets** : mot de passe de base et clé JWT sortis du dépôt (`backend/.env`, variables d'environnement), clé JWT renouvelée.
+- **Double réservation** : verrou sur la maison pendant les opérations touchant son calendrier (`PropertyRepository.lockById`). Une contrainte d'exclusion PostgreSQL n'était pas applicable en l'état, les dates étant stockées en texte.
+- **Migrations Flyway** à la place de `ddl-auto: update`, avec validation du schéma au démarrage.
+- **Mot de passe oublié** : lien à usage unique valable 1 heure, seul son hash est stocké (`password_reset_tokens`), réponse identique que le compte existe ou non.
+- **Limite de tentatives** : 5 échecs de connexion par email et adresse sur 15 minutes.
+- **Langues** : erreurs de l'API traduites selon `Accept-Language` (`ApiMessages`), notifications stockées par clé de traduction.
+- **Performances** : pagination serveur des réservations et des notifications, chargement différé de chaque page.
+- **Production** : CORS et adresses configurables, stockage compatible S3 (`S3ImageStorage`).
+- **Tests** : suite backend via l'API (`ReservationFlowTest`), traductions (`ApiMessagesTest`), stockage (`S3ImageStorageTest`), calculs de prix côté front.
 
 ## 1. Présentation Générale
 

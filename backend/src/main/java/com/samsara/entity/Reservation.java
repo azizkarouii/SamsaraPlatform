@@ -73,6 +73,10 @@ public class Reservation {
     @Column(name = "original_end_date")
     private String originalEndDate;
 
+    /** What the client had paid beyond the advance when a stay in progress was cancelled. */
+    @Column(name = "paid_after_advance")
+    private Double paidAfterAdvance;
+
     /** Money the owner chose to give back to the client; it comes out of the owner's share. */
     @Column(name = "refund_amount")
     private Double refundAmount;

@@ -58,6 +58,14 @@ export class AuthService {
     return this.http.delete<User>(`${this.apiUrl}/profile/photo`).pipe(tap(user => this.storeUser(user)));
   }
 
+  forgotPassword(email: string, language: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/forgot-password`, { email, language });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/reset-password`, { token, newPassword });
+  }
+
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
     return this.http.put<void>(`${this.apiUrl}/password`, { currentPassword, newPassword });
   }

@@ -20,6 +20,7 @@ import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { PriceStretch, priceStretches, stretchesTotal } from '../../shared/pricing';
+import { HOUSE_TYPES } from '../../shared/house-types';
 @Component({
   selector: 'app-availability',
   standalone: true,
@@ -158,7 +159,7 @@ export class AvailabilityComponent implements OnInit, OnDestroy {
   results: Property[] = [];
   /** Optional filter: empty means every type. */
   houseType = '';
-  readonly houseTypes = ['S+1', 'S+2', 'S+3', 'S+4'];
+  readonly houseTypes = HOUSE_TYPES;
   readonly today = todayIso();
   private margins = new Map<number, number>();
   private search?: Subscription;

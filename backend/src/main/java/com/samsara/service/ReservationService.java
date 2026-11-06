@@ -1,6 +1,8 @@
 package com.samsara.service;
 
 import com.samsara.dto.ReservationDto;
+import com.samsara.dto.ReservationEarning;
+import com.samsara.dto.ReservationPageDto;
 import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.entity.Property;
 import com.samsara.entity.PropertySeasonalPrice;
@@ -9,6 +11,9 @@ import com.samsara.entity.RevenueHistory;
 import com.samsara.entity.User;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -19,6 +24,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +51,16 @@ public class ReservationService {
 
     private static final Pattern TIME_PATTERN = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
 
+    private static final Map<String, String> SORTABLE = Map.of(
+            "clientName", "clientName",
+            "propertyTitle", "p.title",
+            "startDate", "startDate",
+            "status", "status",
+            "totalAmount", "totalAmount");
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final ReservationRepository reservationRepository;
+    private final PropertyRepository propertyRepository;
     private final NotificationRepository notificationRepository;
     private final RevenueHistoryRepository revenueHistoryRepository;
     private final PropertyAvailabilityRepository availabilityRepository;
@@ -77,10 +92,36 @@ public class ReservationService {
             reservation.setBaseAmount(null);
             reservation.setRefundAmount(null);
             reservation.setSamsarRefundAmount(null);
+            reservation.setPaidAfterAdvance(null);
             reservation.setSamsarMarginTnd(null);
             reservation.setSamsarCommissionPercent(null);
         }
         return reservation;
+    }
+
+    /** The list screen: filtered, sorted and paged by the database, with the counts of the status tabs. */
+    public ReservationPageDto findPage(Long userId, String status, String search, int page, int size, String sort, String direction) {
+        String pattern = "%" + (search == null ? "" : search.trim().toLowerCase()) + "%";
+        Sort order = Sort.by("asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC,
+                SORTABLE.getOrDefault(sort, "startDate"));
+        PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE), order);
+        Page<Reservation> result = reservationRepository.findPage(userId, status == null ? "" : status, pattern, request);
+
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : reservationRepository.countByStatus(userId, pattern)) {
+            counts.put((String) row[0], (Long) row[1]);
+        }
+        return new ReservationPageDto(hidePrivateTerms(result.getContent(), userId), result.getTotalElements(), counts);
+    }
+
+    /** What each visible booking brings to this user; the dashboard and the profile only add these up. */
+    public List<ReservationEarning> findEarnings(Long userId) {
+        return reservationRepository.findVisibleTo(userId).stream()
+                .filter(r -> accessService.isOwner(r.getProperty(), userId) || userId.equals(r.getSamsarId()))
+                .map(r -> accessService.isOwner(r.getProperty(), userId)
+                        ? new ReservationEarning(r.getId(), ReservationEarnings.owner(r), 0.0)
+                        : new ReservationEarning(r.getId(), ReservationEarnings.samsar(r), ReservationEarnings.samsarUpcoming(r)))
+                .toList();
     }
 
     public Reservation findById(Long id, Long userId) {
@@ -206,6 +247,7 @@ public class ReservationService {
             throw new IllegalArgumentException("Property is required");
         }
         Property property = accessService.requireWorkOn(dto.getPropertyId(), userId);
+        propertyRepository.lockById(property.getId());
 
         Reservation reservation = Reservation.builder()
                 .propertyId(property.getId())
@@ -238,7 +280,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public Reservation updateStatus(Long id, String status, Long userId) {
+    public Reservation updateStatus(Long id, String status, Double paidAfterAdvance, Long userId) {
         Reservation reservation = getReservation(id);
         accessService.requireReservationAccess(reservation, userId);
 
@@ -256,6 +298,17 @@ public class ReservationService {
         }
         if (IN_PROGRESS.equals(target) && LocalDate.parse(reservation.getStartDate()).isAfter(LocalDate.now())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The stay cannot start before the arrival date");
+        }
+        if (IN_PROGRESS.equals(current) && CANCELLED.equals(target)) {
+            double paid = paidAfterAdvance != null ? paidAfterAdvance : 0.0;
+            double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
+            if (paid < 0 || paid > reservation.getTotalAmount() - advance) {
+                throw new IllegalArgumentException("The amount paid after the advance cannot exceed the balance");
+            }
+            reservation.setPaidAfterAdvance(paid);
+        }
+        if (CONFIRMED.equals(target)) {
+            propertyRepository.lockById(reservation.getPropertyId());
         }
         if (CONFIRMED.equals(target) && !reservationRepository.findOverlapping(reservation.getPropertyId(),
                 reservation.getStartDate(), reservation.getEndDate(), reservation.getId()).isEmpty()) {
@@ -345,6 +398,7 @@ public class ReservationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A completed or cancelled reservation cannot be modified");
         }
 
+        propertyRepository.lockById(reservation.getPropertyId());
         String previousStart = reservation.getStartDate();
         String previousEnd = reservation.getEndDate();
 
@@ -442,7 +496,7 @@ public class ReservationService {
     /**
      * Giving money back is always voluntary, and each one gives from his own part: the owner from his share,
      * the samsar who booked from his gain. An advance is not returned on cancellation unless the owner
-     * chooses to, in full or in part; a samsar has earned nothing on a cancelled booking.
+     * chooses to, in full or in part.
      */
     private void applyRefund(Reservation reservation, Property property, Double amount, Long userId) {
         boolean owner = accessService.isOwner(property, userId);
@@ -451,13 +505,17 @@ public class ReservationService {
         }
         String status = normalizeStatus(reservation.getStatus());
         boolean stayStarted = IN_PROGRESS.equals(status) || COMPLETED.equals(status);
-        if (!stayStarted && !(owner && CANCELLED.equals(status))) {
+        boolean cancelled = CANCELLED.equals(status);
+        double gain = reservation.getSamsarGain() != null ? reservation.getSamsarGain() : 0.0;
+        double limit;
+        if (owner) {
+            limit = stayStarted ? reservation.getTotalAmount() - gain : ReservationEarnings.ownerBeforeRefundOnCancellation(reservation);
+        } else {
+            limit = stayStarted ? gain : ReservationEarnings.samsarBeforeRefundOnCancellation(reservation);
+        }
+        if (!stayStarted && !(cancelled && (owner || limit > 0))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Money cannot be given back at this stage of the reservation");
         }
-        double gain = reservation.getSamsarGain() != null ? reservation.getSamsarGain() : 0.0;
-        double share = reservation.getTotalAmount() - gain;
-        double advance = reservation.getAdvanceAmount() != null ? reservation.getAdvanceAmount() : 0.0;
-        double limit = !owner ? gain : stayStarted ? share : Math.min(advance, share);
         if (amount == null || amount < 0 || amount > limit) {
             throw new IllegalArgumentException(String.format("The amount given back must be between 0 and %.2f TND", limit));
         }
@@ -518,7 +576,8 @@ public class ReservationService {
 
     /**
      * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
-     * Fixed margin: what was charged above the house price, so nothing on a negotiated price.
+     * Fixed margin: what was charged above the house price; on a negotiated price, which already is what the
+     * client pays, the margin per day still goes to him and comes out of the owner's part.
      * The owner's own bookings earn no samsar anything.
      */
     private double computeSamsarGain(Reservation reservation, Property property) {
@@ -529,7 +588,11 @@ public class ReservationService {
         double gain = 0.0;
         if (reservation.getSamsarCommissionPercent() != null) {
             gain = total * reservation.getSamsarCommissionPercent() / 100.0;
-        } else if (reservation.getNegotiatedPricePerDay() == null && reservation.getBaseAmount() != null) {
+        } else if (reservation.getNegotiatedPricePerDay() != null) {
+            long days = ChronoUnit.DAYS.between(LocalDate.parse(reservation.getStartDate()), LocalDate.parse(reservation.getEndDate())) + 1;
+            int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
+            gain = Math.min(total, days * margin);
+        } else if (reservation.getBaseAmount() != null) {
             gain = Math.max(0.0, total - reservation.getBaseAmount());
         }
         return Math.round(gain * 100.0) / 100.0;

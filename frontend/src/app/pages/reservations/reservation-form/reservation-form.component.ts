@@ -409,7 +409,7 @@ export class ReservationFormComponent implements OnInit {
     if (!this.isSamsar) return this.t('negotiated_hint_owner');
     return this.deal.commissionPercent
       ? this.t('negotiated_hint_commission').replace('{{percent}}', '' + this.deal.commissionPercent)
-      : this.t('negotiated_hint_samsar');
+      : this.t('negotiated_hint_samsar').replace('{{margin}}', '' + this.deal.margin);
   }
 
   /** Must stay below the usual price of the stay, like on the server. */
@@ -434,14 +434,14 @@ export class ReservationFormComponent implements OnInit {
     }
   }
 
-  /** Mirrors the server: a commission on the total, or what is charged above the house price (nothing on a negotiated price). */
+  /** Mirrors the server: a commission on the total, or what is charged above the house price (on a negotiated price, the margin per day still applies). */
   get estimatedGain(): number {
     const total = Number(this.form.value.totalAmount || 0);
     if (this.deal.commissionPercent) {
       return Math.round(total * this.deal.commissionPercent) / 100;
     }
     if (this.negotiated) {
-      return 0;
+      return Math.min(total, this.days * this.deal.margin);
     }
     return Math.max(0, total - this.baseAmount);
   }

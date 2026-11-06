@@ -57,6 +57,8 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
   return form.value.seasonalPrices?.length && !form.value.pricePerDay ? { mainPriceRequired: true } : null;
 }
 
+import { MatSelectModule } from '@angular/material/select';
+import { HOUSE_TYPES } from '../../../shared/house-types';
 @Component({
   selector: 'app-property-form',
   standalone: true,
@@ -75,6 +77,7 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
     MatTooltipModule,
     MatProgressSpinnerModule,
     MatDividerModule,
+    MatSelectModule,
   ],
   template: `
     <div class="form-container">
@@ -100,7 +103,10 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('configuration') }}</mat-label>
-                <input matInput formControlName="configuration" placeholder="S+1, S+2..." />
+                <mat-select formControlName="configuration">
+                  <mat-option value="">{{ t('not_specified') }}</mat-option>
+                  <mat-option *ngFor="let type of houseTypes" [value]="type">{{ type }}</mat-option>
+                </mat-select>
               </mat-form-field>
             </div>
 
@@ -332,6 +338,8 @@ export class PropertyFormComponent implements OnInit {
     control.setValue(value && !/^[a-z]+:/i.test(value) ? `https://${value}` : value);
   }
 
+  houseTypes = HOUSE_TYPES;
+
   get seasonalRows(): FormArray<FormGroup> {
     return this.propertyForm.get('seasonalPrices') as FormArray<FormGroup>;
   }
@@ -425,6 +433,10 @@ export class PropertyFormComponent implements OnInit {
   private loadProperty(id: number): void {
     this.propertyService.findOne(id).subscribe({
       next: (property) => {
+        // A type typed before this list existed stays selectable, so saving does not lose it
+        if (property.configuration && !this.houseTypes.includes(property.configuration)) {
+          this.houseTypes = [...this.houseTypes, property.configuration];
+        }
         property.seasonalPrices?.forEach(price => this.addSeasonalRow(price));
         property.links?.forEach(link => this.addLinkRow(link.url));
         this.propertyForm.patchValue({

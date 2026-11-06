@@ -115,6 +115,19 @@ import { Observable } from 'rxjs';
             </div>
           </form>
 
+          <form class="stay-panel" *ngIf="panel === 'cancel'" (ngSubmit)="submitCancelStay()">
+            <p>{{ t('cancel_stay_explained') }}</p>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ t('paid_after_advance') }}</mat-label>
+              <input matInput type="number" name="paidAfterAdvance" min="0" [max]="r.totalAmount - r.advanceAmount" [(ngModel)]="paidInput" />
+              <span matTextSuffix>TND</span>
+            </mat-form-field>
+            <div class="panel-actions">
+              <button mat-button type="button" (click)="panel = null">{{ t('close') }}</button>
+              <button mat-raised-button color="warn" type="submit" [disabled]="updating">{{ t('confirm_cancel_stay') }}</button>
+            </div>
+          </form>
+
           <form class="stay-panel" *ngIf="panel === 'refund'" (ngSubmit)="submitRefund()">
             <p>{{ t(refundExplanationKey) }}</p>
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -199,6 +212,7 @@ import { Observable } from 'rxjs';
                 <div><span>{{ r.samsarId === currentUserId ? t('your_gain') : t('samsar_gain') }}<ng-container *ngIf="r.samsarCommissionPercent"> ({{ r.samsarCommissionPercent }} %)</ng-container></span><strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong></div>
                 <div><span>{{ t('owner_share') }}</span><strong>{{ ownerShare | number:'1.0-2' }} TND</strong></div>
               </ng-container>
+              <div *ngIf="r.paidAfterAdvance"><span>{{ t('paid_after_advance') }}</span><strong>{{ r.paidAfterAdvance | number:'1.0-2' }} TND</strong></div>
               <div *ngIf="r.refundAmount"><span>{{ t('refund_by_owner') }}</span><strong>- {{ r.refundAmount | number:'1.0-2' }} TND</strong></div>
               <div *ngIf="r.samsarRefundAmount"><span>{{ t('refund_by_samsar') }}</span><strong>- {{ r.samsarRefundAmount | number:'1.0-2' }} TND</strong></div>
             </div>
@@ -257,7 +271,8 @@ export class ReservationDetailComponent implements OnInit {
   loading = true;
   updating = false;
   currentUserId?: number;
-  panel: 'early' | 'refund' | null = null;
+  panel: 'early' | 'refund' | 'cancel' | null = null;
+  paidInput: number | null = null;
   earlyEndDate = '';
   refundInput: number | null = null;
   readonly workflowSteps: ReservationStatus[] = RESERVATION_STATUSES.filter(s => s !== 'cancelled');
@@ -331,14 +346,15 @@ export class ReservationDetailComponent implements OnInit {
   get maxRefund(): number {
     const r = this.reservation;
     if (!r) return 0;
-    if (!this.isHouseOwner) return r.samsarGain || 0;
-    return this.status === 'cancelled' ? Math.min(r.advanceAmount || 0, this.ownerShare) : this.ownerShare;
+    const cancelled = this.status === 'cancelled';
+    const samsarPartPaid = Math.min(r.samsarGain || 0, r.paidAfterAdvance || 0);
+    if (!this.isHouseOwner) return cancelled ? samsarPartPaid : r.samsarGain || 0;
+    return cancelled ? (r.advanceAmount || 0) + (r.paidAfterAdvance || 0) - samsarPartPaid : this.ownerShare;
   }
 
-  /** Always voluntary: the owner also on a cancelled booking (its advance), a samsar once the stay has started. */
+  /** Always voluntary, once money has really been received by the one giving it back. */
   get canRefund(): boolean {
-    const started = this.status === 'in-progress' || this.status === 'completed';
-    return this.canManage && this.maxRefund > 0 && (started || (this.isHouseOwner && this.status === 'cancelled'));
+    return this.canManage && this.maxRefund > 0 && ['in-progress', 'completed', 'cancelled'].includes(this.status);
   }
 
   get refundExplanationKey(): string {
@@ -366,6 +382,13 @@ export class ReservationDetailComponent implements OnInit {
     this.applyStayChange(
       this.reservationService.endEarly(this.reservation!.id, this.earlyEndDate, Number(this.refundInput || 0) || undefined),
       this.t('stay_ended_early'),
+    );
+  }
+
+  submitCancelStay(): void {
+    this.applyStayChange(
+      this.reservationService.updateStatus(this.reservation!.id, 'cancelled', Number(this.paidInput || 0)),
+      this.t('reservation_status_changed').replace('{{status}}', this.t(statusKey('cancelled'))),
     );
   }
 
@@ -432,6 +455,11 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   changeStatus(status: ReservationStatus): void {
+    if (status === 'cancelled' && this.status === 'in-progress') {
+      this.paidInput = null;
+      this.panel = 'cancel';
+      return;
+    }
     if (status === 'cancelled' && !confirm(this.t('reservation_cancel_confirm'))) return;
     this.updating = true;
     this.reservationService.updateStatus(this.reservation!.id, status).subscribe({

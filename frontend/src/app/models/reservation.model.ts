@@ -19,6 +19,8 @@ export interface Reservation {
   negotiatedPricePerDay?: number | null;
   /** Planned end, kept when the stay stopped early. */
   originalEndDate?: string | null;
+  /** What the client had paid beyond the advance when a stay in progress was cancelled. */
+  paidAfterAdvance?: number | null;
   /** Money the owner gave back to the client; hidden from other samsars of the house. */
   refundAmount?: number | null;
   /** Money the booking samsar gave back to the client; hidden from other samsars of the house. */
@@ -34,6 +36,19 @@ export interface Reservation {
   updatedAt: string;
   property?: Property;
   samsar?: User;
+}
+
+/** What a booking brings to the user asking, computed by the server. */
+export interface ReservationEarning {
+  reservationId: number;
+  earned: number;
+  upcoming: number;
+}
+
+export interface ReservationPage {
+  content: Reservation[];
+  totalElements: number;
+  counts: Record<string, number>;
 }
 
 export type ReservationStatus = 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
@@ -75,30 +90,6 @@ export function isRevenueStatus(status?: string | null): boolean {
 /** The owner's part of a booking: the total minus what the samsar earns. */
 export function ownerShareOf(reservation: Reservation): number {
   return (reservation.totalAmount || 0) - (reservation.samsarGain || 0);
-}
-
-/**
- * Money the owner really has from a booking: the advance as soon as it is paid (it stays if the booking is
- * cancelled, unless he chooses to give it back), his whole share once the stay has started, minus what he gave back.
- */
-export function ownerEarned(reservation: Reservation): number {
-  const share = ownerShareOf(reservation);
-  switch (normalizeReservationStatus(reservation.status)) {
-    case 'in-progress':
-    case 'completed':
-      return share - (reservation.refundAmount || 0);
-    case 'confirmed':
-      return Math.min(reservation.advanceAmount || 0, share);
-    case 'cancelled':
-      return Math.max(0, Math.min(reservation.advanceAmount || 0, share) - (reservation.refundAmount || 0));
-    default:
-      return 0;
-  }
-}
-
-/** A samsar earns nothing on the advance: his gain comes once the stay has started, minus what he gave back. */
-export function samsarEarned(reservation: Reservation): number {
-  return isStayStarted(reservation) ? (reservation.samsarGain || 0) - (reservation.samsarRefundAmount || 0) : 0;
 }
 
 export function isStayStarted(reservation: Reservation): boolean {

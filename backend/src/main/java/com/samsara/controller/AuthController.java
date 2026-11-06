@@ -1,5 +1,9 @@
 package com.samsara.controller;
 
+import com.samsara.dto.ForgotPasswordDto;
+import com.samsara.dto.ResetPasswordDto;
+import com.samsara.service.PasswordResetService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import com.samsara.dto.AuthResponse;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterDto dto) {
@@ -28,8 +33,20 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginDto dto) {
-        return ResponseEntity.ok(authService.login(dto));
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
+        return ResponseEntity.ok(authService.login(dto, request.getRemoteAddr()));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordDto dto) {
+        passwordResetService.requestReset(dto.getEmail(), dto.getLanguage());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordDto dto) {
+        passwordResetService.reset(dto.getToken(), dto.getNewPassword());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/profile")

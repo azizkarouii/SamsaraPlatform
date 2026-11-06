@@ -1,4 +1,5 @@
 export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:3001/api'
+  production: true,
+  // Same domain as the site in production; change it if the API is hosted elsewhere
+  apiUrl: '/api'
 };
