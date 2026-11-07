@@ -1,5 +1,9 @@
 package com.samsara.controller;
 
+import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import com.samsara.service.EmailVerificationService;
+import com.samsara.config.AuthCookies;
 import com.samsara.dto.ForgotPasswordDto;
 import com.samsara.dto.ResetPasswordDto;
 import com.samsara.service.PasswordResetService;
@@ -26,15 +30,51 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final EmailVerificationService emailVerificationService;
+    private final AuthCookies authCookies;
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterDto dto) {
-        return ResponseEntity.ok(authService.register(dto));
+        return withSession(authService.register(dto));
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
-        return ResponseEntity.ok(authService.login(dto, request.getRemoteAddr()));
+        return withSession(authService.login(dto, request.getRemoteAddr()));
+    }
+
+    /** Signs this browser out (the cookie is erased). */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout() {
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, authCookies.cleared().toString()).build();
+    }
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutEverywhere(Authentication authentication) {
+        authService.signOutEverywhere((Long) authentication.getPrincipal());
+        return logout();
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@RequestBody Map<String, String> body) {
+        emailVerificationService.verify(body.get("token"));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Void> resendVerification(@RequestBody Map<String, String> body) {
+        if (body.get("email") != null) {
+            emailVerificationService.resend(body.get("email"), body.get("language"));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    /** A response carrying a session also sets the HttpOnly cookie the browser will send with each call. */
+    private ResponseEntity<AuthResponse> withSession(AuthResponse response) {
+        if (response.getAccessToken() == null) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, authCookies.session(response.getAccessToken()).toString()).body(response);
     }
 
     @PostMapping("/forgot-password")
@@ -74,10 +114,9 @@ public class AuthController {
     }
 
     @PutMapping("/password")
-    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordDto dto,
-                                               Authentication authentication) {
+    public ResponseEntity<AuthResponse> changePassword(@Valid @RequestBody ChangePasswordDto dto,
+                                                       Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        authService.changePassword(userId, dto);
-        return ResponseEntity.noContent().build();
+        return withSession(authService.changePassword(userId, dto));
     }
 }

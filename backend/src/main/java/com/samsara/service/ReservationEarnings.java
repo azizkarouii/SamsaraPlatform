@@ -2,49 +2,49 @@ package com.samsara.service;
 
 import com.samsara.entity.Reservation;
 
+import java.math.BigDecimal;
+import java.util.Set;
+
 /**
- * Who has what from a booking.
+ * Who has what from a booking, from the money actually received (its recorded payments).
  * The advance goes to the owner and is kept on cancellation, unless he chooses to give it back.
- * The samsar gain is taken from what the client pays beyond the advance, so it only comes once the stay has
- * started; if a stay in progress is cancelled, it is limited to what had actually been paid beyond the advance.
+ * The samsar gain is taken from what the client pays beyond the advance, as it is received.
  * Each one gives money back from his own part.
  */
-final class ReservationEarnings {
+public final class ReservationEarnings {
+
+    private static final Set<String> EXPECTING_MONEY = Set.of(
+            ReservationService.CONFIRMED, ReservationService.IN_PROGRESS, ReservationService.COMPLETED);
 
     private ReservationEarnings() {
     }
 
-    static double owner(Reservation r) {
-        double share = amount(r.getTotalAmount()) - amount(r.getSamsarGain());
-        return switch (r.getStatus()) {
-            case ReservationService.IN_PROGRESS, ReservationService.COMPLETED -> share - amount(r.getRefundAmount());
-            case ReservationService.CONFIRMED -> Math.min(amount(r.getAdvanceAmount()), share);
-            case ReservationService.CANCELLED -> Math.max(0.0, ownerBeforeRefundOnCancellation(r) - amount(r.getRefundAmount()));
-            default -> 0.0;
-        };
+    /** Samsar part of what was received, before he gives anything back. */
+    public static BigDecimal samsarReceived(Reservation r, BigDecimal paid) {
+        BigDecimal paidAfterAdvance = Money.minus(paid, r.getAdvanceAmount());
+        return Money.min(r.getSamsarGain(), paidAfterAdvance);
     }
 
-    static double samsar(Reservation r) {
-        return switch (r.getStatus()) {
-            case ReservationService.IN_PROGRESS, ReservationService.COMPLETED -> amount(r.getSamsarGain()) - amount(r.getSamsarRefundAmount());
-            case ReservationService.CANCELLED -> Math.max(0.0, samsarBeforeRefundOnCancellation(r) - amount(r.getSamsarRefundAmount()));
-            default -> 0.0;
-        };
+    /** Owner part of what was received, before he gives anything back. */
+    public static BigDecimal ownerReceived(Reservation r, BigDecimal paid) {
+        return Money.minus(paid, samsarReceived(r, paid));
     }
 
-    static double samsarUpcoming(Reservation r) {
-        return ReservationService.CONFIRMED.equals(r.getStatus()) ? amount(r.getSamsarGain()) : 0.0;
+    public static BigDecimal owner(Reservation r, BigDecimal paid) {
+        return Money.minus(ownerReceived(r, paid), r.getRefundAmount());
     }
 
-    static double ownerBeforeRefundOnCancellation(Reservation r) {
-        return amount(r.getAdvanceAmount()) + amount(r.getPaidAfterAdvance()) - samsarBeforeRefundOnCancellation(r);
+    public static BigDecimal samsar(Reservation r, BigDecimal paid) {
+        return Money.minus(samsarReceived(r, paid), r.getSamsarRefundAmount());
     }
 
-    static double samsarBeforeRefundOnCancellation(Reservation r) {
-        return Math.min(amount(r.getSamsarGain()), amount(r.getPaidAfterAdvance()));
+    /** Samsar gain still to come with the next payments of an ongoing booking. */
+    public static BigDecimal samsarUpcoming(Reservation r, BigDecimal paid) {
+        return EXPECTING_MONEY.contains(r.getStatus()) ? Money.minus(r.getSamsarGain(), samsarReceived(r, paid)) : Money.ZERO;
     }
 
-    private static double amount(Double value) {
-        return value != null ? value : 0.0;
+    /** What the client still owes on an ongoing booking. */
+    public static BigDecimal toCollect(Reservation r, BigDecimal paid) {
+        return EXPECTING_MONEY.contains(r.getStatus()) ? Money.minus(r.getTotalAmount(), paid) : Money.ZERO;
     }
 }

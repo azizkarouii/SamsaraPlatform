@@ -1,5 +1,6 @@
 package com.samsara.entity;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -34,14 +35,14 @@ public class Property {
     @Column(name = "appartient_residence")
     private Boolean appartientResidence;
 
-    @Column(name = "price_per_day")
-    private Double pricePerDay;
+    @Column(name = "price_per_day", precision = 12, scale = 2)
+    private BigDecimal pricePerDay;
 
-    @Column(name = "price_per_week")
-    private Double pricePerWeek;
+    @Column(name = "price_per_week", precision = 12, scale = 2)
+    private BigDecimal pricePerWeek;
 
-    @Column(name = "price_per_month")
-    private Double pricePerMonth;
+    @Column(name = "price_per_month", precision = 12, scale = 2)
+    private BigDecimal pricePerMonth;
 
     @Column(name = "distance_beach")
     private Double distanceBeach;

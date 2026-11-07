@@ -69,6 +69,12 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
             </button>
           </form>
         </mat-card-content>
+        <div class="unverified" *ngIf="unverifiedEmail" role="alert">
+          <p>{{ t('email_not_confirmed') }}</p>
+          <button mat-stroked-button type="button" (click)="resendVerification()" [disabled]="resent">
+            {{ resent ? t('link_sent_again') : t('resend_link') }}
+          </button>
+        </div>
         <a class="forgot-link" routerLink="/forgot-password">{{ t('forgot_password_link') }}</a>
         <mat-card-actions align="end" class="card-actions">
           <span class="register-text">{{ t('no_account') }}</span>
@@ -153,6 +159,8 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
       font-weight: 600;
       box-shadow: 0 10px 22px rgba(15, 118, 110, 0.28);
     }
+    .unverified { margin: 0 1rem 0.75rem; padding: 0.75rem; border-radius: 10px; background: var(--status-pending-bg); }
+    .unverified p { margin: 0 0 0.5rem; font-size: 0.85rem; }
     .forgot-link { display: block; margin: -0.5rem 1rem 0.25rem; font-size: 0.85rem; color: var(--primary); text-decoration: none; }
     .forgot-link:hover { text-decoration: underline; }
     .card-actions {
@@ -200,6 +208,16 @@ export class LoginComponent {
     return t(key, this.language);
   }
 
+  unverifiedEmail = '';
+  resent = false;
+
+  resendVerification(): void {
+    this.authService.resendVerification(this.unverifiedEmail, this.language).subscribe({
+      next: () => this.resent = true,
+      error: () => this.resent = true,
+    });
+  }
+
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
@@ -213,6 +231,10 @@ export class LoginComponent {
       },
       error: (err) => {
         this.loading = false;
+        if (err.status === 403) {
+          this.unverifiedEmail = email!.trim();
+          return;
+        }
         const msg = err.error?.message || this.t('login_failed');
         this.snackBar.open(msg, this.t('close'), { duration: 5000 });
       },

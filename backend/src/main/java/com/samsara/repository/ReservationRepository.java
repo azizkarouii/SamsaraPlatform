@@ -1,5 +1,6 @@
 package com.samsara.repository;
 
+import java.time.LocalDate;
 import com.samsara.entity.Reservation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -59,22 +60,22 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
            "AND r.startDate <= :endDate AND r.endDate >= :startDate " +
            "AND r.id <> :excludeId")
     List<Reservation> findOverlapping(@Param("propertyId") Long propertyId,
-                                      @Param("startDate") String startDate,
-                                      @Param("endDate") String endDate,
+                                      @Param("startDate") LocalDate startDate,
+                                      @Param("endDate") LocalDate endDate,
                                       @Param("excludeId") Long excludeId);
 
     /** Pending requests overlapping a period: they are overridden when a booking of that period is confirmed. */
     @Query("SELECT r FROM Reservation r WHERE r.propertyId = :propertyId AND r.status = 'pending' " +
            "AND r.startDate <= :endDate AND r.endDate >= :startDate AND r.id <> :excludeId")
     List<Reservation> findPendingOverlapping(@Param("propertyId") Long propertyId,
-                                             @Param("startDate") String startDate,
-                                             @Param("endDate") String endDate,
+                                             @Param("startDate") LocalDate startDate,
+                                             @Param("endDate") LocalDate endDate,
                                              @Param("excludeId") Long excludeId);
 
     /** Calendar data: pending requests are returned too so they show in orange, but they do not block. */
     @Query("SELECT r FROM Reservation r WHERE r.propertyId = :propertyId " +
            "AND r.status IN ('pending', 'confirmed', 'in-progress') AND r.endDate >= :fromDate ORDER BY r.startDate")
-    List<Reservation> findOccupying(@Param("propertyId") Long propertyId, @Param("fromDate") String fromDate);
+    List<Reservation> findOccupying(@Param("propertyId") Long propertyId, @Param("fromDate") LocalDate fromDate);
 
     @Query("SELECT COUNT(r) > 0 FROM Reservation r WHERE r.propertyId = :propertyId AND r.status IN ('pending', 'confirmed', 'in-progress')")
     boolean existsActiveByPropertyId(@Param("propertyId") Long propertyId);
@@ -83,11 +84,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Long> findIdsByPropertyId(@Param("propertyId") Long propertyId);
 
     @Query("SELECT r FROM Reservation r WHERE r.status = 'confirmed' AND r.startDate <= :today")
-    List<Reservation> findConfirmedAndDateReached(@Param("today") String today);
+    List<Reservation> findConfirmedAndDateReached(@Param("today") LocalDate today);
 
     @Query("SELECT r FROM Reservation r WHERE r.status = 'pending' AND r.endDate < :today")
-    List<Reservation> findPendingAndEnded(@Param("today") String today);
+    List<Reservation> findPendingAndEnded(@Param("today") LocalDate today);
 
     @Query("SELECT r FROM Reservation r WHERE r.status = 'in-progress' AND r.endDate < :today")
-    List<Reservation> findInProgressAndEnded(@Param("today") String today);
+    List<Reservation> findInProgressAndEnded(@Param("today") LocalDate today);
 }

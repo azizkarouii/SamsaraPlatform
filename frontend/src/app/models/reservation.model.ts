@@ -19,8 +19,6 @@ export interface Reservation {
   negotiatedPricePerDay?: number | null;
   /** Planned end, kept when the stay stopped early. */
   originalEndDate?: string | null;
-  /** What the client had paid beyond the advance when a stay in progress was cancelled. */
-  paidAfterAdvance?: number | null;
   /** Money the owner gave back to the client; hidden from other samsars of the house. */
   refundAmount?: number | null;
   /** Money the booking samsar gave back to the client; hidden from other samsars of the house. */
@@ -43,6 +41,63 @@ export interface ReservationEarning {
   reservationId: number;
   earned: number;
   upcoming: number;
+}
+
+export interface ReservationPayment {
+  id: number;
+  reservationId: number;
+  amount: number;
+  paidOn: string;
+  /** "advance" follows the advance of the booking; "payment" is money received afterwards. */
+  kind: 'advance' | 'payment';
+  note?: string | null;
+  recordedBy?: number | null;
+  createdAt: string;
+}
+
+/** One thing done on a booking, with who did it (actorName is null when the application acted on its own). */
+export interface ReservationEvent {
+  id: number;
+  action: string;
+  actorName?: string | null;
+  details?: string | null;
+  createdAt: string;
+}
+
+/** Figures of the dashboard and the profile, computed by the server from the payments received. */
+export interface DashboardSummary {
+  earned: number;
+  upcoming: number;
+  toCollect: number;
+  reservationCount: number;
+  counts: Record<string, number>;
+  months: { key: string; amount: number; count: number }[];
+  byProperty: { title: string; amount: number }[];
+  arrivals: Reservation[];
+  rentals: RentalEarning[];
+  propertyCount: number;
+}
+
+export interface RentalEarning {
+  id: number;
+  propertyTitle: string;
+  clientName: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  total: number;
+  paid: number;
+  earned: number;
+  upcoming: number;
+}
+
+/** What the samsar has received of his gain: the part of the payments beyond the advance, up to his gain. */
+export function samsarReceived(reservation: Reservation, paid: number): number {
+  return Math.min(reservation.samsarGain || 0, Math.max(0, paid - (reservation.advanceAmount || 0)));
+}
+
+export function ownerReceived(reservation: Reservation, paid: number): number {
+  return Math.max(0, paid - samsarReceived(reservation, paid));
 }
 
 export interface ReservationPage {

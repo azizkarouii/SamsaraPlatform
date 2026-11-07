@@ -1,5 +1,9 @@
 package com.samsara.controller;
 
+import java.math.BigDecimal;
+import com.samsara.entity.ReservationPayment;
+import com.samsara.entity.ReservationEvent;
+import com.samsara.dto.ReservationPaymentDto;
 import com.samsara.dto.ReservationDto;
 import com.samsara.dto.ReservationPageDto;
 import com.samsara.dto.ReservationEarning;
@@ -88,8 +92,7 @@ public class ReservationController {
                                                     @RequestBody Map<String, Object> body,
                                                     Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        Double paidAfterAdvance = body.get("paidAfterAdvance") instanceof Number paid ? paid.doubleValue() : null;
-        return ResponseEntity.ok(reservationService.updateStatus(id, String.valueOf(body.get("status")), paidAfterAdvance, userId));
+        return ResponseEntity.ok(reservationService.updateStatus(id, String.valueOf(body.get("status")), userId));
     }
 
     @PostMapping("/{id}/early-end")
@@ -102,10 +105,32 @@ public class ReservationController {
 
     @PutMapping("/{id}/refund")
     public ResponseEntity<Reservation> setRefund(@PathVariable Long id,
-                                                 @RequestBody Map<String, Double> body,
+                                                 @RequestBody Map<String, BigDecimal> body,
                                                  Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(reservationService.setRefund(id, body.get("amount"), userId));
+    }
+
+    @GetMapping("/{id}/payments")
+    public ResponseEntity<List<ReservationPayment>> findPayments(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(reservationService.findPayments(id, (Long) authentication.getPrincipal()));
+    }
+
+    @PostMapping("/{id}/payments")
+    public ResponseEntity<ReservationPayment> addPayment(@PathVariable Long id, @RequestBody ReservationPaymentDto dto,
+                                                         Authentication authentication) {
+        return ResponseEntity.ok(reservationService.addPayment(id, dto, (Long) authentication.getPrincipal()));
+    }
+
+    @DeleteMapping("/{id}/payments/{paymentId}")
+    public ResponseEntity<Void> removePayment(@PathVariable Long id, @PathVariable Long paymentId, Authentication authentication) {
+        reservationService.removePayment(id, paymentId, (Long) authentication.getPrincipal());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<ReservationEvent>> findHistory(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(reservationService.findEvents(id, (Long) authentication.getPrincipal()));
     }
 
     @DeleteMapping("/{id}")

@@ -6,24 +6,20 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
-import { PropertyService } from '../../services/property.service';
 import { ReservationService } from '../../services/reservation.service';
-import { PropertySamsarService } from '../../services/property-samsar.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
-import { Property } from '../../models/property.model';
 import { User } from '../../models/auth.model';
 import {
+  DashboardSummary,
+  RentalEarning,
   Reservation,
   RESERVATION_STATUSES,
-  isStayStarted,
   normalizeReservationStatus,
-  ReservationEarning,
   statusKey,
 } from '../../models/reservation.model';
-import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
+import { getShortMonthLabel } from '../../shared/calendar-utils';
 import { t } from '../../shared/translations';
 
 interface MonthBucket { key: string; label: string; revenue: number; count: number; }
@@ -43,13 +39,13 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
         <div class="filters">
           <label>
             <span>{{ t('from') }}</span>
-            <input type="date" [(ngModel)]="dateFrom" />
+            <input type="date" [(ngModel)]="dateFrom" (change)="loadData()" />
           </label>
           <label>
             <span>{{ t('to') }}</span>
-            <input type="date" [(ngModel)]="dateTo" />
+            <input type="date" [(ngModel)]="dateTo" (change)="loadData()" />
           </label>
-          <button mat-stroked-button (click)="dateFrom = ''; dateTo = ''" [disabled]="!dateFrom && !dateTo">{{ t('clear_filter') }}</button>
+          <button mat-stroked-button (click)="dateFrom = ''; dateTo = ''; loadData()" [disabled]="!dateFrom && !dateTo">{{ t('clear_filter') }}</button>
           <button mat-icon-button (click)="loadData()" [attr.aria-label]="t('refresh')"><mat-icon>refresh</mat-icon></button>
         </div>
       </div>
@@ -64,13 +60,14 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
               <div class="metric-label">{{ isSamsar ? t('my_gains') : t('total_revenue') }}</div>
               <div class="metric-value">{{ totalRevenue | number:'1.0-0' }} <small>TND</small></div>
               <div class="metric-sub" *ngIf="isSamsar && upcomingGains">{{ t('upcoming_gains') }} : {{ upcomingGains | number:'1.0-2' }} TND</div>
+              <div class="metric-sub" *ngIf="!isSamsar && toCollect">{{ t('to_collect') }} : {{ toCollect | number:'1.0-0' }} TND</div>
             </div>
           </div>
           <a class="metric clickable" routerLink="/reservations">
             <mat-icon class="metric-icon bookings">event_available</mat-icon>
             <div>
               <div class="metric-label">{{ t('reservations') }}</div>
-              <div class="metric-value">{{ filtered.length }}</div>
+              <div class="metric-value">{{ reservationCount }}</div>
             </div>
           </a>
           <a class="metric clickable" routerLink="/reservations" [queryParams]="{ tab: 'pending' }">
@@ -84,7 +81,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             <mat-icon class="metric-icon houses">home_work</mat-icon>
             <div>
               <div class="metric-label">{{ user?.role === 'PROPRIETAIRE' ? t('total_properties') : t('shared_houses') }}</div>
-              <div class="metric-value">{{ properties.length }}</div>
+              <div class="metric-value">{{ summary?.propertyCount ?? 0 }}</div>
             </div>
           </a>
         </div>
@@ -106,10 +103,10 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
           <mat-card>
             <mat-card-header><mat-card-title>{{ t('status_breakdown') }}</mat-card-title></mat-card-header>
             <mat-card-content>
-              <div *ngIf="filtered.length; else noData">
+              <div *ngIf="reservationCount; else noData">
                 <div class="stacked">
                   <div *ngFor="let s of statuses" class="stacked-part" [ngClass]="'bg-' + s"
-                       [style.width.%]="(countByStatus(s) / filtered.length) * 100"></div>
+                       [style.width.%]="(countByStatus(s) / reservationCount) * 100"></div>
                 </div>
                 <ul class="legend">
                   <li *ngFor="let s of statuses">
@@ -165,13 +162,13 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             <div *ngIf="gainsByRental.length; else noData" class="rentals">
               <a class="rental" *ngFor="let r of gainsByRental" [routerLink]="['/reservations', r.id]">
                 <div class="rental-body">
-                  <strong>{{ r.property?.title || '#' + r.propertyId }}</strong>
+                  <strong>{{ r.propertyTitle }}</strong>
                   <span>{{ r.clientName }} · {{ r.startDate | date:'dd/MM/yyyy' }} → {{ r.endDate | date:'dd/MM/yyyy' }}</span>
                 </div>
                 <span class="status-chip" [ngClass]="'status-' + normalize(r.status)">{{ t(statusKey(r.status)) }}</span>
                 <div class="rental-money">
-                  <strong>{{ earnedOn(r) | number:'1.0-2' }} TND</strong>
-                  <span>{{ t('total_amount_label') }} : {{ r.totalAmount | number:'1.0-0' }} TND</span>
+                  <strong>{{ r.earned | number:'1.0-2' }} TND</strong>
+                  <span>{{ t('paid') }} {{ r.paid | number:'1.0-0' }} / {{ r.total | number:'1.0-0' }} TND</span>
                 </div>
               </a>
             </div>
@@ -265,21 +262,18 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
 })
 export class DashboardComponent implements OnInit {
   user: User | null = null;
-  properties: Property[] = [];
-  reservations: Reservation[] = [];
-  private earnings = new Map<number, ReservationEarning>();
+  summary?: DashboardSummary;
   loading = false;
   dateFrom = '';
   dateTo = '';
   readonly statuses = RESERVATION_STATUSES;
   readonly statusKey = statusKey;
   readonly normalize = normalizeReservationStatus;
+  private request?: Subscription;
 
   constructor(
     private authService: AuthService,
-    private propertyService: PropertyService,
     private reservationService: ReservationService,
-    private propertySamsarService: PropertySamsarService,
     private uiPrefs: UiPreferencesService,
   ) {}
 
@@ -296,65 +290,49 @@ export class DashboardComponent implements OnInit {
     return this.user?.role === 'SAMSAR';
   }
 
-  /** Money this user really has from a booking so far: the server decides, this only adds it up. */
-  earnedOn(reservation: Reservation): number {
-    return this.earnings.get(reservation.id)?.earned ?? 0;
-  }
-
-  /** Gains of confirmed bookings: they come once the stay has started. */
-  get upcomingGains(): number {
-    return this.filtered.reduce((sum, r) => sum + (this.earnings.get(r.id)?.upcoming ?? 0), 0);
-  }
-
+  /** The server computes every figure from the payments received; a newer request replaces one in flight. */
   loadData(): void {
-    this.loading = true;
-    const isSamsar = this.isSamsar;
-    const properties$ = isSamsar
-      ? this.propertySamsarService.findMine().pipe(map(rels => rels.map(r => r.property).filter((p): p is Property => !!p)))
-      : this.propertyService.findMine();
-    const reservations$ = isSamsar ? this.reservationService.findMine() : this.reservationService.findByOwner();
-
-    forkJoin({
-      properties: properties$.pipe(catchError(() => of([] as Property[]))),
-      reservations: reservations$.pipe(catchError(() => of([] as Reservation[]))),
-      earnings: this.reservationService.findEarnings().pipe(catchError(() => of([] as ReservationEarning[]))),
-    }).subscribe(({ properties, reservations, earnings }) => {
-      this.properties = properties;
-      this.earnings = new Map(earnings.map(item => [item.reservationId, item]));
-      // A samsar also reads the other bookings of his houses, but his figures only count his own
-      this.reservations = isSamsar ? reservations.filter(r => r.samsarId === this.user?.id) : reservations;
-      this.loading = false;
+    this.loading = !this.summary;
+    this.request?.unsubscribe();
+    this.request = this.reservationService.summary(this.dateFrom || undefined, this.dateTo || undefined).subscribe({
+      next: (summary) => {
+        this.summary = summary;
+        this.loading = false;
+      },
+      error: () => this.loading = false,
     });
   }
 
-  /** Reservations overlapping the selected period (or all of them without filter). */
-  get filtered(): Reservation[] {
-    return this.reservations.filter(r =>
-      (!this.dateFrom || r.endDate >= this.dateFrom) && (!this.dateTo || r.startDate <= this.dateTo));
+  get totalRevenue(): number {
+    return this.summary?.earned ?? 0;
+  }
+
+  get upcomingGains(): number {
+    return this.summary?.upcoming ?? 0;
+  }
+
+  get toCollect(): number {
+    return this.summary?.toCollect ?? 0;
+  }
+
+  get reservationCount(): number {
+    return this.summary?.reservationCount ?? 0;
   }
 
   countByStatus(status: string): number {
-    return this.filtered.filter(r => normalizeReservationStatus(r.status) === status).length;
-  }
-
-  get totalRevenue(): number {
-    return this.filtered.reduce((sum, r) => sum + this.earnedOn(r), 0);
+    return this.summary?.counts[status] ?? 0;
   }
 
   get months(): MonthBucket[] {
-    const buckets = new Map<string, MonthBucket>();
-    for (const r of this.filtered) {
-      const key = r.startDate.slice(0, 7);
-      if (!buckets.has(key)) {
-        const [year, month] = key.split('-').map(Number);
-        const label = `${getShortMonthLabel(month - 1, this.uiPrefs.getLanguage())} ${String(year).slice(2)}`;
-        buckets.set(key, { key, label, revenue: 0, count: 0 });
-      }
-      const bucket = buckets.get(key)!;
-      bucket.count++;
-      bucket.revenue += this.earnedOn(r);
-    }
-    return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key)).slice(-12);
+    return (this.summary?.months ?? []).map(month => {
+      const [year, monthNumber] = month.key.split('-').map(Number);
+      return {
+        key: month.key,
+        label: `${getShortMonthLabel(monthNumber - 1, this.uiPrefs.getLanguage())} ${String(year).slice(2)}`,
+        revenue: month.amount,
+        count: month.count,
+      };
+    });
   }
 
   get maxMonthRevenue(): number {
@@ -362,34 +340,19 @@ export class DashboardComponent implements OnInit {
   }
 
   get revenueByProperty(): { title: string; amount: number }[] {
-    const totals = new Map<string, number>();
-    for (const r of this.filtered.filter(item => this.earnedOn(item) > 0)) {
-      const key = r.property?.title || '#' + r.propertyId;
-      totals.set(key, (totals.get(key) || 0) + this.earnedOn(r));
-    }
-    return Array.from(totals.entries())
-      .map(([title, amount]) => ({ title, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 8);
+    return this.summary?.byProperty ?? [];
   }
 
   get maxPropertyRevenue(): number {
     return Math.max(...this.revenueByProperty.map(i => i.amount), 1);
   }
 
-  /** The samsar's own rentals that count as earned, most recent stay first. */
-  get gainsByRental(): Reservation[] {
-    return this.filtered
-      .filter(isStayStarted)
-      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  get gainsByRental(): RentalEarning[] {
+    return this.summary?.rentals ?? [];
   }
 
   get upcoming(): Reservation[] {
-    const today = todayIso();
-    return this.reservations
-      .filter(r => r.endDate >= today && ['pending', 'confirmed', 'in-progress'].includes(normalizeReservationStatus(r.status)))
-      .sort((a, b) => a.startDate.localeCompare(b.startDate))
-      .slice(0, 5);
+    return this.summary?.arrivals ?? [];
   }
 
   monthShort(date: string): string {

@@ -102,7 +102,7 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 - **Prix par période** : périodes annuelles au format jj/mm (y compris à cheval sur le nouvel an), calcul jour par jour, table `property_seasonal_prices`.
 - **Prix négocié** : ce que paie le client ; le samsar garde son tarif, pris sur la part du propriétaire.
 - **Acompte** : compté pour le propriétaire dès la confirmation, conservé en cas d'annulation sauf décision de le rendre (tout ou partie).
-- **Gain du samsar** : pris sur ce qui est payé après l'acompte, donc acquis au début du séjour. En cas d'annulation d'un séjour en cours, il est limité au montant payé après l'acompte (`paid_after_advance`).
+- **Gain du samsar** : pris sur ce qui est payé après l'acompte, donc acquis au début du séjour. Depuis V3, il se calcule sur les paiements enregistrés (`reservation_payments`), voir plus bas.
 - **Fin anticipée** : les jours suivants redeviennent disponibles, le prix et le gain ne changent pas.
 - **Argent rendu** : volontaire, chacun sur sa part (`refund_amount`, `samsar_refund_amount`).
 - **Calculs côté serveur** : `GET /reservations/earnings`, règles réunies dans `ReservationEarnings`.
@@ -111,14 +111,28 @@ Le workspace courant contient une application web Angular + Spring Boot. Les poi
 ### Sécurité et fiabilité (novembre 2026)
 
 - **Secrets** : mot de passe de base et clé JWT sortis du dépôt (`backend/.env`, variables d'environnement), clé JWT renouvelée.
-- **Double réservation** : verrou sur la maison pendant les opérations touchant son calendrier (`PropertyRepository.lockById`). Une contrainte d'exclusion PostgreSQL n'était pas applicable en l'état, les dates étant stockées en texte.
+- **Double réservation** : verrou sur la maison pendant les opérations touchant son calendrier (`PropertyRepository.lockById`). Depuis V3, une contrainte d'exclusion PostgreSQL l'interdit aussi en base (voir plus bas).
 - **Migrations Flyway** à la place de `ddl-auto: update`, avec validation du schéma au démarrage.
-- **Mot de passe oublié** : lien à usage unique valable 1 heure, seul son hash est stocké (`password_reset_tokens`), réponse identique que le compte existe ou non.
+- **Mot de passe oublié** : lien à usage unique valable 1 heure, seul son hash est stocké (`user_tokens` depuis V3), réponse identique que le compte existe ou non.
 - **Limite de tentatives** : 5 échecs de connexion par email et adresse sur 15 minutes.
 - **Langues** : erreurs de l'API traduites selon `Accept-Language` (`ApiMessages`), notifications stockées par clé de traduction.
 - **Performances** : pagination serveur des réservations et des notifications, chargement différé de chaque page.
 - **Production** : CORS et adresses configurables, stockage compatible S3 (`S3ImageStorage`).
 - **Tests** : suite backend via l'API (`ReservationFlowTest`), traductions (`ApiMessagesTest`), stockage (`S3ImageStorageTest`), calculs de prix côté front.
+
+### Paiements, sessions et rapports (novembre 2026, migration V3)
+
+- **Types réels** : dates en `date`, montants en `numeric(12,2)` (`BigDecimal` côté Java, aide `Money`). Une réservation dont les dates étaient inversées a été corrigée pendant la migration, et le type de maison invalide « sss » vidé.
+- **Suivi des paiements** : table `reservation_payments` (acompte puis paiements, date, note, auteur). Un paiement ne peut pas dépasser le total ni être daté dans le futur ; l'acompte se modifie avec la réservation. Les anciennes données ont été reprises (acompte, solde des séjours commencés). `paid_after_advance` et l'ancienne table `revenue_history` sont supprimées.
+- **Calcul des parts** (`ReservationEarnings`) : le samsar reçoit `min(gain, payé − acompte)`, le propriétaire le reste ; l'argent rendu par chacun est limité à ce qu'il a reçu. Le tableau de bord distingue reçu, à venir et reste à encaisser.
+- **Double réservation en base** : `reservations_no_overlap`, contrainte `EXCLUDE USING gist` (extension `btree_gist`) sur la maison et la période, pour les réservations confirmées ou en cours. Un conflit renvoie une erreur 409 traduite.
+- **Historique** : table `reservation_events` (création, modification, changement de statut, paiements, argent rendu, fin anticipée, suppression), avec l'auteur et le détail, affiché sur la fiche réservation.
+- **Sessions** : le jeton est dans un cookie `HttpOnly`, `SameSite=Lax`, `Secure` (`COOKIE_SECURE`), plus dans `localStorage`. Les requêtes qui modifient des données doivent porter l'en-tête `X-Requested-With` (protection CSRF). Le jeton porte une version (`users.token_version`) : changer ou réinitialiser son mot de passe, ou « se déconnecter partout », ferme les autres sessions.
+- **Confirmation de l'email** : à l'inscription, un lien à usage unique (hash dans `user_tokens`, colonne `purpose`) ; connexion refusée tant que l'adresse n'est pas confirmée, avec renvoi du lien. Les comptes existants ont été marqués confirmés. Désactivable par `EMAIL_VERIFICATION=false`.
+- **Rapports** : page Rapports par période ; Excel généré par le serveur (`GET /dashboard/reports/earnings.xlsx`), PDF par l'impression du navigateur (mise en page dédiée, arabe compris).
+- **Performances** : tableau de bord calculé par le serveur (`GET /dashboard/summary`) au lieu de charger toutes les réservations ; « Mes maisons » paginé et cherché côté serveur (`GET /properties/mine/page`).
+- **Notifications** : les anciennes notifications en français sont traduites au démarrage quand leur texte est reconnu.
+- **Intégration continue** : `.github/workflows/ci.yml`, tests backend sur H2 puis PostgreSQL avec Flyway, build et tests du frontend.
 
 ## 1. Présentation Générale
 
@@ -186,6 +200,8 @@ app/src/main/java/com/example/projetmobilemysql/
 ---
 
 ## 3. Schéma de la Base de Données (8 tables)
+
+> Cette section décrit le schéma d'origine. Le schéma actuel est celui des migrations Flyway (`backend/src/main/resources/db/migration`, V1 à V3) : dates en `date`, montants en `numeric(12,2)`, `revenue_history` remplacée par `reservation_payments`, plus `reservation_events`, `user_tokens`, `property_seasonal_prices` et `property_links`.
 
 ### 3.1. `users`
 | Colonne | Type | Contraintes |
@@ -498,6 +514,8 @@ En attente ──→ Réservé ──→ En cours ──→ Terminée
 
 ## 11. Versions de la Base de Données
 
+> Historique de l'ancienne application. Aujourd'hui le schéma est géré par Flyway : V1 (schéma existant à la mise en place de Flyway), V2 (argent payé après l'acompte, notifications par clé de traduction, mot de passe oublié), V3 (types réels, paiements, historique, sessions, contrainte anti-chevauchement).
+
 **Version actuelle : 6**
 - **v1 :** Création initiale (users, properties, reservations, property_samsars)
 - **v2 :** Ajout de la table `property_availability`
@@ -528,6 +546,8 @@ Les migrations sont gérées par version avec détection d'existence pour évite
 ---
 
 ## 13. Points d'Amélioration Potentiels
+
+> Liste d'origine : la plupart de ces points (API REST, réinitialisation du mot de passe, photo de profil, graphiques, multilingue, recherche par type) sont réalisés, voir l'addendum en tête du document.
 
 1. **Architecture :** Migrer vers un pattern MVVM/Repository avec couche de données propre
 2. **Synchronisation distante :** Ajouter une API REST et un serveur distant pour synchronisation multi-appareils

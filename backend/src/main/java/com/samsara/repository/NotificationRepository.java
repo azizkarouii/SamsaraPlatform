@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
     List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
     long countByUserIdAndIsReadFalse(Long userId);
+    List<Notification> findByMessageKeyIsNull();
     Page<Notification> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     Page<Notification> findByUserIdAndIsReadFalseOrderByCreatedAtDesc(Long userId, Pageable pageable);
     Optional<Notification> findByIdAndUserId(Long id, Long userId);

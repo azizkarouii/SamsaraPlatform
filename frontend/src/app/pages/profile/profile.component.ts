@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
@@ -39,6 +40,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     MatIconModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     UserAvatarComponent,
   ],
   template: `
@@ -133,6 +135,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
       </div>
 
       <div class="logout-row">
+        <button mat-button (click)="logoutEverywhere()" [matTooltip]="t('logout_everywhere_hint')"><mat-icon>devices</mat-icon> {{ t('logout_everywhere') }}</button>
         <button mat-stroked-button color="warn" (click)="logout()"><mat-icon>logout</mat-icon> {{ t('logout') }}</button>
       </div>
     </div>
@@ -158,7 +161,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     form { display: flex; flex-direction: column; padding-top: 0.75rem; }
     form button { align-self: flex-start; }
     .inline-error { color: var(--status-cancelled); font-size: 0.82rem; margin: -0.5rem 0 0.75rem; }
-    .logout-row { display: flex; justify-content: flex-end; }
+    .logout-row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
   `]
 })
 export class ProfileComponent implements OnInit {
@@ -249,20 +252,15 @@ export class ProfileComponent implements OnInit {
   }
 
   private loadStats(): void {
-    const isSamsar = this.user?.role === 'SAMSAR';
-    const houses$: Observable<unknown[]> = isSamsar ? this.propertySamsarService.findMine() : this.propertyService.findMine();
-    forkJoin({
-      count: houses$.pipe(catchError(() => of([]))),
-      earnings: this.reservationService.findEarnings().pipe(catchError(() => of([] as ReservationEarning[]))),
-      reservations: (isSamsar ? this.reservationService.findMine() : this.reservationService.findByOwner()).pipe(catchError(() => of([] as Reservation[]))),
-    }).subscribe(({ count, reservations: all, earnings }) => {
-      // A samsar also reads the other bookings of his houses, but his figures only count his own
-      const reservations = isSamsar ? all.filter(r => r.samsarId === this.user?.id) : all;
-      this.propertyCount = count.length;
-      this.reservationCount = reservations.length;
-      this.totalRevenue = earnings.reduce((sum, item) => sum + item.earned, 0);
+    this.reservationService.summary().subscribe({
+      next: (summary) => {
+        this.propertyCount = summary.propertyCount;
+        this.reservationCount = summary.reservationCount;
+        this.totalRevenue = summary.earned;
+      },
     });
   }
+
 
   onUpdateProfile(): void {
     if (this.profileForm.invalid) return;
@@ -290,7 +288,7 @@ export class ProfileComponent implements OnInit {
       next: () => {
         this.changingPassword = false;
         this.passwordForm.reset();
-        this.snackBar.open(this.t('password_updated'), this.t('close'), { duration: 3000 });
+        this.snackBar.open(this.t('password_updated_others_signed_out'), this.t('close'), { duration: 4000 });
       },
       error: (err) => {
         this.changingPassword = false;
@@ -300,7 +298,15 @@ export class ProfileComponent implements OnInit {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.authService.logout().subscribe(() => this.router.navigate(['/login']));
   }
+
+  logoutEverywhere(): void {
+    if (!confirm(this.t('logout_everywhere_confirm'))) return;
+    this.authService.logoutEverywhere().subscribe({
+      next: () => this.router.navigate(['/login']),
+      error: (err) => this.snackBar.open(err?.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 }),
+    });
+  }
+
 }

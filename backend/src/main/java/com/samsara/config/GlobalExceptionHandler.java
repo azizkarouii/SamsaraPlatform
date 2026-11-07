@@ -54,6 +54,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleIntegrity(DataIntegrityViolationException ex) {
         // Never leak raw SQL errors to the client
+        Throwable cause = ex.getMostSpecificCause();
+        if (cause != null && cause.getMessage() != null && cause.getMessage().contains("reservations_no_overlap")) {
+            return error(HttpStatus.CONFLICT, "These dates overlap an existing reservation");
+        }
         return error(HttpStatus.CONFLICT, "Operation conflicts with existing data");
     }
 

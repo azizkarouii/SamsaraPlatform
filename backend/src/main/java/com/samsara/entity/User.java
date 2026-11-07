@@ -41,6 +41,18 @@ public class User {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    /** An account can sign in only once its email is confirmed (accounts older than this check are confirmed). */
+    @JsonIgnore
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    /** Raised on password change or "sign out everywhere": tokens of the previous version stop working. */
+    @JsonIgnore
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 0;
+
     @JsonIgnore
     @OneToMany(mappedBy = "creator")
     private List<Property> properties;
@@ -49,9 +61,6 @@ public class User {
     @OneToMany(mappedBy = "samsar")
     private List<Reservation> reservations;
 
-    @JsonIgnore
-    @OneToMany(mappedBy = "user")
-    private List<RevenueHistory> revenueHistories;
 
     @JsonIgnore
     @OneToMany(mappedBy = "user")

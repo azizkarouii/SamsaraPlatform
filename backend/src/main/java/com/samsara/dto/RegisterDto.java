@@ -25,4 +25,7 @@ public class RegisterDto {
 
     @NotNull
     private UserRole role;
+
+    /** Language of the confirmation email: fr, en or ar. */
+    private String language;
 }

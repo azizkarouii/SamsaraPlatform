@@ -11,11 +11,14 @@ export interface RegisterDto {
   password: string;
   phone?: string;
   role: UserRole;
+  /** Language of the confirmation email. */
+  language?: string;
 }
 
 export interface AuthResponse {
-  access_token: string;
-  user: User;
+  user?: User;
+  /** True after sign-up: the account must be confirmed through the emailed link before signing in. */
+  verificationRequired?: boolean;
 }
 
 export interface User {

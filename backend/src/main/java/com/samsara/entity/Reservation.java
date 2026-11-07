@@ -1,5 +1,7 @@
 package com.samsara.entity;
 
+import java.time.LocalDate;
+import java.math.BigDecimal;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -26,10 +28,10 @@ public class Reservation {
     private Long samsarId;
 
     @Column(name = "start_date", nullable = false)
-    private String startDate;
+    private LocalDate startDate;
 
     @Column(name = "end_date", nullable = false)
-    private String endDate;
+    private LocalDate endDate;
 
     @Column(name = "check_in_time")
     private String checkInTime;
@@ -46,11 +48,11 @@ public class Reservation {
     @Column(name = "client_phone")
     private String clientPhone;
 
-    @Column(name = "advance_amount")
-    private Double advanceAmount;
+    @Column(name = "advance_amount", precision = 12, scale = 2)
+    private BigDecimal advanceAmount;
 
-    @Column(name = "total_amount", nullable = false)
-    private Double totalAmount;
+    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
 
     private String notes;
 
@@ -58,32 +60,29 @@ public class Reservation {
      * Price of the stay at the house rates when it was booked (main price and prices by period, day by day),
      * before any samsar margin. Kept so a later change of the rates does not touch this booking.
      */
-    @Column(name = "base_amount")
-    private Double baseAmount;
+    @Column(name = "base_amount", precision = 12, scale = 2)
+    private BigDecimal baseAmount;
 
     /**
      * Nightly price agreed with the client below the house rates (optional). It replaces the rates for this
      * booking and carries no added margin: a samsar on commission still earns his percentage of the new total,
      * a samsar on a fixed margin earns nothing on it.
      */
-    @Column(name = "negotiated_price_per_day")
-    private Double negotiatedPricePerDay;
+    @Column(name = "negotiated_price_per_day", precision = 12, scale = 2)
+    private BigDecimal negotiatedPricePerDay;
 
     /** End planned at booking, kept when the stay stops early. */
     @Column(name = "original_end_date")
-    private String originalEndDate;
+    private LocalDate originalEndDate;
 
-    /** What the client had paid beyond the advance when a stay in progress was cancelled. */
-    @Column(name = "paid_after_advance")
-    private Double paidAfterAdvance;
 
     /** Money the owner chose to give back to the client; it comes out of the owner's share. */
-    @Column(name = "refund_amount")
-    private Double refundAmount;
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
 
     /** Money the booking samsar chose to give back to the client; it comes out of his gain. */
-    @Column(name = "samsar_refund_amount")
-    private Double samsarRefundAmount;
+    @Column(name = "samsar_refund_amount", precision = 12, scale = 2)
+    private BigDecimal samsarRefundAmount;
 
     /** Deal in force when the samsar booked: later changes by the owner do not touch existing bookings. */
     @Column(name = "samsar_margin_tnd")
@@ -93,8 +92,8 @@ public class Reservation {
     private Integer samsarCommissionPercent;
 
     /** What the samsar earns on this booking; the owner receives totalAmount - samsarGain. */
-    @Column(name = "samsar_gain")
-    private Double samsarGain;
+    @Column(name = "samsar_gain", precision = 12, scale = 2)
+    private BigDecimal samsarGain;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -110,9 +109,6 @@ public class Reservation {
     @JoinColumn(name = "samsar_id", insertable = false, updatable = false)
     private User samsar;
 
-    @JsonIgnore
-    @OneToMany(mappedBy = "reservation")
-    private List<RevenueHistory> revenueHistories;
 
     @JsonIgnore
     @OneToMany(mappedBy = "reservation")
@@ -125,7 +121,7 @@ public class Reservation {
         if (status == null) status = "pending";
         if (checkInTime == null) checkInTime = "14:00";
         if (checkOutTime == null) checkOutTime = "12:00";
-        if (advanceAmount == null) advanceAmount = 0.0;
+        if (advanceAmount == null) advanceAmount = BigDecimal.ZERO.setScale(2);
     }
 
     @PreUpdate

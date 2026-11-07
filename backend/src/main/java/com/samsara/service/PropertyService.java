@@ -1,5 +1,10 @@
 package com.samsara.service;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
+import java.util.Map;
+import java.math.BigDecimal;
+import com.samsara.dto.PageDto;
 import com.samsara.dto.PropertyDto;
 import com.samsara.dto.PropertySeasonalPriceDto;
 import com.samsara.entity.Property;
@@ -32,7 +37,7 @@ public class PropertyService {
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final ReservationRepository reservationRepository;
-    private final RevenueHistoryRepository revenueHistoryRepository;
+    private final ReservationPaymentRepository paymentRepository;
     private final NotificationRepository notificationRepository;
     private final PropertyAvailabilityRepository availabilityRepository;
     private final PropertyImageService propertyImageService;
@@ -45,28 +50,16 @@ public class PropertyService {
         return propertyRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    public List<Property> findAvailableOnDate(String date) {
-        return propertyRepository.findAvailableOnDate(date);
-    }
-
-    public List<Property> findAvailableBetween(String startDate, String endDate) {
-        if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
-            throw new IllegalArgumentException("Start date and end date are required");
-        }
-        if (startDate.compareTo(endDate) > 0) {
-            throw new IllegalArgumentException("Start date must be before or equal to end date");
-        }
-        return propertyRepository.findAvailableBetween(startDate, endDate, Sort.by(Sort.Direction.DESC, "createdAt"));
-    }
-
     public List<Property> findAvailableBetweenForUser(Long userId, String startDate, String endDate, String configuration) {
         if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
             throw new IllegalArgumentException("Start date and end date are required");
         }
-        if (startDate.compareTo(endDate) > 0) {
+        LocalDate start = parseDate(startDate);
+        LocalDate end = parseDate(endDate);
+        if (start.isAfter(end)) {
             throw new IllegalArgumentException("Start date must be before or equal to end date");
         }
-        List<Property> available = propertyRepository.findAvailableBetweenForUser(startDate, endDate, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Property> available = propertyRepository.findAvailableBetweenForUser(start, end, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
         if (configuration == null || configuration.isBlank()) {
             return available;
         }
@@ -91,7 +84,30 @@ public class PropertyService {
     }
 
     public List<Property> findByCreatorAndDate(Long userId, String date) {
-        return propertyRepository.findAvailableOnDateByCreatedBy(date, userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return propertyRepository.findAvailableOnDateByCreatedBy(parseDate(date), userId, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private static final Map<String, String> SORTABLE = Map.of(
+            "title", "title", "address", "address", "pricePerDay", "pricePerDay", "maxCapacity", "maxCapacity", "createdAt", "createdAt");
+
+    /** "My houses": searched, sorted and paged by the database; with a date, only the houses free that day. */
+    public PageDto<Property> findOwnedPage(Long userId, String search, String date, int page, int size, String sort, String direction) {
+        String pattern = "%" + (search == null ? "" : search.trim().toLowerCase()) + "%";
+        Sort order = Sort.by("asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC,
+                SORTABLE.getOrDefault(sort, "createdAt"));
+        PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), order);
+        Page<Property> result = date == null || date.isBlank()
+                ? propertyRepository.findOwnedPage(userId, pattern, request)
+                : propertyRepository.findOwnedFreeOnPage(userId, pattern, parseDate(date), request);
+        return new PageDto<>(result.getContent(), result.getTotalElements());
+    }
+
+    private static LocalDate parseDate(String value) {
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException | NullPointerException e) {
+            throw new IllegalArgumentException("Invalid dates (expected yyyy-MM-dd)");
+        }
     }
 
     @Transactional
@@ -177,7 +193,7 @@ public class PropertyService {
                     "This property still has pending, confirmed or in-progress reservations");
         }
         for (Long reservationId : reservationRepository.findIdsByPropertyId(id)) {
-            revenueHistoryRepository.deleteByReservationId(reservationId);
+            paymentRepository.deleteByReservationId(reservationId);
             notificationRepository.deleteByReservationId(reservationId);
             reservationRepository.deleteById(reservationId);
         }
@@ -246,7 +262,7 @@ public class PropertyService {
     private void validateSeasonalPrice(PropertySeasonalPriceDto price) {
         monthDayInLeapYear(price.getStartDate());
         monthDayInLeapYear(price.getEndDate());
-        if (price.getPricePerDay() == null || price.getPricePerDay() <= 0) {
+        if (!Money.isPositive(price.getPricePerDay())) {
             throw new IllegalArgumentException("Each period needs a price above zero");
         }
     }
@@ -296,10 +312,13 @@ public class PropertyService {
     }
 
     private void validatePrices(PropertyDto dto) {
-        for (Double value : new Double[]{dto.getPricePerDay(), dto.getPricePerWeek(), dto.getPricePerMonth(), dto.getDistanceBeach()}) {
-            if (value != null && value < 0) {
+        for (BigDecimal price : new BigDecimal[]{dto.getPricePerDay(), dto.getPricePerWeek(), dto.getPricePerMonth()}) {
+            if (Money.isNegative(price)) {
                 throw new IllegalArgumentException("Prices and distances cannot be negative");
             }
+        }
+        if (dto.getDistanceBeach() != null && dto.getDistanceBeach() < 0) {
+            throw new IllegalArgumentException("Prices and distances cannot be negative");
         }
         if ((dto.getMaxCapacity() != null && dto.getMaxCapacity() < 0) || (dto.getBathrooms() != null && dto.getBathrooms() < 0)) {
             throw new IllegalArgumentException("Capacity and bathrooms cannot be negative");

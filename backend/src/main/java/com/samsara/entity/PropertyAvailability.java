@@ -1,5 +1,6 @@
 package com.samsara.entity;
 
+import java.time.LocalDate;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -23,7 +24,7 @@ public class PropertyAvailability {
     private Long propertyId;
 
     @Column(nullable = false)
-    private String date;
+    private LocalDate date;
 
     @Column(nullable = false)
     private String status;

@@ -39,7 +39,14 @@ import { AppLanguage, t } from '../../shared/translations';
           <mat-card-title>{{ t('create_account') }}</mat-card-title>
           <mat-card-subtitle>{{ t('register_subtitle') }}</mat-card-subtitle>
         </mat-card-header>
-        <mat-card-content>
+        <div class="check-email" *ngIf="pendingEmail" role="status">
+          <mat-icon aria-hidden="true">mark_email_unread</mat-icon>
+          <h2>{{ t('check_your_email') }}</h2>
+          <p>{{ t('verification_sent').replace('{{email}}', pendingEmail) }}</p>
+          <button mat-stroked-button type="button" (click)="resend()" [disabled]="resent">{{ resent ? t('link_sent_again') : t('resend_link') }}</button>
+          <a mat-button routerLink="/login">{{ t('back_to_login') }}</a>
+        </div>
+        <mat-card-content *ngIf="!pendingEmail">
           <p class="form-intro">{{ t('register_intro') }}</p>
           <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
@@ -104,7 +111,7 @@ import { AppLanguage, t } from '../../shared/translations';
             </button>
           </form>
         </mat-card-content>
-        <mat-card-actions align="end" class="card-actions">
+        <mat-card-actions *ngIf="!pendingEmail" align="end" class="card-actions">
           <span class="login-text">{{ t('already_account') }}</span>
           <button mat-button color="primary" routerLink="/login">{{ t('sign_in') }}</button>
         </mat-card-actions>
@@ -137,6 +144,10 @@ import { AppLanguage, t } from '../../shared/translations';
       height: 5px;
       background: linear-gradient(90deg, #15803D, #4ADE80, #15803D);
     }
+    .check-email { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; padding: 1rem; }
+    .check-email mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--primary); }
+    .check-email h2 { margin: 0; }
+    .check-email p { margin: 0 0 0.5rem; color: var(--text-secondary); }
     .logo-icon { display: block; width: 64px; height: 64px; margin: 0.25rem auto 0.5rem; }
     mat-card-header {
       justify-content: center;
@@ -279,14 +290,30 @@ export class RegisterComponent {
     return password === confirm ? null : { mismatch: true };
   }
 
+  pendingEmail = '';
+  resent = false;
+
+  resend(): void {
+    this.authService.resendVerification(this.pendingEmail, this.uiPreferencesService.getLanguage()).subscribe({
+      next: () => this.resent = true,
+      error: () => this.resent = true,
+    });
+  }
+
   onSubmit(): void {
     if (this.registerForm.invalid) return;
 
     this.loading = true;
     const { name, email, password, phone, role } = this.registerForm.value;
 
-    this.authService.register({ name: name!, email: email!, password: password!, phone: phone || undefined, role: role! as 'PROPRIETAIRE' | 'SAMSAR' }).subscribe({
-      next: () => {
+    this.authService.register({ name: name!, email: email!, password: password!, phone: phone || undefined,
+      role: role! as 'PROPRIETAIRE' | 'SAMSAR', language: this.uiPreferencesService.getLanguage() }).subscribe({
+      next: (res) => {
+        this.loading = false;
+        if (res.verificationRequired) {
+          this.pendingEmail = email!.trim();
+          return;
+        }
         this.snackBar.open(this.t('register_success'), this.t('close'), { duration: 3000 });
         this.router.navigate(['/dashboard']);
       },

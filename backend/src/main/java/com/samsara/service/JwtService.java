@@ -22,16 +22,14 @@ public class JwtService {
         this.expiration = expiration;
     }
 
-    public String generateToken(Long userId, String email) {
-        return generateToken(userId, email, "SAMSAR");
-    }
-
-    public String generateToken(Long userId, String email, String role) {
+    /** @param version the account's token version: raising it on the account invalidates this token */
+    public String generateToken(Long userId, String email, String role, int version) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(email)
                 .claim("userId", userId)
                 .claim("role", role)
+                .claim("ver", version)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiration))
                 .signWith(key)

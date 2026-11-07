@@ -17,7 +17,11 @@ import {
   STATUS_TRANSITIONS,
   countReservationDays,
   normalizeReservationStatus,
+  ownerReceived,
   ownerShareOf,
+  ReservationEvent,
+  ReservationPayment,
+  samsarReceived,
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
@@ -27,6 +31,7 @@ import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Observable } from 'rxjs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 @Component({
   selector: 'app-reservation-detail',
   standalone: true,
@@ -42,6 +47,7 @@ import { Observable } from 'rxjs';
     FormsModule,
     MatFormFieldModule,
     MatInputModule,
+    MatTooltipModule,
   ],
   template: `
     <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
@@ -112,19 +118,6 @@ import { Observable } from 'rxjs';
             <div class="panel-actions">
               <button mat-button type="button" (click)="panel = null">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="updating || !earlyEndDate">{{ t('confirm_end_early') }}</button>
-            </div>
-          </form>
-
-          <form class="stay-panel" *ngIf="panel === 'cancel'" (ngSubmit)="submitCancelStay()">
-            <p>{{ t('cancel_stay_explained') }}</p>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ t('paid_after_advance') }}</mat-label>
-              <input matInput type="number" name="paidAfterAdvance" min="0" [max]="r.totalAmount - r.advanceAmount" [(ngModel)]="paidInput" />
-              <span matTextSuffix>TND</span>
-            </mat-form-field>
-            <div class="panel-actions">
-              <button mat-button type="button" (click)="panel = null">{{ t('close') }}</button>
-              <button mat-raised-button color="warn" type="submit" [disabled]="updating">{{ t('confirm_cancel_stay') }}</button>
             </div>
           </form>
 
@@ -212,7 +205,8 @@ import { Observable } from 'rxjs';
                 <div><span>{{ r.samsarId === currentUserId ? t('your_gain') : t('samsar_gain') }}<ng-container *ngIf="r.samsarCommissionPercent"> ({{ r.samsarCommissionPercent }} %)</ng-container></span><strong>{{ r.samsarGain || 0 | number:'1.0-2' }} TND</strong></div>
                 <div><span>{{ t('owner_share') }}</span><strong>{{ ownerShare | number:'1.0-2' }} TND</strong></div>
               </ng-container>
-              <div *ngIf="r.paidAfterAdvance"><span>{{ t('paid_after_advance') }}</span><strong>{{ r.paidAfterAdvance | number:'1.0-2' }} TND</strong></div>
+              <div><span>{{ t('paid_so_far') }}</span><strong>{{ paid | number:'1.0-2' }} TND</strong></div>
+              <div class="balance" *ngIf="remaining > 0 && status !== 'cancelled'"><span>{{ t('still_to_pay') }}</span><strong>{{ remaining | number:'1.0-2' }} TND</strong></div>
               <div *ngIf="r.refundAmount"><span>{{ t('refund_by_owner') }}</span><strong>- {{ r.refundAmount | number:'1.0-2' }} TND</strong></div>
               <div *ngIf="r.samsarRefundAmount"><span>{{ t('refund_by_samsar') }}</span><strong>- {{ r.samsarRefundAmount | number:'1.0-2' }} TND</strong></div>
             </div>
@@ -220,6 +214,61 @@ import { Observable } from 'rxjs';
               <span>{{ t('created_label') }} {{ r.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
               <span>{{ t('updated_label') }} {{ r.updatedAt | date:'dd/MM/yyyy HH:mm' }}</span>
             </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card *ngIf="canManage">
+          <mat-card-content>
+            <div class="card-head">
+              <h3>{{ t('payments') }}</h3>
+              <button mat-stroked-button *ngIf="canAddPayment && !addingPayment" (click)="openPayment()">
+                <mat-icon>add</mat-icon> {{ t('record_payment') }}
+              </button>
+            </div>
+            <p class="hint" *ngIf="!payments.length">{{ t('no_payment_yet') }}</p>
+            <ul class="payments" *ngIf="payments.length">
+              <li *ngFor="let payment of payments">
+                <div>
+                  <strong>{{ payment.amount | number:'1.0-2' }} TND</strong>
+                  <span>{{ payment.paidOn | date:'dd/MM/yyyy' }} · {{ payment.kind === 'advance' ? t('advance_paid') : (payment.note || t('payment')) }}</span>
+                </div>
+                <button mat-icon-button *ngIf="payment.kind !== 'advance'" (click)="removePayment(payment)"
+                        [attr.aria-label]="t('delete_payment')" [matTooltip]="t('delete_payment')">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </li>
+            </ul>
+            <form class="stay-panel" *ngIf="addingPayment" (ngSubmit)="submitPayment()">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>{{ t('amount') }}</mat-label>
+                <input matInput type="number" name="paymentAmount" min="0" [max]="remaining" required [(ngModel)]="paymentAmount" />
+                <span matTextSuffix>TND</span>
+              </mat-form-field>
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>{{ t('payment_date') }}</mat-label>
+                <input matInput type="date" name="paymentDate" [max]="today" [(ngModel)]="paymentDate" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>{{ t('payment_note') }}</mat-label>
+                <input matInput name="paymentNote" maxlength="500" [(ngModel)]="paymentNote" />
+              </mat-form-field>
+              <div class="panel-actions">
+                <button mat-button type="button" (click)="addingPayment = false">{{ t('cancel') }}</button>
+                <button mat-raised-button color="primary" type="submit" [disabled]="updating || !paymentAmount">{{ t('save_changes') }}</button>
+              </div>
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card *ngIf="canManage && history.length">
+          <mat-card-content>
+            <h3>{{ t('history') }}</h3>
+            <ol class="history">
+              <li *ngFor="let event of history">
+                <span class="when">{{ event.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                <span>{{ describe(event) }}</span>
+              </li>
+            </ol>
           </mat-card-content>
         </mat-card>
       </div>
@@ -233,6 +282,13 @@ import { Observable } from 'rxjs';
     .link { color: var(--primary); text-decoration: none; }
     .muted { color: var(--text-secondary); font-weight: 400; }
     .notes { white-space: pre-line; margin: 0.5rem 0 0; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+    .payments, .history { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
+    .payments li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); }
+    .payments li div { display: flex; flex-direction: column; }
+    .payments li span, .history .when { font-size: 0.8rem; color: var(--text-secondary); }
+    .history li { display: flex; flex-direction: column; font-size: 0.85rem; }
+    .hint { font-size: 0.82rem; color: var(--text-secondary); }
     .stay-panel { display: grid; gap: 0.75rem; max-width: 420px; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: var(--surface-subtle); }
     .stay-panel p { margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
     .panel-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
@@ -271,8 +327,14 @@ export class ReservationDetailComponent implements OnInit {
   loading = true;
   updating = false;
   currentUserId?: number;
-  panel: 'early' | 'refund' | 'cancel' | null = null;
-  paidInput: number | null = null;
+  panel: 'early' | 'refund' | null = null;
+  payments: ReservationPayment[] = [];
+  history: ReservationEvent[] = [];
+  addingPayment = false;
+  paymentAmount: number | null = null;
+  paymentDate = '';
+  paymentNote = '';
+  readonly today = todayIso();
   earlyEndDate = '';
   refundInput: number | null = null;
   readonly workflowSteps: ReservationStatus[] = RESERVATION_STATUSES.filter(s => s !== 'cancelled');
@@ -343,18 +405,97 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   /** Most the caller can give back, from his own part; the server enforces the same limits. */
+  /** Most the caller can give back: what he has received himself. The server enforces the same limits. */
   get maxRefund(): number {
     const r = this.reservation;
     if (!r) return 0;
-    const cancelled = this.status === 'cancelled';
-    const samsarPartPaid = Math.min(r.samsarGain || 0, r.paidAfterAdvance || 0);
-    if (!this.isHouseOwner) return cancelled ? samsarPartPaid : r.samsarGain || 0;
-    return cancelled ? (r.advanceAmount || 0) + (r.paidAfterAdvance || 0) - samsarPartPaid : this.ownerShare;
+    return this.isHouseOwner ? ownerReceived(r, this.paid) : samsarReceived(r, this.paid);
+  }
+
+  get paid(): number {
+    return this.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  }
+
+  get remaining(): number {
+    return Math.max(0, (this.reservation?.totalAmount || 0) - this.paid);
+  }
+
+  get canAddPayment(): boolean {
+    return this.remaining > 0 && this.status !== 'pending';
+  }
+
+  openPayment(): void {
+    this.paymentAmount = this.remaining;
+    this.paymentDate = this.today;
+    this.paymentNote = '';
+    this.addingPayment = true;
+  }
+
+  submitPayment(): void {
+    this.updating = true;
+    this.reservationService.addPayment(this.reservation!.id, {
+      amount: Number(this.paymentAmount),
+      paidOn: this.paymentDate || undefined,
+      note: this.paymentNote || undefined,
+    }).subscribe({
+      next: () => {
+        this.updating = false;
+        this.addingPayment = false;
+        this.loadMoney();
+        this.snackBar.open(this.t('payment_recorded'), this.t('close'), { duration: 2500 });
+      },
+      error: (err) => {
+        this.updating = false;
+        this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
+      },
+    });
+  }
+
+  removePayment(payment: ReservationPayment): void {
+    if (!confirm(this.t('delete_payment_confirm'))) return;
+    this.reservationService.removePayment(this.reservation!.id, payment.id).subscribe({
+      next: () => this.loadMoney(),
+      error: (err) => this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 }),
+    });
+  }
+
+  /** Payments and history are only shown to the samsar of the booking and the owner of the house. */
+  private loadMoney(): void {
+    if (!this.reservation || !this.canManage) return;
+    this.reservationService.findPayments(this.reservation.id).subscribe(payments => this.payments = payments);
+    this.reservationService.findHistory(this.reservation.id).subscribe(history => this.history = history);
+  }
+
+  /** One line of the history, in the reader's language. */
+  describe(event: ReservationEvent): string {
+    let details: Record<string, unknown> = {};
+    try {
+      details = JSON.parse(event.details || '{}');
+    } catch {
+      details = {};
+    }
+    const who = event.actorName || this.t('history_system');
+    const status = (value: unknown) => this.t(statusKey(String(value)));
+    const amount = (value: unknown) => `${Number(value || 0).toLocaleString(this.locale)} TND`;
+    const date = (value: unknown) => String(value || '').split('-').reverse().join('/');
+    const text = this.t('history_' + event.action)
+      .replace('{{actor}}', who)
+      .replace('{{to}}', status(details['to']))
+      .replace('{{from}}', status(details['from']))
+      .replace('{{amount}}', amount(details['amount']))
+      .replace('{{total}}', amount(details['total']))
+      .replace('{{newEnd}}', date(details['to']))
+      .replace('{{plannedEnd}}', date(details['from']));
+    return text.startsWith('history_') ? `${who} — ${event.action}` : text;
+  }
+
+  private get locale(): string {
+    return { fr: 'fr-FR', en: 'en-GB', ar: 'ar-TN' }[this.uiPrefs.getLanguage()] ?? 'fr-FR';
   }
 
   /** Always voluntary, once money has really been received by the one giving it back. */
   get canRefund(): boolean {
-    return this.canManage && this.maxRefund > 0 && ['in-progress', 'completed', 'cancelled'].includes(this.status);
+    return this.canManage && this.maxRefund > 0 && ['in-progress', 'cancelled'].includes(this.status);
   }
 
   get refundExplanationKey(): string {
@@ -385,13 +526,6 @@ export class ReservationDetailComponent implements OnInit {
     );
   }
 
-  submitCancelStay(): void {
-    this.applyStayChange(
-      this.reservationService.updateStatus(this.reservation!.id, 'cancelled', Number(this.paidInput || 0)),
-      this.t('reservation_status_changed').replace('{{status}}', this.t(statusKey('cancelled'))),
-    );
-  }
-
   submitRefund(): void {
     this.applyStayChange(
       this.reservationService.setRefund(this.reservation!.id, Number(this.refundInput || 0)),
@@ -406,6 +540,7 @@ export class ReservationDetailComponent implements OnInit {
         this.reservation = updated;
         this.updating = false;
         this.panel = null;
+        this.loadMoney();
         this.snackBar.open(message, this.t('close'), { duration: 3000 });
       },
       error: (err) => {
@@ -432,6 +567,7 @@ export class ReservationDetailComponent implements OnInit {
       next: (reservation) => {
         this.reservation = reservation;
         this.loading = false;
+        this.loadMoney();
       },
       error: () => {
         this.loading = false;
@@ -455,17 +591,13 @@ export class ReservationDetailComponent implements OnInit {
   }
 
   changeStatus(status: ReservationStatus): void {
-    if (status === 'cancelled' && this.status === 'in-progress') {
-      this.paidInput = null;
-      this.panel = 'cancel';
-      return;
-    }
-    if (status === 'cancelled' && !confirm(this.t('reservation_cancel_confirm'))) return;
+    if (status === 'cancelled' && !confirm(this.t(this.status === 'in-progress' ? 'cancel_stay_confirm' : 'reservation_cancel_confirm'))) return;
     this.updating = true;
     this.reservationService.updateStatus(this.reservation!.id, status).subscribe({
       next: (updated) => {
         this.reservation = updated;
         this.updating = false;
+        this.loadMoney();
         const message = this.t('reservation_status_changed').replace('{{status}}', this.t(statusKey(status)));
         this.snackBar.open(message, this.t('close'), { duration: 2500 });
       },

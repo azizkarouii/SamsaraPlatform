@@ -1,5 +1,6 @@
 package com.samsara.entity;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -28,8 +29,8 @@ public class PropertySeasonalPrice {
     @Column(name = "end_date", nullable = false)
     private String endDate;
 
-    @Column(name = "price_per_day", nullable = false)
-    private Double pricePerDay;
+    @Column(name = "price_per_day", nullable = false, precision = 12, scale = 2)
+    private BigDecimal pricePerDay;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", insertable = false, updatable = false)

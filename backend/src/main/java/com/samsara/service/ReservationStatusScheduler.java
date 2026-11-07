@@ -15,6 +15,7 @@ public class ReservationStatusScheduler {
 
     private final ReservationService reservationService;
     private final PropertyService propertyService;
+    private final NotificationService notificationService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
@@ -25,6 +26,14 @@ public class ReservationStatusScheduler {
             }
         } catch (RuntimeException e) {
             log.warn("Legacy price period normalization failed", e);
+        }
+        try {
+            int notifications = notificationService.translateLegacyNotifications();
+            if (notifications > 0) {
+                log.info("Gave a translation key to {} older notifications", notifications);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Legacy notification translation failed", e);
         }
         try {
             int fixed = reservationService.normalizeLegacyData();

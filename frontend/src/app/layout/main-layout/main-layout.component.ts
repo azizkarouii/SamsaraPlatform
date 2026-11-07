@@ -243,6 +243,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       { path: '/shared-houses', icon: isOwner ? 'groups' : 'apartment', label: isOwner ? 'my_samsars' : 'shared_houses' },
       { path: '/reservations', icon: 'event_available', label: 'reservations' },
       { path: '/availability', icon: 'calendar_month', label: 'availability' },
+      { path: '/reports', icon: 'bar_chart', label: 'reports' },
       { path: '/notifications', icon: 'notifications', label: 'notifications' },
     ];
   }
@@ -305,8 +306,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.authService.logout().subscribe(() => this.router.navigate(['/login']));
   }
 
   toggleTheme(): void {

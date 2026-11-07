@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
 
 @Service
@@ -150,13 +152,13 @@ public class NotificationService {
         Map<String, String> params = new HashMap<>();
         params.put("property", property.getTitle());
         params.put("client", reservation.getClientName());
-        params.put("start", reservation.getStartDate());
-        params.put("end", reservation.getEndDate());
+        params.put("start", reservation.getStartDate().toString());
+        params.put("end", reservation.getEndDate().toString());
         if (actor != null) {
             params.put("actor", actor.getName());
         }
         if (reservation.getOriginalEndDate() != null) {
-            params.put("plannedEnd", reservation.getOriginalEndDate());
+            params.put("plannedEnd", reservation.getOriginalEndDate().toString());
         }
         String paramsJson = json(params);
 
@@ -182,6 +184,68 @@ public class NotificationService {
             // Only strings go in: the stored French text remains if this ever happens
             return null;
         }
+    }
+
+    private record LegacyFormat(String type, String key, Pattern pattern, List<String> names) {}
+
+    /** French texts written before notifications were stored as translation keys. */
+    private static final List<LegacyFormat> LEGACY_FORMATS = List.of(
+            legacy("property_assignment", "property_assigned", "(.+) vous a ajouté sur la maison \"(.+)\"", "actor", "property"),
+            legacy("property_assignment", "properties_assigned", "(.+) vous a ajouté sur (\\d+) maisons : (.+)", "actor", "count", "properties"),
+            legacy("reservation_created", "reservation_created", "(.+) a réservé (.+) du (\\d{4}-\\d{2}-\\d{2})\\S* au (\\d{4}-\\d{2}-\\d{2})\\S* pour (.+)", "actor", "property", "start", "end", "client"),
+            legacy("reservation_updated", "reservation_updated", "(.+) a modifié la réservation de (.+) \\((\\d{4}-\\d{2}-\\d{2}) au (\\d{4}-\\d{2}-\\d{2})\\) pour (.+)", "actor", "property", "start", "end", "client"),
+            legacy("reservation_cancelled", "reservation_overridden", "La réservation en attente de (.+) sur (.+) \\((\\d{4}-\\d{2}-\\d{2}) au (\\d{4}-\\d{2}-\\d{2})\\) a été annulée : .*", "client", "property", "start", "end"),
+            legacy("reservation_deleted", "reservation_deleted", "La réservation de (.+) \\((\\d{4}-\\d{2}-\\d{2}) au (\\d{4}-\\d{2}-\\d{2})\\) pour (.+) a été supprimée par (.+)", "property", "start", "end", "client", "actor"),
+            legacy("reservation_ended_early", "reservation_ended_early", "Le séjour de (.+) sur (.+) se termine plus tôt que prévu : le (\\d{4}-\\d{2}-\\d{2}) au lieu du (\\d{4}-\\d{2}-\\d{2})\\..*", "client", "property", "end", "plannedEnd"));
+
+    /** Status changes: "La réservation de X (d au d) pour Y a été confirmée [par Z]". */
+    private static final Pattern LEGACY_STATUS = Pattern.compile(
+            "La réservation de (.+) \\((\\d{4}-\\d{2}-\\d{2}) au (\\d{4}-\\d{2}-\\d{2})\\) pour (.+?) a été (?:confirmée|passée en cours|terminée|annulée)(?: par (.+))?");
+    private static final Set<String> STATUS_TYPES = Set.of("reservation_confirmed", "reservation_in_progress", "reservation_completed", "reservation_cancelled");
+
+    private static LegacyFormat legacy(String type, String key, String regex, String... names) {
+        return new LegacyFormat(type, key, Pattern.compile(regex), List.of(names));
+    }
+
+    /**
+     * Gives the older notifications a translation key, so they also follow the reader's language.
+     * Texts that match no known format keep their French text.
+     */
+    @Transactional
+    public int translateLegacyNotifications() {
+        int converted = 0;
+        for (Notification notification : notificationRepository.findByMessageKeyIsNull()) {
+            Map<String, String> params = new HashMap<>();
+            String key = null;
+            for (LegacyFormat format : LEGACY_FORMATS) {
+                Matcher matcher = format.pattern().matcher(notification.getMessage());
+                if (format.type().equals(notification.getType()) && matcher.matches()) {
+                    key = format.key();
+                    for (int i = 0; i < format.names().size(); i++) {
+                        params.put(format.names().get(i), matcher.group(i + 1));
+                    }
+                    break;
+                }
+            }
+            Matcher status = LEGACY_STATUS.matcher(notification.getMessage());
+            if (key == null && STATUS_TYPES.contains(notification.getType()) && status.matches()) {
+                key = notification.getType();
+                params.put("property", status.group(1));
+                params.put("start", status.group(2));
+                params.put("end", status.group(3));
+                params.put("client", status.group(4));
+                if (status.group(5) != null) {
+                    params.put("actor", status.group(5));
+                }
+            }
+            if (key != null) {
+                notification.setMessageKey(key);
+                notification.setMessageParams(json(params));
+                notificationRepository.save(notification);
+                converted++;
+            }
+        }
+        return converted;
     }
 
     public Notification markAsRead(Long id, Long userId) {

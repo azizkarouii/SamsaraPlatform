@@ -1,5 +1,6 @@
 package com.samsara.dto;
 
+import java.math.BigDecimal;
 import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -14,9 +15,9 @@ public class PropertyDto {
     private String configuration;
     private Boolean hautStanding;
     private Boolean appartientResidence;
-    private Double pricePerDay;
-    private Double pricePerWeek;
-    private Double pricePerMonth;
+    private BigDecimal pricePerDay;
+    private BigDecimal pricePerWeek;
+    private BigDecimal pricePerMonth;
     private Double distanceBeach;
     private Integer maxCapacity;
     private String address;

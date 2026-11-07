@@ -1,5 +1,6 @@
 package com.samsara.controller;
 
+import com.samsara.dto.PageDto;
 import com.samsara.dto.PropertyDto;
 import com.samsara.entity.Property;
 import com.samsara.service.PropertyAvailabilityService;
@@ -71,6 +72,18 @@ public class PropertyController {
             return ResponseEntity.ok(propertyService.findByCreatorAndDate(userId, date));
         }
         return ResponseEntity.ok(propertyService.findByCreator(userId));
+    }
+
+    @GetMapping("/mine/page")
+    public ResponseEntity<PageDto<Property>> findMinePage(@RequestParam(required = false) String search,
+                                                          @RequestParam(required = false) String date,
+                                                          @RequestParam(defaultValue = "0") int page,
+                                                          @RequestParam(defaultValue = "10") int size,
+                                                          @RequestParam(defaultValue = "createdAt") String sort,
+                                                          @RequestParam(defaultValue = "desc") String direction,
+                                                          Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(propertyService.findOwnedPage(userId, search, date, page, size, sort, direction));
     }
 
     @PostMapping

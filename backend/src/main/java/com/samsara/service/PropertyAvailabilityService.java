@@ -38,7 +38,7 @@ public class PropertyAvailabilityService {
     public List<String> findBlockedDates(Long propertyId) {
         return availabilityRepository.findByPropertyIdOrderByDateAsc(propertyId).stream()
                 .filter(pa -> !"available".equals(pa.getStatus()))
-                .map(PropertyAvailability::getDate)
+                .map(pa -> pa.getDate().toString())
                 .toList();
     }
 
@@ -79,22 +79,22 @@ public class PropertyAvailabilityService {
         }
 
         if ("available".equals(normalized)) {
-            availabilityRepository.deleteByPropertyIdAndDateBetween(propertyId, startDate, endDate);
+            availabilityRepository.deleteByPropertyIdAndDateBetween(propertyId, start, end);
             return List.of();
         }
-        if (!reservationRepository.findOverlapping(propertyId, startDate, endDate, -1L).isEmpty()) {
+        if (!reservationRepository.findOverlapping(propertyId, start, end, -1L).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Some of these dates are already reserved");
         }
         // Blocking dates under a pending request would leave it impossible to honour: cancel it first
-        if (!reservationRepository.findPendingOverlapping(propertyId, startDate, endDate, -1L).isEmpty()) {
+        if (!reservationRepository.findPendingOverlapping(propertyId, start, end, -1L).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A pending reservation uses some of these dates: cancel it first");
         }
 
         List<PropertyAvailability> result = new ArrayList<>();
         for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
-            String iso = day.toString();
-            PropertyAvailability pa = availabilityRepository.findByPropertyIdAndDate(propertyId, iso)
-                    .orElseGet(() -> PropertyAvailability.builder().propertyId(propertyId).date(iso).build());
+            LocalDate current = day;
+            PropertyAvailability pa = availabilityRepository.findByPropertyIdAndDate(propertyId, current)
+                    .orElseGet(() -> PropertyAvailability.builder().propertyId(propertyId).date(current).build());
             pa.setStatus(normalized);
             pa.setNotes(notes);
             result.add(availabilityRepository.save(pa));

@@ -26,6 +26,7 @@ public class AuthService {
 
     private final JwtService jwtService;
     private final AttemptLimiter attemptLimiter;
+    private final EmailVerificationService emailVerificationService;
     private final ImageStorage imageStorage;
     private final ImageFileValidator imageFileValidator;
 
@@ -44,7 +45,14 @@ public class AuthService {
                 .role(dto.getRole())
                 .build();
 
+        if (!emailVerificationService.isEnabled()) {
+            user.setEmailVerified(true);
+        }
         user = userRepository.save(user);
+        if (emailVerificationService.isEnabled()) {
+            emailVerificationService.sendLink(user, dto.getLanguage());
+            return AuthResponse.builder().verificationRequired(true).build();
+        }
         return toAuthResponse(user);
     }
 
@@ -63,6 +71,9 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         attemptLimiter.reset(limitKey);
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please confirm your email address first");
+        }
         return toAuthResponse(user);
     }
 
@@ -107,12 +118,21 @@ public class AuthService {
         return toUserDto(user);
     }
 
-    public void changePassword(Long userId, ChangePasswordDto dto) {
+    /** The other devices are signed out; this one gets a new session. */
+    public AuthResponse changePassword(Long userId, ChangePasswordDto dto) {
         User user = getUser(userId);
         if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Current password is incorrect");
         }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        return toAuthResponse(userRepository.save(user));
+    }
+
+    /** Every session of the account stops working, this one included. */
+    public void signOutEverywhere(Long userId) {
+        User user = getUser(userId);
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
     }
 
@@ -137,7 +157,7 @@ public class AuthService {
     }
 
     private AuthResponse toAuthResponse(User user) {
-        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name(), user.getTokenVersion());
         return AuthResponse.builder()
                 .accessToken(token)
                 .user(toUserDto(user))

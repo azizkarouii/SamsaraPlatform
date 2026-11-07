@@ -1,5 +1,6 @@
 package com.samsara.dto;
 
+import java.math.BigDecimal;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -15,11 +16,11 @@ public class ReservationDto {
     private String status;
     private String clientName;
     private String clientPhone;
-    private Double advanceAmount;
-    private Double totalAmount;
+    private BigDecimal advanceAmount;
+    private BigDecimal totalAmount;
     private String notes;
     /** Agreed nightly price; on an edit, null leaves it untouched and 0 removes it. */
-    private Double negotiatedPricePerDay;
+    private BigDecimal negotiatedPricePerDay;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

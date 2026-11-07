@@ -1,10 +1,10 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
+import { MatTableModule } from '@angular/material/table';
+import { MatSortModule, Sort } from '@angular/material/sort';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,6 +23,7 @@ import { TRANSLATIONS } from '../../../shared/translations';
 import { ShareDialogComponent } from './share-dialog.component';
 
 import { PropertyThumbComponent } from '../../../shared/property-thumb.component';
+import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 @Component({
   selector: 'app-property-list',
   standalone: true,
@@ -82,14 +83,14 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
           </div>
 
           <ng-template #loadedContent>
-            <div *ngIf="dataSource.data.length === 0" class="empty-state">
+            <div *ngIf="rows.length === 0" class="empty-state">
               <mat-icon class="empty-icon">home</mat-icon>
               <p>{{ t('no_properties_found') }}</p>
               <button mat-raised-button color="primary" routerLink="/properties/add">{{ t('add_first_property') }}</button>
             </div>
 
-            <div class="table-wrap" *ngIf="dataSource.data.length > 0">
-            <table mat-table [dataSource]="dataSource" matSort class="property-table">
+            <div class="table-wrap" *ngIf="rows.length > 0">
+            <table mat-table [dataSource]="rows" matSort (matSortChange)="onSort($event)" class="property-table">
               <ng-container matColumnDef="title">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ t('title_col') }}</th>
                 <td mat-cell *matCellDef="let prop">
@@ -135,7 +136,8 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
             </table>
             </div>
 
-            <mat-paginator [pageSizeOptions]="[5, 10, 25]" showFirstLastButtons *ngIf="dataSource.data.length > 0"></mat-paginator>
+            <mat-paginator [length]="total" [pageIndex]="page" [pageSize]="pageSize" [pageSizeOptions]="[5, 10, 25]" (page)="onPage($event)"
+                           showFirstLastButtons *ngIf="total > 0"></mat-paginator>
           </ng-template>
         </mat-card-content>
       </mat-card>
@@ -203,15 +205,19 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
     }
   `]
 })
-export class PropertyListComponent implements OnInit {
+export class PropertyListComponent implements OnInit, OnDestroy {
   displayedColumns: string[] = ['title', 'address', 'pricePerDay', 'maxCapacity', 'actions'];
-  dataSource = new MatTableDataSource<Property>([]);
+  rows: Property[] = [];
+  total = 0;
+  page = 0;
+  pageSize = 10;
   searchControl = new FormControl('');
   dateControl = new FormControl<Date | null>(null);
   loading = true;
-
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
+  private sort = 'createdAt';
+  private direction = 'desc';
+  private readonly subscriptions = new Subscription();
+  private request?: Subscription;
 
   constructor(
     private propertyService: PropertyService,
@@ -224,14 +230,28 @@ export class PropertyListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProperties();
-    this.searchControl.valueChanges.subscribe(value => {
-      this.dataSource.filter = (value || '').trim().toLowerCase();
-    });
+    this.subscriptions.add(this.searchControl.valueChanges.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => {
+      this.page = 0;
+      this.loadProperties();
+    }));
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+    this.request?.unsubscribe();
+  }
+
+  onSort(sort: Sort): void {
+    this.sort = sort.direction ? sort.active : 'createdAt';
+    this.direction = sort.direction || 'desc';
+    this.page = 0;
+    this.loadProperties();
+  }
+
+  onPage(event: PageEvent): void {
+    this.page = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadProperties();
   }
 
   openShareDialog(property: Property): void {
@@ -247,12 +267,14 @@ export class PropertyListComponent implements OnInit {
   }
 
   onDateChange(): void {
+    this.page = 0;
     this.loadProperties();
   }
 
   clearDateFilter(event: MouseEvent): void {
     event.stopPropagation();
     this.dateControl.setValue(null);
+    this.page = 0;
     this.loadProperties();
   }
 
@@ -263,12 +285,21 @@ export class PropertyListComponent implements OnInit {
     return `${y}-${m}-${d}`;
   }
 
-  private loadProperties(date?: string): void {
+  /** A newer request replaces one still in flight, so an older answer cannot overwrite the list. */
+  private loadProperties(): void {
     const dateVal = this.dateControl.value;
-    const dateStr = dateVal ? this.formatDate(dateVal) : undefined;
-    this.propertyService.findMine(dateStr).subscribe({
-      next: (properties) => {
-        this.dataSource.data = properties;
+    this.request?.unsubscribe();
+    this.request = this.propertyService.findMinePage({
+      search: (this.searchControl.value || '').trim(),
+      date: dateVal ? this.formatDate(dateVal) : undefined,
+      page: this.page,
+      size: this.pageSize,
+      sort: this.sort,
+      direction: this.direction,
+    }).subscribe({
+      next: (result) => {
+        this.rows = result.content;
+        this.total = result.totalElements;
         this.loading = false;
       },
       error: () => {

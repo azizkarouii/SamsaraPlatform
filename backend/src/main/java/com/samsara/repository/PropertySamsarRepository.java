@@ -18,6 +18,8 @@ public interface PropertySamsarRepository extends JpaRepository<PropertySamsar, 
 
     boolean existsByPropertyIdAndSamsarId(Long propertyId, Long samsarId);
 
+    long countBySamsarId(Long samsarId);
+
     @Query("SELECT ps.samsarId FROM PropertySamsar ps WHERE ps.propertyId = :propertyId")
     List<Long> findSamsarIdsByPropertyId(@Param("propertyId") Long propertyId);
 

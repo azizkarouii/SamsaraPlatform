@@ -574,3 +574,11 @@ button:disabled, .cal-day:disabled { cursor: not-allowed; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* Printing a page (reports "PDF"): only its content, without the side menu and the top bar */
+@media print {
+  #sidebar, .topbar, .skip-link, .sidebar-backdrop { display: none !important; }
+  #content { margin: 0 !important; width: 100% !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+}

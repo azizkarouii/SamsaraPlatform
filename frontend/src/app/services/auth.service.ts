@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { LoginDto, RegisterDto, AuthResponse, User } from '../models/auth.model';
 
@@ -20,22 +20,28 @@ export class AuthService {
     this.currentUserSubject.next(user);
   }
 
+  /** The session itself is an HttpOnly cookie set by the server: page scripts never see the token. */
   login(dto: LoginDto): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, dto).pipe(
+      tap(res => this.storeUser(res.user!))
+    );
+  }
+
+  /** With email verification, there is no session yet: the response only says a link was sent. */
+  register(dto: RegisterDto): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, dto).pipe(
       tap(res => {
-        localStorage.setItem('token', res.access_token);
-        this.storeUser(res.user);
+        if (res.user) this.storeUser(res.user);
       })
     );
   }
 
-  register(dto: RegisterDto): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, dto).pipe(
-      tap(res => {
-        localStorage.setItem('token', res.access_token);
-        this.storeUser(res.user);
-      })
-    );
+  verifyEmail(token: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/verify-email`, { token });
+  }
+
+  resendVerification(email: string, language: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/resend-verification`, { email, language });
   }
 
   getProfile(): Observable<User> {
@@ -66,18 +72,28 @@ export class AuthService {
     return this.http.post<void>(`${this.apiUrl}/reset-password`, { token, newPassword });
   }
 
-  changePassword(currentPassword: string, newPassword: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/password`, { currentPassword, newPassword });
+  /** The other devices are signed out; this browser receives a new session cookie. */
+  changePassword(currentPassword: string, newPassword: string): Observable<AuthResponse> {
+    return this.http.put<AuthResponse>(`${this.apiUrl}/password`, { currentPassword, newPassword });
   }
 
-  logout(): void {
-    localStorage.removeItem('token');
+  /** Erases the session cookie on the server side, then forgets the user here. */
+  logout(): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/logout`, {}).pipe(
+      catchError(() => of(undefined)),
+      tap(() => this.clearLocalSession()),
+    );
+  }
+
+  logoutEverywhere(): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/logout-all`, {}).pipe(tap(() => this.clearLocalSession()));
+  }
+
+  /** Also called when the server answers 401: the session ended elsewhere. */
+  clearLocalSession(): void {
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     this.currentUserSubject.next(null);
-  }
-
-  getToken(): string | null {
-    return localStorage.getItem('token');
   }
 
   getCurrentUser(): User | null {
@@ -93,7 +109,8 @@ export class AuthService {
     }
   }
 
+  /** The cookie is not readable here: the stored profile says a session was opened (the server has the last word). */
   isLoggedIn(): boolean {
-    return !!this.getToken();
+    return !!this.readStoredUser();
   }
 }

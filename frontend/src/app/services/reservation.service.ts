@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Reservation, ReservationEarning, ReservationPage } from '../models/reservation.model';
+import { Reservation, ReservationEarning, ReservationPage, DashboardSummary, RentalEarning, ReservationEvent, ReservationPayment } from '../models/reservation.model';
 
 export interface CreateReservationDto {
   propertyId: number;
@@ -55,9 +55,46 @@ export class ReservationService {
     return this.http.patch<Reservation>(`${this.apiUrl}/${id}`, dto);
   }
 
-  /** paidAfterAdvance: what the client had paid beyond the advance, when a stay in progress is cancelled. */
-  updateStatus(id: number, status: string, paidAfterAdvance?: number): Observable<Reservation> {
-    return this.http.patch<Reservation>(`${this.apiUrl}/${id}/status`, { status, paidAfterAdvance });
+  updateStatus(id: number, status: string): Observable<Reservation> {
+    return this.http.patch<Reservation>(`${this.apiUrl}/${id}/status`, { status });
+  }
+
+  findPayments(id: number): Observable<ReservationPayment[]> {
+    return this.http.get<ReservationPayment[]>(`${this.apiUrl}/${id}/payments`);
+  }
+
+  addPayment(id: number, payment: { amount: number; paidOn?: string; note?: string }): Observable<ReservationPayment> {
+    return this.http.post<ReservationPayment>(`${this.apiUrl}/${id}/payments`, payment);
+  }
+
+  removePayment(id: number, paymentId: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}/payments/${paymentId}`);
+  }
+
+  findHistory(id: number): Observable<ReservationEvent[]> {
+    return this.http.get<ReservationEvent[]>(`${this.apiUrl}/${id}/history`);
+  }
+
+  summary(from?: string, to?: string): Observable<DashboardSummary> {
+    let params = new HttpParams();
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<DashboardSummary>(`${environment.apiUrl}/dashboard/summary`, { params });
+  }
+
+  earningsReport(from?: string, to?: string): Observable<RentalEarning[]> {
+    let params = new HttpParams();
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get<RentalEarning[]>(`${environment.apiUrl}/reports/earnings`, { params });
+  }
+
+  /** The Excel file of the report, downloaded with the session cookie. */
+  earningsReportXlsx(from: string | undefined, to: string | undefined, lang: string): Observable<Blob> {
+    let params = new HttpParams().set('lang', lang);
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    return this.http.get(`${environment.apiUrl}/reports/earnings.xlsx`, { params, responseType: 'blob' });
   }
 
   findEarnings(): Observable<ReservationEarning[]> {

@@ -24,6 +24,15 @@ export class PropertyService {
     return this.http.get<Property[]>(this.apiUrl, { params });
   }
 
+  findMinePage(query: { search: string; date?: string; page: number; size: number; sort: string; direction: string }):
+      Observable<{ content: Property[]; totalElements: number }> {
+    let params = new HttpParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params = params.set(key, String(value));
+    });
+    return this.http.get<{ content: Property[]; totalElements: number }>(`${this.apiUrl}/mine/page`, { params });
+  }
+
   findMine(date?: string): Observable<Property[]> {
     let params = new HttpParams();
     if (date) {
