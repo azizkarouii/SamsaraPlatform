@@ -24,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
@@ -280,6 +282,10 @@ public class ReservationService {
         validate(reservation, property, userId);
         reservation.setSamsarGain(computeSamsarGain(reservation, property));
         requireNotInPast(reservation.getStartDate());
+        if (arrivalReached(reservation)) {
+            // The client is already there: the stay is under way, advance or not
+            reservation.setStatus(IN_PROGRESS);
+        }
         Reservation saved = reservationRepository.save(reservation);
 
         User actor = userRepository.findById(userId).orElse(null);
@@ -711,6 +717,11 @@ public class ReservationService {
         if (availabilityRepository.existsBlockedBetween(property.getId(), start, end)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Some of these dates are marked unavailable by the owner");
         }
+    }
+
+    private boolean arrivalReached(Reservation reservation) {
+        LocalDateTime arrival = reservation.getStartDate().atTime(LocalTime.parse(reservation.getCheckInTime()));
+        return !arrival.isAfter(LocalDateTime.now());
     }
 
     private void requireNotInPast(LocalDate startDate) {

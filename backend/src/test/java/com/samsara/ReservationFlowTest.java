@@ -158,7 +158,9 @@ class ReservationFlowTest {
 
     private Reply book(String token, int start, int end, double total, Double negotiated, double advance) throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of("propertyId", house, "startDate", day(start), "endDate", day(end),
-                "clientName", "Client", "totalAmount", total, "advanceAmount", advance));
+                "clientName", "Client", "totalAmount", total, "advanceAmount", advance,
+                // Late arrival, so a stay starting today has not begun yet when it is created
+                "checkInTime", "23:59"));
         if (negotiated != null) body.put("negotiatedPricePerDay", negotiated);
         return call("POST", "/reservations", token, body);
     }
@@ -326,6 +328,17 @@ class ReservationFlowTest {
         setStatus(owner.token(), partly, "cancelled");
         assertThat(earnings(commissionSamsar, partly)[0]).as("limited to what was paid").isEqualTo(100.0);
         assertThat(earnings(owner.token(), partly)[0]).isEqualTo(1000.0);
+    }
+
+    @Test
+    void aStayWhoseArrivalHasPassedStartsInProgress() throws Exception {
+        Reply started = call("POST", "/reservations", commissionSamsar, Map.of("propertyId", house, "startDate", day(0),
+                "endDate", day(3), "clientName", "Client", "totalAmount", 600, "checkInTime", "00:00"));
+        assertThat(started.status()).as(started.body().toString()).isEqualTo(200);
+        assertThat(started.body().get("status").asText()).as("no advance, but the client is there").isEqualTo("in-progress");
+        assertThat(book(owner.token(), 2, 4, 300, null, 0).status()).as("its dates are held").isEqualTo(409);
+
+        assertThat(booked(commissionSamsar, 10, 12, 450, null, 0).get("status").asText()).isEqualTo("pending");
     }
 
     @Test

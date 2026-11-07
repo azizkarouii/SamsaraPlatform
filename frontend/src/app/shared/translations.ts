@@ -341,7 +341,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   hide_details: { fr: 'Masquer le détail', en: 'Hide details', ar: 'إخفاء التفاصيل' },
   reservation_read_only: { fr: "Réservation faite par un autre intervenant sur cette maison : consultation seule.", en: 'Booked by someone else on this house: read only.', ar: 'حجز قام به طرف آخر على هذا المنزل: للاطلاع فقط.' },
   dates_have_pending: { fr: 'Ces dates contiennent une réservation en attente : elle sera annulée si la vôtre est confirmée en premier.', en: 'These dates hold a pending reservation: it will be cancelled if yours is confirmed first.', ar: 'تتضمن هذه التواريخ حجزًا في الانتظار: سيُلغى إذا تم تأكيد حجزك أولاً.' },
-  advance_confirms_hint: { fr: 'Avec un acompte, la réservation est confirmée directement.', en: 'With an advance, the reservation is confirmed right away.', ar: 'مع وجود عربون، يتم تأكيد الحجز مباشرة.' },
+  advance_confirms_hint: { fr: 'Avec un acompte, la réservation est confirmée directement. Si l\'heure d\'arrivée est déjà passée, le séjour passe directement en cours.', en: 'With an advance, the reservation is confirmed right away. If the arrival time has already passed, the stay starts right away.', ar: 'مع وجود عربون، يتم تأكيد الحجز مباشرة. إذا كان وقت الوصول قد مضى، تبدأ الإقامة مباشرة.' },
   fill_with_my_phone: { fr: 'Utiliser mon téléphone', en: 'Use my phone', ar: 'استخدام هاتفي' },
   no_phone_in_profile: { fr: "Aucun téléphone dans votre profil. Ajoutez-le depuis la page Profil.", en: 'No phone in your profile. Add it from the Profile page.', ar: 'لا يوجد هاتف في ملفك الشخصي. أضفه من صفحة الملف الشخصي.' },
   photos: { fr: 'Photos', en: 'Photos', ar: 'الصور' },
