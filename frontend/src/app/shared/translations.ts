@@ -479,6 +479,8 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   history_updated: { fr: '{{actor}} a modifié la réservation', en: '{{actor}} updated the reservation', ar: 'عدّل {{actor}} الحجز' },
   history_status_changed: { fr: '{{actor}} : {{from}} → {{to}}', en: '{{actor}}: {{from}} → {{to}}', ar: '{{actor}}: {{from}} ← {{to}}' },
   history_payment_added: { fr: '{{actor}} a enregistré un paiement de {{amount}}', en: '{{actor}} recorded a payment of {{amount}}', ar: 'سجّل {{actor}} دفعة بقيمة {{amount}}' },
+  balance_paid_on_arrival: { fr: 'Solde payé à l’arrivée (automatique, à supprimer si le client n’a pas payé)', en: 'Balance paid on arrival (automatic, delete it if the client did not pay)', ar: 'الباقي مدفوع عند الوصول (تلقائي، احذفه إن لم يدفع العميل)' },
+  history_balance_recorded: { fr: 'Séjour commencé : solde de {{amount}} compté comme payé à l’arrivée', en: 'Stay started: balance of {{amount}} counted as paid on arrival', ar: 'بدأت الإقامة: احتُسب الباقي {{amount}} مدفوعًا عند الوصول' },
   history_payment_removed: { fr: '{{actor}} a supprimé un paiement de {{amount}}', en: '{{actor}} deleted a payment of {{amount}}', ar: 'حذف {{actor}} دفعة بقيمة {{amount}}' },
   history_refund_owner: { fr: '{{actor}} (propriétaire) rend {{amount}} au client', en: '{{actor}} (owner) gives {{amount}} back to the client', ar: 'يعيد {{actor}} (المالك) {{amount}} للعميل' },
   history_refund_samsar: { fr: '{{actor}} (samsar) rend {{amount}} au client', en: '{{actor}} (samsar) gives {{amount}} back to the client', ar: 'يعيد {{actor}} (السمسار) {{amount}} للعميل' },

@@ -10,8 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -24,7 +27,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +62,17 @@ class ReservationFlowTest {
 
     @MockBean
     private JavaMailSender mailSender;
+
+    /** Today at noon, whatever the real time: arrivals at 00:00 have passed, those at 23:59 have not. */
+    @TestConfiguration
+    static class FixedClock {
+        @Bean
+        @Primary
+        Clock testClock() {
+            ZoneId zone = ZoneId.systemDefault();
+            return Clock.fixed(LocalDate.now(zone).atTime(12, 0).atZone(zone).toInstant(), zone);
+        }
+    }
 
     @LocalServerPort
     private int port;
@@ -159,7 +175,7 @@ class ReservationFlowTest {
     private Reply book(String token, int start, int end, double total, Double negotiated, double advance) throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of("propertyId", house, "startDate", day(start), "endDate", day(end),
                 "clientName", "Client", "totalAmount", total, "advanceAmount", advance,
-                // Late arrival, so a stay starting today has not begun yet when it is created
+                // Late arrival: with the fixed clock, a stay starting today has not begun yet when it is created
                 "checkInTime", "23:59"));
         if (negotiated != null) body.put("negotiatedPricePerDay", negotiated);
         return call("POST", "/reservations", token, body);
@@ -178,6 +194,17 @@ class ReservationFlowTest {
 
     private Reply pay(String token, long id, double amount) throws Exception {
         return call("POST", "/reservations/" + id + "/payments", token, Map.of("amount", amount));
+    }
+
+    /** Starts the stay, then deletes the balance taken as paid at arrival: the client has not paid it. */
+    private void startWithoutBalance(long id) throws Exception {
+        setStatus(commissionSamsar, id, "in-progress");
+        for (JsonNode payment : call("GET", "/reservations/" + id + "/payments", owner.token(), null).body()) {
+            if ("balance".equals(payment.get("kind").asText())) {
+                Reply removed = call("DELETE", "/reservations/" + id + "/payments/" + payment.get("id").asLong(), owner.token(), null);
+                assertThat(removed.status()).isEqualTo(204);
+            }
+        }
     }
 
     /** {earned, upcoming} of one booking for the user asking. */
@@ -253,7 +280,17 @@ class ReservationFlowTest {
         assertThat(earnings(commissionSamsar, id)).containsExactly(0.0, 300.0);
 
         setStatus(commissionSamsar, id, "in-progress");
-        assertThat(earnings(owner.token(), id)).as("the balance is not assumed paid").containsExactly(1000.0, 0.0);
+        assertThat(earnings(owner.token(), id)).as("the balance is taken as paid at arrival").containsExactly(2700.0, 0.0);
+        assertThat(earnings(commissionSamsar, id)).containsExactly(300.0, 0.0);
+        JsonNode atArrival = call("GET", "/reservations/" + id + "/payments", owner.token(), null).body();
+        assertThat(atArrival).hasSize(2);
+        assertThat(atArrival.get(1).get("kind").asText()).isEqualTo("balance");
+        assertThat(atArrival.get(1).get("amount").asDouble()).isEqualTo(2000.0);
+        assertThat(pay(owner.token(), id, 1).status()).as("everything is paid").isEqualTo(400);
+
+        long balance = atArrival.get(1).get("id").asLong();
+        assertThat(call("DELETE", "/reservations/" + id + "/payments/" + balance, owner.token(), null).status()).isEqualTo(204);
+        assertThat(earnings(owner.token(), id)).as("the client did not pay it after all").containsExactly(1000.0, 0.0);
 
         assertThat(pay(commissionSamsar, id, 100).status()).isEqualTo(200);
         assertThat(earnings(commissionSamsar, id)).as("gain taken from what is paid after the advance").containsExactly(100.0, 200.0);
@@ -315,7 +352,6 @@ class ReservationFlowTest {
     void cancellationDuringTheStayKeepsWhatWasReceived() throws Exception {
         long enough = booked(commissionSamsar, 0, 19, 3000, null, 1000).get("id").asLong();
         setStatus(commissionSamsar, enough, "in-progress");
-        pay(owner.token(), enough, 2000);
         setStatus(owner.token(), enough, "cancelled");
         assertThat(earnings(commissionSamsar, enough)[0]).isEqualTo(300.0);
         assertThat(earnings(owner.token(), enough)[0]).isEqualTo(2700.0);
@@ -323,7 +359,7 @@ class ReservationFlowTest {
         long partly = booked(commissionSamsar, 20, 39, 3000, null, 1000).get("id").asLong();
         call("PATCH", "/reservations/" + partly, owner.token(), Map.of("startDate", day(0), "endDate", day(19)));
         jdbc.update("UPDATE reservations SET start_date = ?, end_date = ? WHERE id = ?", LocalDate.now(), LocalDate.now().plusDays(19), partly);
-        setStatus(commissionSamsar, partly, "in-progress");
+        startWithoutBalance(partly);
         pay(owner.token(), partly, 100);
         setStatus(owner.token(), partly, "cancelled");
         assertThat(earnings(commissionSamsar, partly)[0]).as("limited to what was paid").isEqualTo(100.0);
@@ -336,6 +372,8 @@ class ReservationFlowTest {
                 "endDate", day(3), "clientName", "Client", "totalAmount", 600, "checkInTime", "00:00"));
         assertThat(started.status()).as(started.body().toString()).isEqualTo(200);
         assertThat(started.body().get("status").asText()).as("no advance, but the client is there").isEqualTo("in-progress");
+        long startedId = started.body().get("id").asLong();
+        assertThat(earnings(commissionSamsar, startedId)).as("gain counted from the arrival").containsExactly(60.0, 0.0);
         assertThat(book(owner.token(), 2, 4, 300, null, 0).status()).as("its dates are held").isEqualTo(409);
 
         assertThat(booked(commissionSamsar, 10, 12, 450, null, 0).get("status").asText()).isEqualTo("pending");
@@ -360,7 +398,7 @@ class ReservationFlowTest {
     @Test
     void eachOneGivesMoneyBackFromWhatHeReceived() throws Exception {
         long id = booked(commissionSamsar, 0, 6, 1050, null, 100).get("id").asLong();
-        setStatus(commissionSamsar, id, "in-progress");
+        startWithoutBalance(id);
         assertThat(call("PUT", "/reservations/" + id + "/refund", commissionSamsar, Map.of("amount", 1)).status())
                 .as("nothing received after the advance yet").isEqualTo(400);
         pay(owner.token(), id, 950);
@@ -393,22 +431,23 @@ class ReservationFlowTest {
     @Test
     void historyRecordsWhoDidWhat() throws Exception {
         long id = booked(commissionSamsar, 0, 2, 450, null, 50).get("id").asLong();
-        setStatus(commissionSamsar, id, "in-progress");
+        startWithoutBalance(id);
         pay(owner.token(), id, 100);
         call("PUT", "/reservations/" + id + "/refund", owner.token(), Map.of("amount", 20));
 
         JsonNode history = call("GET", "/reservations/" + id + "/history", owner.token(), null).body();
         List<String> actions = new ArrayList<>();
         history.forEach(event -> actions.add(event.get("action").asText()));
-        assertThat(actions).containsExactly("created", "status_changed", "payment_added", "refund_owner");
-        assertThat(history.get(2).get("actorName").asText()).startsWith("User ");
+        assertThat(actions).containsExactly("created", "status_changed", "balance_recorded", "payment_removed", "payment_added", "refund_owner");
+        assertThat(history.get(2).get("actorName").isNull()).as("recorded by the app").isTrue();
+        assertThat(history.get(4).get("actorName").asText()).startsWith("User ");
         assertThat(json.readTree(history.get(1).get("details").asText()).get("to").asText()).isEqualTo("in-progress");
         assertThat(call("GET", "/reservations/" + id + "/history", marginSamsar, null).status()).isEqualTo(403);
 
         call("PATCH", "/reservations/" + id + "/status", owner.token(), Map.of("status", "cancelled"));
         call("DELETE", "/reservations/" + id, owner.token(), null);
         Integer kept = jdbc.queryForObject("SELECT COUNT(*) FROM reservation_events WHERE reservation_id = ?", Integer.class, id);
-        assertThat(kept).as("the history survives the deletion").isEqualTo(6);
+        assertThat(kept).as("the history survives the deletion").isEqualTo(8);
     }
 
     // ------------------------------------------------------------------------------------------ calendar
@@ -491,7 +530,7 @@ class ReservationFlowTest {
     @Test
     void dashboardSummaryIsComputedByTheServer() throws Exception {
         long id = booked(commissionSamsar, 0, 19, 3000, null, 1000).get("id").asLong();
-        setStatus(commissionSamsar, id, "in-progress");
+        startWithoutBalance(id);
         pay(owner.token(), id, 500);
         booked(commissionSamsar, 40, 40, 150, null, 0);
 
@@ -517,7 +556,6 @@ class ReservationFlowTest {
     void earningsReportCanBeDownloadedAsExcel() throws Exception {
         long id = booked(commissionSamsar, 0, 2, 450, null, 100).get("id").asLong();
         setStatus(commissionSamsar, id, "in-progress");
-        pay(owner.token(), id, 350);
 
         JsonNode rows = call("GET", "/reports/earnings", commissionSamsar, null).body();
         assertThat(rows).hasSize(1);

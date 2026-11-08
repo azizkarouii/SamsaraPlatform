@@ -124,7 +124,7 @@ Samsara/
 
 ## Règles d'argent
 
-- Chaque paiement du client est enregistré (montant, date, note) ; l'acompte est le premier. Rien n'est supposé payé.
+- Chaque paiement du client est enregistré (montant, date, note) ; l'acompte est le premier. Quand le séjour commence, le reste est enregistré automatiquement comme « solde payé à l'arrivée » : le propriétaire le supprime ou le corrige si le client n'a pas tout payé.
 - L'acompte revient au propriétaire et ne se rend pas, sauf s'il le décide (tout ou partie).
 - Le gain du samsar est pris sur ce que le client a payé après l'acompte, au fur et à mesure des paiements. Ex. : séjour de 3000, acompte de 1000, gain de 300 → le samsar reçoit ses 300 sur les 2000 suivants.
 - Prix négocié : c'est ce que paie le client, le samsar garde son tarif (10 % du nouveau total, ou sa marge par jour), pris sur la part du propriétaire.

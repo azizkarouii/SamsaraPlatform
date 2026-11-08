@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -72,6 +73,7 @@ public class ReservationService {
     private final NotificationService notificationService;
     private final ReservationEventService eventService;
     private final AccessService accessService;
+    private final Clock clock;
 
     // ------------------------------------------------------------------------------------------ reading
 
@@ -292,6 +294,9 @@ public class ReservationService {
         syncAdvancePayment(saved, userId);
         eventService.record(saved, actor, "created", Map.of(
                 "status", saved.getStatus(), "total", saved.getTotalAmount(), "advance", saved.getAdvanceAmount()));
+        if (IN_PROGRESS.equals(saved.getStatus())) {
+            recordBalanceOnArrival(saved);
+        }
         if (actor != null) {
             notificationService.notifyReservationCreated(saved, property, actor);
         }
@@ -341,6 +346,9 @@ public class ReservationService {
         reservation.setStatus(target);
         reservation = reservationRepository.save(reservation);
         eventService.record(reservation, actor, "status_changed", Map.of("from", previous, "to", target));
+        if (IN_PROGRESS.equals(target)) {
+            recordBalanceOnArrival(reservation);
+        }
 
         Property property = reservation.getProperty() != null
                 ? reservation.getProperty()
@@ -583,6 +591,35 @@ public class ReservationService {
                 .build());
         advance.setAmount(Money.of(reservation.getAdvanceAmount()));
         paymentRepository.save(advance);
+        // A balance taken at arrival is what remained then: it shrinks when the advance grows
+        paymentRepository.findFirstByReservationIdAndKind(reservation.getId(), ReservationPayment.BALANCE).ifPresent(balance -> {
+            BigDecimal others = Money.of(paymentRepository.sumByReservationId(reservation.getId())).subtract(balance.getAmount());
+            BigDecimal remaining = Money.minus(reservation.getTotalAmount(), others);
+            if (Money.isPositive(remaining)) {
+                balance.setAmount(Money.min(balance.getAmount(), remaining));
+                paymentRepository.save(balance);
+            } else {
+                paymentRepository.delete(balance);
+            }
+        });
+    }
+
+    /**
+     * The client pays what remains when he arrives: it is recorded on its own, so the owner's part and the
+     * samsar's gain count from the start of the stay. It can be deleted if the client did not pay it.
+     */
+    private void recordBalanceOnArrival(Reservation reservation) {
+        BigDecimal remaining = Money.minus(reservation.getTotalAmount(), paymentRepository.sumByReservationId(reservation.getId()));
+        if (!Money.isPositive(remaining)) {
+            return;
+        }
+        paymentRepository.save(ReservationPayment.builder()
+                .reservationId(reservation.getId())
+                .amount(remaining)
+                .paidOn(LocalDate.now())
+                .kind(ReservationPayment.BALANCE)
+                .build());
+        eventService.record(reservation, null, "balance_recorded", Map.of("amount", remaining));
     }
 
     @Transactional
@@ -721,7 +758,7 @@ public class ReservationService {
 
     private boolean arrivalReached(Reservation reservation) {
         LocalDateTime arrival = reservation.getStartDate().atTime(LocalTime.parse(reservation.getCheckInTime()));
-        return !arrival.isAfter(LocalDateTime.now());
+        return !arrival.isAfter(LocalDateTime.now(clock));
     }
 
     private void requireNotInPast(LocalDate startDate) {

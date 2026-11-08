@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 
 /**
  * Money received from the client for a booking. The advance has its own row (kind "advance"), kept in line
- * with the advance of the booking; every other amount is recorded as it is received (kind "payment").
+ * with the advance of the booking; the rest is taken as paid when the stay starts (kind "balance", which can
+ * be deleted if the client did not pay it); any other amount is recorded as it is received (kind "payment").
  */
 @Entity
 @Table(name = "reservation_payments")
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
 public class ReservationPayment {
     public static final String ADVANCE = "advance";
     public static final String PAYMENT = "payment";
+    public static final String BALANCE = "balance";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

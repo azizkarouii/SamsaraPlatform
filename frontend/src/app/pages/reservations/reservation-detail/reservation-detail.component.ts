@@ -230,7 +230,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
               <li *ngFor="let payment of payments">
                 <div>
                   <strong>{{ payment.amount | number:'1.0-2' }} TND</strong>
-                  <span>{{ payment.paidOn | date:'dd/MM/yyyy' }} · {{ payment.kind === 'advance' ? t('advance_paid') : (payment.note || t('payment')) }}</span>
+                  <span>{{ payment.paidOn | date:'dd/MM/yyyy' }} · {{ payment.kind === 'advance' ? t('advance_paid') : payment.kind === 'balance' ? t('balance_paid_on_arrival') : (payment.note || t('payment')) }}</span>
                 </div>
                 <button mat-icon-button *ngIf="payment.kind !== 'advance'" (click)="removePayment(payment)"
                         [attr.aria-label]="t('delete_payment')" [matTooltip]="t('delete_payment')">

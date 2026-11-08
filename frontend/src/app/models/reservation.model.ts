@@ -49,7 +49,7 @@ export interface ReservationPayment {
   amount: number;
   paidOn: string;
   /** "advance" follows the advance of the booking; "payment" is money received afterwards. */
-  kind: 'advance' | 'payment';
+  kind: 'advance' | 'payment' | 'balance';
   note?: string | null;
   recordedBy?: number | null;
   createdAt: string;
