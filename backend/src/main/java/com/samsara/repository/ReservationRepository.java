@@ -16,6 +16,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByStatusAndStartDate(String status, LocalDate startDate);
 
     List<Reservation> findByStatusAndEndDate(String status, LocalDate endDate);
+
+    /** Planning: the bookings of these houses touching the period, cancelled ones left out. */
+    @Query("SELECT r FROM Reservation r WHERE r.propertyId IN :propertyIds AND r.status <> 'cancelled' " +
+           "AND r.startDate <= :to AND r.endDate >= :from ORDER BY r.startDate")
+    List<Reservation> findForPlanning(@Param("propertyIds") List<Long> propertyIds,
+                                      @Param("from") LocalDate from, @Param("to") LocalDate to);
     String VISIBLE_TO_USER = "(r.samsarId = :userId OR p.createdBy = :userId "
             + "OR r.propertyId IN (SELECT ps.propertyId FROM PropertySamsar ps WHERE ps.samsarId = :userId))";
     String MATCHES_SEARCH = "(LOWER(r.clientName) LIKE :search OR LOWER(COALESCE(r.clientPhone, '')) LIKE :search "

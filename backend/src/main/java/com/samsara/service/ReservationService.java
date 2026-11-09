@@ -4,12 +4,9 @@ import com.samsara.dto.ReservationDto;
 import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.dto.ReservationEarning;
 import com.samsara.dto.ReservationPageDto;
-import com.samsara.dto.ReservationPaymentDto;
 import com.samsara.entity.Property;
-import com.samsara.entity.PropertySeasonalPrice;
 import com.samsara.entity.Reservation;
 import com.samsara.entity.ReservationEvent;
-import com.samsara.entity.ReservationPayment;
 import com.samsara.entity.User;
 import com.samsara.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -27,30 +23,18 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static com.samsara.service.ReservationStatus.*;
+
+/**
+ * Bookings: reading them, creating and editing them, and moving them along the workflow.
+ * Prices are in {@link ReservationPricing}, money received and given back in {@link ReservationPaymentService}.
+ */
 @Service
 @RequiredArgsConstructor
 public class ReservationService {
-
-    public static final String PENDING = "pending";
-    public static final String CONFIRMED = "confirmed";
-    public static final String IN_PROGRESS = "in-progress";
-    public static final String COMPLETED = "completed";
-    public static final String CANCELLED = "cancelled";
-
-    /** Workflow: pending → confirmed → in-progress → completed, cancellation possible until completion. */
-    private static final Map<String, Set<String>> TRANSITIONS = Map.of(
-            PENDING, Set.of(CONFIRMED, CANCELLED),
-            CONFIRMED, Set.of(IN_PROGRESS, CANCELLED),
-            IN_PROGRESS, Set.of(COMPLETED, CANCELLED),
-            COMPLETED, Set.of(),
-            CANCELLED, Set.of()
-    );
 
     private static final Pattern TIME_PATTERN = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
 
@@ -63,15 +47,14 @@ public class ReservationService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final ReservationRepository reservationRepository;
-    private final ReservationPaymentRepository paymentRepository;
     private final PropertyRepository propertyRepository;
     private final NotificationRepository notificationRepository;
     private final PropertyAvailabilityRepository availabilityRepository;
-    private final PropertySamsarRepository propertySamsarRepository;
-    private final PropertySeasonalPriceRepository seasonalPriceRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final ReservationEventService eventService;
+    private final ReservationPaymentService paymentService;
+    private final ReservationPricing pricing;
     private final AccessService accessService;
     private final Clock clock;
 
@@ -125,25 +108,13 @@ public class ReservationService {
         List<Reservation> managed = reservationRepository.findVisibleTo(userId).stream()
                 .filter(r -> accessService.isOwner(r.getProperty(), userId) || userId.equals(r.getSamsarId()))
                 .toList();
-        Map<Long, BigDecimal> paid = paidByReservation(managed);
+        Map<Long, BigDecimal> paid = paymentService.paidByReservation(managed);
         return managed.stream().map(r -> {
             BigDecimal received = paid.getOrDefault(r.getId(), Money.ZERO);
             return accessService.isOwner(r.getProperty(), userId)
                     ? new ReservationEarning(r.getId(), ReservationEarnings.owner(r, received), Money.ZERO)
                     : new ReservationEarning(r.getId(), ReservationEarnings.samsar(r, received), ReservationEarnings.samsarUpcoming(r, received));
         }).toList();
-    }
-
-    /** Total received per booking, in one query. */
-    public Map<Long, BigDecimal> paidByReservation(Collection<Reservation> reservations) {
-        Map<Long, BigDecimal> paid = new HashMap<>();
-        if (reservations.isEmpty()) {
-            return paid;
-        }
-        for (Object[] row : paymentRepository.sumByReservationIds(reservations.stream().map(Reservation::getId).toList())) {
-            paid.put((Long) row[0], Money.of((BigDecimal) row[1]));
-        }
-        return paid;
     }
 
     public Reservation findById(Long id, Long userId) {
@@ -179,12 +150,7 @@ public class ReservationService {
                 .toList();
     }
 
-    /** Payments and history are for the ones managing the booking: its samsar and the owner of the house. */
-    public List<ReservationPayment> findPayments(Long id, Long userId) {
-        accessService.requireReservationAccess(getReservation(id), userId);
-        return paymentRepository.findByReservationIdOrderByPaidOnAscIdAsc(id);
-    }
-
+    /** The history is for the ones managing the booking: its samsar and the owner of the house. */
     public List<ReservationEvent> findEvents(Long id, Long userId) {
         accessService.requireReservationAccess(getReservation(id), userId);
         return eventService.findByReservation(id);
@@ -195,35 +161,24 @@ public class ReservationService {
                 .orElseThrow(() -> new RuntimeException("Reservation not found"));
     }
 
-    private String normalizeStatus(String status) {
-        if (status == null) return PENDING;
-        String normalized = status.trim().toLowerCase();
-        if ("in_progress".equals(normalized) || "in progress".equals(normalized) || "in-progress".equals(normalized)) {
-            return IN_PROGRESS;
-        }
-        if ("reserved".equals(normalized)) return CONFIRMED;
-        if ("active".equals(normalized)) return IN_PROGRESS;
-        return normalized;
-    }
-
     /** Repairs old rows: statuses such as "in_progress" or "Pending", and amounts computed before their columns. */
     @Transactional
     public int normalizeLegacyData() {
         int fixed = 0;
         for (Reservation r : reservationRepository.findAll()) {
-            String status = normalizeStatus(r.getStatus());
+            String status = normalize(r.getStatus());
             boolean changed = !status.equals(r.getStatus());
             r.setStatus(status);
             if (r.getBaseAmount() == null || r.getSamsarGain() == null) {
                 // Bookings older than these columns take the rates and the deal currently in force
                 Property property = accessService.getProperty(r.getPropertyId());
                 if (r.getBaseAmount() == null && property.getPricePerDay() != null) {
-                    r.setBaseAmount(computeBaseAmount(property, r.getStartDate(), r.getEndDate()));
+                    r.setBaseAmount(pricing.computeBaseAmount(property, r.getStartDate(), r.getEndDate()));
                     changed = true;
                 }
                 if (r.getSamsarGain() == null) {
-                    freezeSamsarDeal(r, property, r.getSamsarId());
-                    r.setSamsarGain(computeSamsarGain(r, property));
+                    pricing.freezeSamsarDeal(r, property, r.getSamsarId());
+                    r.setSamsarGain(pricing.computeSamsarGain(r, property));
                     changed = true;
                 }
             }
@@ -280,9 +235,9 @@ public class ReservationService {
                 .negotiatedPricePerDay(Money.positiveOrNull(dto.getNegotiatedPricePerDay()))
                 .build();
 
-        freezeSamsarDeal(reservation, property, userId);
+        pricing.freezeSamsarDeal(reservation, property, userId);
         validate(reservation, property, userId);
-        reservation.setSamsarGain(computeSamsarGain(reservation, property));
+        reservation.setSamsarGain(pricing.computeSamsarGain(reservation, property));
         requireNotInPast(reservation.getStartDate());
         if (arrivalReached(reservation)) {
             // The client is already there: the stay is under way, advance or not
@@ -291,11 +246,11 @@ public class ReservationService {
         Reservation saved = reservationRepository.save(reservation);
 
         User actor = userRepository.findById(userId).orElse(null);
-        syncAdvancePayment(saved, userId);
+        paymentService.syncAdvancePayment(saved, userId);
         eventService.record(saved, actor, "created", Map.of(
                 "status", saved.getStatus(), "total", saved.getTotalAmount(), "advance", saved.getAdvanceAmount()));
         if (IN_PROGRESS.equals(saved.getStatus())) {
-            recordBalanceOnArrival(saved);
+            paymentService.recordBalanceOnArrival(saved);
         }
         if (actor != null) {
             notificationService.notifyReservationCreated(saved, property, actor);
@@ -309,11 +264,11 @@ public class ReservationService {
         Reservation reservation = getReservation(id);
         accessService.requireReservationAccess(reservation, userId);
 
-        String target = normalizeStatus(status);
+        String target = normalize(status);
         if (!TRANSITIONS.containsKey(target)) {
             throw new IllegalArgumentException("Unknown status: " + status);
         }
-        String current = normalizeStatus(reservation.getStatus());
+        String current = normalize(reservation.getStatus());
         if (current.equals(target)) {
             return reservation;
         }
@@ -347,7 +302,7 @@ public class ReservationService {
         reservation = reservationRepository.save(reservation);
         eventService.record(reservation, actor, "status_changed", Map.of("from", previous, "to", target));
         if (IN_PROGRESS.equals(target)) {
-            recordBalanceOnArrival(reservation);
+            paymentService.recordBalanceOnArrival(reservation);
         }
 
         Property property = reservation.getProperty() != null
@@ -362,7 +317,7 @@ public class ReservationService {
      * can no longer happen: they are cancelled and their stakeholders are told why.
      */
     private void overridePendingOverlaps(Reservation holder, Property property) {
-        String status = normalizeStatus(holder.getStatus());
+        String status = normalize(holder.getStatus());
         if (!CONFIRMED.equals(status) && !IN_PROGRESS.equals(status)) {
             return;
         }
@@ -380,7 +335,7 @@ public class ReservationService {
         Reservation reservation = getReservation(id);
         accessService.requireReservationAccess(reservation, userId);
 
-        String status = normalizeStatus(reservation.getStatus());
+        String status = normalize(reservation.getStatus());
         if (COMPLETED.equals(status) || CANCELLED.equals(status)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A completed or cancelled reservation cannot be modified");
         }
@@ -418,14 +373,14 @@ public class ReservationService {
 
         Property property = reservation.getProperty();
         validate(reservation, property, reservation.getSamsarId());
-        reservation.setSamsarGain(computeSamsarGain(reservation, property));
-        BigDecimal paidOutsideAdvance = Money.minus(paymentRepository.sumByReservationId(reservation.getId()), previousAdvance);
+        reservation.setSamsarGain(pricing.computeSamsarGain(reservation, property));
+        BigDecimal paidOutsideAdvance = paymentService.paidOutsideAdvance(reservation, previousAdvance);
         if (Money.greaterThan(Money.of(reservation.getAdvanceAmount()).add(paidOutsideAdvance), reservation.getTotalAmount())) {
             throw new IllegalArgumentException("The total cannot go below what was already paid");
         }
         reservation = reservationRepository.save(reservation);
-        syncAdvancePayment(reservation, userId);
-        requireRefundsWithinReceived(reservation);
+        paymentService.syncAdvancePayment(reservation, userId);
+        paymentService.requireRefundsWithinReceived(reservation);
 
         User actor = userRepository.findById(userId).orElse(null);
         Map<String, Object> changes = new LinkedHashMap<>();
@@ -456,7 +411,7 @@ public class ReservationService {
     public Reservation endEarly(Long id, ReservationEarlyEndDto dto, Long userId) {
         Reservation reservation = getReservation(id);
         accessService.requireReservationAccess(reservation, userId);
-        if (!IN_PROGRESS.equals(normalizeStatus(reservation.getStatus()))) {
+        if (!IN_PROGRESS.equals(normalize(reservation.getStatus()))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a stay in progress can end early");
         }
         LocalDate newEnd = parseDate(dto.getEndDate(), "end date");
@@ -466,7 +421,7 @@ public class ReservationService {
         Property property = reservation.getProperty();
         User actor = userRepository.findById(userId).orElse(null);
         if (Money.isPositive(dto.getRefundAmount())) {
-            applyRefund(reservation, property, dto.getRefundAmount(), userId, actor);
+            paymentService.applyRefund(reservation, property, dto.getRefundAmount(), userId, actor);
         }
         LocalDate plannedEnd = reservation.getEndDate();
         if (reservation.getOriginalEndDate() == null) {
@@ -482,146 +437,6 @@ public class ReservationService {
         return reservation;
     }
 
-    /** Sets what the caller gave back to the client, out of his own part (0 removes it). */
-    @Transactional
-    public Reservation setRefund(Long id, BigDecimal amount, Long userId) {
-        Reservation reservation = getReservation(id);
-        User actor = userRepository.findById(userId).orElse(null);
-        applyRefund(reservation, reservation.getProperty(), amount, userId, actor);
-        return reservationRepository.save(reservation);
-    }
-
-    /**
-     * Giving money back is always voluntary, and each one gives from what he has received: the owner from his
-     * part of the payments, the samsar who booked from his gain. An advance is not returned on cancellation
-     * unless the owner chooses to, in full or in part.
-     */
-    private void applyRefund(Reservation reservation, Property property, BigDecimal amount, Long userId, User actor) {
-        boolean owner = accessService.isOwner(property, userId);
-        if (!owner && !userId.equals(reservation.getSamsarId())) {
-            throw new AccessDeniedException("You cannot give money back on this reservation");
-        }
-        String status = normalizeStatus(reservation.getStatus());
-        if (PENDING.equals(status) || COMPLETED.equals(status)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Money cannot be given back at this stage of the reservation");
-        }
-        BigDecimal paid = paymentRepository.sumByReservationId(reservation.getId());
-        BigDecimal limit = owner ? ReservationEarnings.ownerReceived(reservation, paid) : ReservationEarnings.samsarReceived(reservation, paid);
-        if (amount == null || Money.isNegative(amount) || Money.greaterThan(amount, limit)) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "The amount given back must be between 0 and %.2f TND", limit));
-        }
-        if (owner) {
-            reservation.setRefundAmount(Money.positiveOrNull(amount));
-        } else {
-            reservation.setSamsarRefundAmount(Money.positiveOrNull(amount));
-        }
-        eventService.record(reservation, actor, owner ? "refund_owner" : "refund_samsar", Map.of("amount", Money.of(amount)));
-    }
-
-    /** Money received from the client after the advance (the advance itself follows the booking's advance). */
-    @Transactional
-    public ReservationPayment addPayment(Long id, ReservationPaymentDto dto, Long userId) {
-        Reservation reservation = getReservation(id);
-        accessService.requireReservationAccess(reservation, userId);
-        if (PENDING.equals(normalizeStatus(reservation.getStatus()))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Payments cannot be recorded on a pending reservation: add an advance instead");
-        }
-        if (!Money.isPositive(dto.getAmount())) {
-            throw new IllegalArgumentException("Payments must be above zero");
-        }
-        LocalDate paidOn = dto.getPaidOn() == null || dto.getPaidOn().isBlank() ? LocalDate.now() : parseDate(dto.getPaidOn(), "payment date");
-        if (paidOn.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("A payment cannot be dated in the future");
-        }
-        BigDecimal paid = paymentRepository.sumByReservationId(reservation.getId());
-        if (Money.greaterThan(Money.of(paid).add(Money.of(dto.getAmount())), reservation.getTotalAmount())) {
-            throw new IllegalArgumentException("Payments cannot exceed the total of the reservation");
-        }
-        ReservationPayment payment = paymentRepository.save(ReservationPayment.builder()
-                .reservationId(reservation.getId())
-                .amount(Money.of(dto.getAmount()))
-                .paidOn(paidOn)
-                .kind(ReservationPayment.PAYMENT)
-                .note(dto.getNote() != null && !dto.getNote().isBlank() ? dto.getNote().trim() : null)
-                .recordedBy(userId)
-                .build());
-        User actor = userRepository.findById(userId).orElse(null);
-        eventService.record(reservation, actor, "payment_added", Map.of("amount", payment.getAmount(), "paidOn", paidOn.toString()));
-        return payment;
-    }
-
-    @Transactional
-    public void removePayment(Long id, Long paymentId, Long userId) {
-        Reservation reservation = getReservation(id);
-        accessService.requireReservationAccess(reservation, userId);
-        ReservationPayment payment = paymentRepository.findById(paymentId)
-                .filter(p -> p.getReservationId().equals(reservation.getId()))
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
-        if (ReservationPayment.ADVANCE.equals(payment.getKind())) {
-            throw new IllegalArgumentException("The advance is changed by editing the reservation");
-        }
-        paymentRepository.delete(payment);
-        paymentRepository.flush();
-        requireRefundsWithinReceived(reservation);
-        User actor = userRepository.findById(userId).orElse(null);
-        eventService.record(reservation, actor, "payment_removed", Map.of("amount", payment.getAmount(), "paidOn", payment.getPaidOn().toString()));
-    }
-
-    /** What was given back can never exceed what was received, after a payment is removed or the advance lowered. */
-    private void requireRefundsWithinReceived(Reservation reservation) {
-        BigDecimal paid = paymentRepository.sumByReservationId(reservation.getId());
-        if (Money.greaterThan(reservation.getRefundAmount(), ReservationEarnings.ownerReceived(reservation, paid))
-                || Money.greaterThan(reservation.getSamsarRefundAmount(), ReservationEarnings.samsarReceived(reservation, paid))) {
-            throw new IllegalArgumentException("Lower the money given back first: it would exceed what was received");
-        }
-    }
-
-    /** The advance has its own payment row, kept equal to the advance of the booking. */
-    private void syncAdvancePayment(Reservation reservation, Long userId) {
-        Optional<ReservationPayment> existing = paymentRepository.findFirstByReservationIdAndKind(reservation.getId(), ReservationPayment.ADVANCE);
-        if (!Money.isPositive(reservation.getAdvanceAmount())) {
-            existing.ifPresent(paymentRepository::delete);
-            return;
-        }
-        ReservationPayment advance = existing.orElseGet(() -> ReservationPayment.builder()
-                .reservationId(reservation.getId())
-                .kind(ReservationPayment.ADVANCE)
-                .paidOn(LocalDate.now())
-                .recordedBy(userId)
-                .build());
-        advance.setAmount(Money.of(reservation.getAdvanceAmount()));
-        paymentRepository.save(advance);
-        // A balance taken at arrival is what remained then: it shrinks when the advance grows
-        paymentRepository.findFirstByReservationIdAndKind(reservation.getId(), ReservationPayment.BALANCE).ifPresent(balance -> {
-            BigDecimal others = Money.of(paymentRepository.sumByReservationId(reservation.getId())).subtract(balance.getAmount());
-            BigDecimal remaining = Money.minus(reservation.getTotalAmount(), others);
-            if (Money.isPositive(remaining)) {
-                balance.setAmount(Money.min(balance.getAmount(), remaining));
-                paymentRepository.save(balance);
-            } else {
-                paymentRepository.delete(balance);
-            }
-        });
-    }
-
-    /**
-     * The client pays what remains when he arrives: it is recorded on its own, so the owner's part and the
-     * samsar's gain count from the start of the stay. It can be deleted if the client did not pay it.
-     */
-    private void recordBalanceOnArrival(Reservation reservation) {
-        BigDecimal remaining = Money.minus(reservation.getTotalAmount(), paymentRepository.sumByReservationId(reservation.getId()));
-        if (!Money.isPositive(remaining)) {
-            return;
-        }
-        paymentRepository.save(ReservationPayment.builder()
-                .reservationId(reservation.getId())
-                .amount(remaining)
-                .paidOn(LocalDate.now())
-                .kind(ReservationPayment.BALANCE)
-                .build());
-        eventService.record(reservation, null, "balance_recorded", Map.of("amount", remaining));
-    }
-
     @Transactional
     public void delete(Long id, Long userId) {
         Reservation reservation = getReservation(id);
@@ -631,7 +446,7 @@ public class ReservationService {
 
         eventService.record(reservation, actor, "deleted", Map.of("client", reservation.getClientName()));
         notificationRepository.deleteByReservationId(reservation.getId());
-        paymentRepository.deleteByReservationId(reservation.getId());
+        paymentService.deleteAll(reservation);
         reservationRepository.delete(reservation);
 
         if (actor != null) {
@@ -639,73 +454,7 @@ public class ReservationService {
         }
     }
 
-    // ------------------------------------------------------------------------------------------ pricing
-
-    /** Copies the deal granted by the owner onto the booking. A booking by the owner has no samsar deal. */
-    private void freezeSamsarDeal(Reservation reservation, Property property, Long bookerId) {
-        if (accessService.isOwner(property, bookerId)) {
-            return;
-        }
-        propertySamsarRepository.findByPropertyIdAndSamsarId(property.getId(), bookerId).ifPresent(deal -> {
-            reservation.setSamsarMarginTnd(deal.getPriceIncreaseTnd());
-            reservation.setSamsarCommissionPercent(deal.getCommissionPercent());
-        });
-    }
-
-    /**
-     * Price of a stay day by day, last day included: the price of the period covering each day, else the
-     * main price (7 days at 100 then 3 days at 200 = 1300). Null when the house has no price at all.
-     */
-    private BigDecimal computeBaseAmount(Property property, LocalDate start, LocalDate end) {
-        if (property.getPricePerDay() == null) {
-            return null;
-        }
-        List<PropertySeasonalPrice> periods = seasonalPriceRepository.findByPropertyIdOrderByStartDateAsc(property.getId());
-        BigDecimal amount = Money.ZERO;
-        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
-            String monthDay = day.toString().substring(5);
-            amount = amount.add(periods.stream()
-                    .filter(period -> period.covers(monthDay))
-                    .map(PropertySeasonalPrice::getPricePerDay)
-                    .findFirst()
-                    .orElse(property.getPricePerDay()));
-        }
-        return Money.of(amount);
-    }
-
-    /**
-     * Commission: its percentage of the total (300 TND at 10% = 30 for the samsar, 270 for the owner).
-     * Fixed margin: what was charged above the house price; on a negotiated price, which already is what the
-     * client pays, the margin per day still goes to him and comes out of the owner's part.
-     * The owner's own bookings earn no samsar anything.
-     */
-    private BigDecimal computeSamsarGain(Reservation reservation, Property property) {
-        if (accessService.isOwner(property, reservation.getSamsarId())) {
-            return Money.ZERO;
-        }
-        BigDecimal total = Money.of(reservation.getTotalAmount());
-        if (reservation.getSamsarCommissionPercent() != null) {
-            return Money.percent(total, reservation.getSamsarCommissionPercent());
-        }
-        if (reservation.getNegotiatedPricePerDay() != null) {
-            int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
-            return Money.min(total, Money.times(Money.of(margin), days(reservation.getStartDate(), reservation.getEndDate())));
-        }
-        if (reservation.getBaseAmount() != null) {
-            return Money.minus(total, reservation.getBaseAmount());
-        }
-        return Money.ZERO;
-    }
-
-    private static long days(LocalDate start, LocalDate end) {
-        return ChronoUnit.DAYS.between(start, end) + 1;
-    }
-
-    /**
-     * Business rules shared by creation and edition.
-     * The total follows the spec: number of days (last day included) × daily price; a samsar may add
-     * at most the margin granted by the owner (10, 20 or 30 TND per day).
-     */
+    /** Rules shared by creation and edition; the amounts are checked by {@link ReservationPricing}. */
     private void validate(Reservation reservation, Property property, Long bookerId) {
         if (reservation.getClientName() == null || reservation.getClientName().isBlank()) {
             throw new IllegalArgumentException("Client name is required");
@@ -719,33 +468,7 @@ public class ReservationService {
                 || !TIME_PATTERN.matcher(reservation.getCheckOutTime()).matches()) {
             throw new IllegalArgumentException("Times must use the HH:mm format");
         }
-
-        BigDecimal total = reservation.getTotalAmount();
-        if (total == null || Money.isNegative(total)) {
-            throw new IllegalArgumentException("Total amount is required and must be positive");
-        }
-        if (Money.isNegative(reservation.getAdvanceAmount()) || Money.greaterThan(reservation.getAdvanceAmount(), total)) {
-            throw new IllegalArgumentException("Advance must be between 0 and the total amount");
-        }
-
-        if (reservation.getBaseAmount() == null) {
-            reservation.setBaseAmount(computeBaseAmount(property, start, end));
-        }
-        long days = days(start, end);
-        BigDecimal negotiated = reservation.getNegotiatedPricePerDay();
-        if (negotiated != null && reservation.getBaseAmount() != null
-                && Money.times(negotiated, days).compareTo(reservation.getBaseAmount()) >= 0) {
-            throw new IllegalArgumentException("A negotiated price must be below the usual price of the stay");
-        }
-        if ((negotiated != null || reservation.getBaseAmount() != null) && !accessService.isOwner(property, bookerId)) {
-            int margin = reservation.getSamsarMarginTnd() != null ? reservation.getSamsarMarginTnd() : 0;
-            BigDecimal max = negotiated != null
-                    ? Money.times(negotiated, days)
-                    : Money.of(reservation.getBaseAmount()).add(Money.times(Money.of(margin), days));
-            if (Money.greaterThan(total, max)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT, "Total exceeds the allowed maximum of %.0f TND", max));
-            }
-        }
+        pricing.checkAmounts(reservation, property, bookerId);
 
         Long excludeId = reservation.getId() != null ? reservation.getId() : -1L;
         if (!reservationRepository.findOverlapping(property.getId(), start, end, excludeId).isEmpty()) {
@@ -764,17 +487,6 @@ public class ReservationService {
     private void requireNotInPast(LocalDate startDate) {
         if (startDate.isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("A reservation cannot start in the past");
-        }
-    }
-
-    private LocalDate parseDate(String value, String label) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("The " + label + " is required");
-        }
-        try {
-            return LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Invalid " + label + " (expected yyyy-MM-dd)");
         }
     }
 }

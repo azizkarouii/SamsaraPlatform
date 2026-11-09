@@ -14,7 +14,7 @@ import java.util.Set;
 public final class ReservationEarnings {
 
     private static final Set<String> EXPECTING_MONEY = Set.of(
-            ReservationService.CONFIRMED, ReservationService.IN_PROGRESS, ReservationService.COMPLETED);
+            ReservationStatus.CONFIRMED, ReservationStatus.IN_PROGRESS, ReservationStatus.COMPLETED);
 
     private ReservationEarnings() {
     }

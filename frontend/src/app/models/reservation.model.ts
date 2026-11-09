@@ -65,6 +65,15 @@ export interface ReservationEvent {
 }
 
 /** Figures of the dashboard and the profile, computed by the server from the payments received. */
+/** One month of every house of the user (GET /dashboard/planning). */
+export interface Planning {
+  from: string;
+  to: string;
+  houses: { id: number; title: string }[];
+  stays: { id: number; propertyId: number; startDate: string; endDate: string; status: string; clientName: string }[];
+  blocked: { propertyId: number; date: string }[];
+}
+
 export interface DashboardSummary {
   earned: number;
   upcoming: number;

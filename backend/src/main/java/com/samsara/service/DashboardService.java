@@ -28,13 +28,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DashboardService {
 
-    private static final Set<String> ONGOING = Set.of(ReservationService.PENDING, ReservationService.CONFIRMED, ReservationService.IN_PROGRESS);
+    private static final Set<String> ONGOING = Set.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED, ReservationStatus.IN_PROGRESS);
 
     private final ReservationRepository reservationRepository;
     private final PropertyRepository propertyRepository;
     private final PropertySamsarRepository propertySamsarRepository;
     private final UserRepository userRepository;
-    private final ReservationService reservationService;
+    private final ReservationPaymentService paymentService;
 
     /** One booking seen by the user asking, with the money it brings him. */
     public record Line(Reservation reservation, BigDecimal paid, BigDecimal earned, BigDecimal upcoming, BigDecimal toCollect) {}
@@ -98,7 +98,7 @@ public class DashboardService {
     public List<Line> reportLines(Long userId, LocalDate from, LocalDate to) {
         return lines(userId, isOwner(userId)).stream()
                 .filter(line -> overlaps(line.reservation(), from, to))
-                .filter(line -> !ReservationService.PENDING.equals(line.reservation().getStatus()))
+                .filter(line -> !ReservationStatus.PENDING.equals(line.reservation().getStatus()))
                 .sorted(Comparator.comparing((Line line) -> line.reservation().getStartDate()))
                 .toList();
     }
@@ -107,7 +107,7 @@ public class DashboardService {
         List<Reservation> reservations = owner
                 ? reservationRepository.findByPropertyCreatedBy(userId)
                 : reservationRepository.findBySamsarId(userId).stream().filter(r -> userId.equals(r.getSamsarId())).toList();
-        Map<Long, BigDecimal> paid = reservationService.paidByReservation(reservations);
+        Map<Long, BigDecimal> paid = paymentService.paidByReservation(reservations);
         return reservations.stream().map(r -> {
             BigDecimal received = paid.getOrDefault(r.getId(), Money.ZERO);
             BigDecimal earned = owner ? ReservationEarnings.owner(r, received) : ReservationEarnings.samsar(r, received);

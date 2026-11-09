@@ -17,21 +17,20 @@ import {
   STATUS_TRANSITIONS,
   countReservationDays,
   normalizeReservationStatus,
-  ownerReceived,
   ownerShareOf,
   ReservationEvent,
   ReservationPayment,
-  samsarReceived,
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
-import { formatIsoDate, parseIsoDate, todayIso } from '../../../shared/calendar-utils';
+import { todayIso } from '../../../shared/calendar-utils';
+import { whatsAppLink } from '../../../shared/whatsapp';
+import { ReservationPaymentsComponent } from './reservation-payments.component';
+import { ReservationHistoryComponent } from './reservation-history.component';
+import { ReservationReceiptComponent } from './reservation-receipt.component';
+import { ReservationStayChangesComponent } from './reservation-stay-changes.component';
 
-import { FormsModule } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { Observable } from 'rxjs';
-import { MatTooltipModule } from '@angular/material/tooltip';
+/** A booking: its workflow, details, money, payments and history, with the client receipt and WhatsApp. */
 @Component({
   selector: 'app-reservation-detail',
   standalone: true,
@@ -44,15 +43,15 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     MatDividerModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
-    FormsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatTooltipModule,
+    ReservationPaymentsComponent,
+    ReservationHistoryComponent,
+    ReservationReceiptComponent,
+    ReservationStayChangesComponent,
   ],
   template: `
     <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
-    <div class="page" *ngIf="!loading && reservation as r">
+    <div class="page screen-only" *ngIf="!loading && reservation as r">
       <div class="page-header">
         <div>
           <p class="eyebrow">{{ t('reservation') }} #{{ r.id }}</p>
@@ -62,6 +61,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
         <div class="header-actions">
           <button mat-stroked-button routerLink="/reservations">
             <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
+          </button>
+          <a mat-stroked-button class="whatsapp" *ngIf="canManage && whatsApp" [href]="whatsApp" target="_blank" rel="noopener"
+             [attr.aria-label]="t('send_summary_whatsapp')">
+            <mat-icon>chat</mat-icon> WhatsApp
+          </a>
+          <button mat-stroked-button *ngIf="canManage" (click)="printReceipt()">
+            <mat-icon>receipt_long</mat-icon> {{ t('receipt_pdf') }}
           </button>
           <a mat-stroked-button *ngIf="editable" [routerLink]="['/reservations', r.id, 'edit']">
             <mat-icon>edit</mat-icon> {{ t('edit') }}
@@ -98,41 +104,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
             <span class="hint" *ngIf="startsLater">{{ t('auto_start_hint') }}</span>
           </div>
 
-          <div class="status-actions" *ngIf="canEndEarly || canRefund">
-            <span class="hint">{{ t('stay_changes') }}</span>
-            <button mat-stroked-button *ngIf="canEndEarly" (click)="openPanel('early')"><mat-icon>event_busy</mat-icon> {{ t('end_early') }}</button>
-            <button mat-stroked-button *ngIf="canRefund" (click)="openPanel('refund')"><mat-icon>undo</mat-icon> {{ t('give_money_back') }}</button>
-          </div>
-
-          <form class="stay-panel" *ngIf="panel === 'early'" (ngSubmit)="submitEarlyEnd()">
-            <p>{{ t('end_early_explained') }}</p>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ t('new_end_date') }}</mat-label>
-              <input matInput type="date" name="earlyEndDate" required [min]="r.startDate" [max]="latestEarlyEnd" [(ngModel)]="earlyEndDate" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="maxRefund > 0">
-              <mat-label>{{ t('money_given_back_optional') }}</mat-label>
-              <input matInput type="number" name="earlyRefund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
-              <span matTextSuffix>TND</span>
-            </mat-form-field>
-            <div class="panel-actions">
-              <button mat-button type="button" (click)="panel = null">{{ t('cancel') }}</button>
-              <button mat-raised-button color="primary" type="submit" [disabled]="updating || !earlyEndDate">{{ t('confirm_end_early') }}</button>
-            </div>
-          </form>
-
-          <form class="stay-panel" *ngIf="panel === 'refund'" (ngSubmit)="submitRefund()">
-            <p>{{ t(refundExplanationKey) }}</p>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ t('money_given_back') }}</mat-label>
-              <input matInput type="number" name="refund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
-              <span matTextSuffix>TND</span>
-            </mat-form-field>
-            <div class="panel-actions">
-              <button mat-button type="button" (click)="panel = null">{{ t('cancel') }}</button>
-              <button mat-raised-button color="primary" type="submit" [disabled]="updating">{{ t('save_changes') }}</button>
-            </div>
-          </form>
+          <app-reservation-stay-changes *ngIf="canManage" [reservation]="r" [status]="status" [paid]="paid"
+                                        [isHouseOwner]="isHouseOwner" (updated)="onStayChanged($event)"></app-reservation-stay-changes>
         </mat-card-content>
       </mat-card>
 
@@ -217,62 +190,15 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           </mat-card-content>
         </mat-card>
 
-        <mat-card *ngIf="canManage">
-          <mat-card-content>
-            <div class="card-head">
-              <h3>{{ t('payments') }}</h3>
-              <button mat-stroked-button *ngIf="canAddPayment && !addingPayment" (click)="openPayment()">
-                <mat-icon>add</mat-icon> {{ t('record_payment') }}
-              </button>
-            </div>
-            <p class="hint" *ngIf="!payments.length">{{ t('no_payment_yet') }}</p>
-            <ul class="payments" *ngIf="payments.length">
-              <li *ngFor="let payment of payments">
-                <div>
-                  <strong>{{ payment.amount | number:'1.0-2' }} TND</strong>
-                  <span>{{ payment.paidOn | date:'dd/MM/yyyy' }} · {{ payment.kind === 'advance' ? t('advance_paid') : payment.kind === 'balance' ? t('balance_paid_on_arrival') : (payment.note || t('payment')) }}</span>
-                </div>
-                <button mat-icon-button *ngIf="payment.kind !== 'advance'" (click)="removePayment(payment)"
-                        [attr.aria-label]="t('delete_payment')" [matTooltip]="t('delete_payment')">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </li>
-            </ul>
-            <form class="stay-panel" *ngIf="addingPayment" (ngSubmit)="submitPayment()">
-              <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>{{ t('amount') }}</mat-label>
-                <input matInput type="number" name="paymentAmount" min="0" [max]="remaining" required [(ngModel)]="paymentAmount" />
-                <span matTextSuffix>TND</span>
-              </mat-form-field>
-              <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>{{ t('payment_date') }}</mat-label>
-                <input matInput type="date" name="paymentDate" [max]="today" [(ngModel)]="paymentDate" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <mat-label>{{ t('payment_note') }}</mat-label>
-                <input matInput name="paymentNote" maxlength="500" [(ngModel)]="paymentNote" />
-              </mat-form-field>
-              <div class="panel-actions">
-                <button mat-button type="button" (click)="addingPayment = false">{{ t('cancel') }}</button>
-                <button mat-raised-button color="primary" type="submit" [disabled]="updating || !paymentAmount">{{ t('save_changes') }}</button>
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
+        <app-reservation-payments *ngIf="canManage" [reservation]="r" [payments]="payments" [status]="status"
+                                  [remaining]="remaining" (changed)="loadMoney()"></app-reservation-payments>
 
-        <mat-card *ngIf="canManage && history.length">
-          <mat-card-content>
-            <h3>{{ t('history') }}</h3>
-            <ol class="history">
-              <li *ngFor="let event of history">
-                <span class="when">{{ event.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
-                <span>{{ describe(event) }}</span>
-              </li>
-            </ol>
-          </mat-card-content>
-        </mat-card>
+        <app-reservation-history *ngIf="canManage && history.length" [events]="history"></app-reservation-history>
       </div>
     </div>
+
+    <app-reservation-receipt *ngIf="!loading && reservation && canManage" [reservation]="reservation"
+                             [payments]="payments" [paid]="paid" [remaining]="remaining"></app-reservation-receipt>
 
     <ng-template #dash><span class="value">-</span></ng-template>
   `,
@@ -282,16 +208,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .link { color: var(--primary); text-decoration: none; }
     .muted { color: var(--text-secondary); font-weight: 400; }
     .notes { white-space: pre-line; margin: 0.5rem 0 0; }
-    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-    .payments, .history { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
-    .payments li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); }
-    .payments li div { display: flex; flex-direction: column; }
-    .payments li span, .history .when { font-size: 0.8rem; color: var(--text-secondary); }
-    .history li { display: flex; flex-direction: column; font-size: 0.85rem; }
-    .hint { font-size: 0.82rem; color: var(--text-secondary); }
-    .stay-panel { display: grid; gap: 0.75rem; max-width: 420px; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: var(--surface-subtle); }
-    .stay-panel p { margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
-    .panel-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+    .whatsapp { color: #128c7e; border-color: #25d366 !important; }
 
     .workflow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .step { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 120px; color: var(--text-secondary); }
@@ -320,6 +237,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .money .balance { border-top: 1px solid var(--border-color); padding-top: 0.6rem; }
     .meta { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; color: var(--text-secondary); margin-top: 1rem; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    @media print { .screen-only { display: none !important; } }
   `]
 })
 export class ReservationDetailComponent implements OnInit {
@@ -327,16 +245,8 @@ export class ReservationDetailComponent implements OnInit {
   loading = true;
   updating = false;
   currentUserId?: number;
-  panel: 'early' | 'refund' | null = null;
   payments: ReservationPayment[] = [];
   history: ReservationEvent[] = [];
-  addingPayment = false;
-  paymentAmount: number | null = null;
-  paymentDate = '';
-  paymentNote = '';
-  readonly today = todayIso();
-  earlyEndDate = '';
-  refundInput: number | null = null;
   readonly workflowSteps: ReservationStatus[] = RESERVATION_STATUSES.filter(s => s !== 'cancelled');
   readonly statusKey = statusKey;
 
@@ -398,20 +308,6 @@ export class ReservationDetailComponent implements OnInit {
     return !!this.reservation && this.reservation.property?.createdBy === this.currentUserId;
   }
 
-  /** A one-day stay cannot end sooner. */
-  get canEndEarly(): boolean {
-    const r = this.reservation;
-    return this.canManage && this.status === 'in-progress' && !!r && r.startDate < r.endDate;
-  }
-
-  /** Most the caller can give back, from his own part; the server enforces the same limits. */
-  /** Most the caller can give back: what he has received himself. The server enforces the same limits. */
-  get maxRefund(): number {
-    const r = this.reservation;
-    if (!r) return 0;
-    return this.isHouseOwner ? ownerReceived(r, this.paid) : samsarReceived(r, this.paid);
-  }
-
   get paid(): number {
     return this.payments.reduce((sum, payment) => sum + payment.amount, 0);
   }
@@ -420,134 +316,40 @@ export class ReservationDetailComponent implements OnInit {
     return Math.max(0, (this.reservation?.totalAmount || 0) - this.paid);
   }
 
-  get canAddPayment(): boolean {
-    return this.remaining > 0 && this.status !== 'pending';
-  }
-
-  openPayment(): void {
-    this.paymentAmount = this.remaining;
-    this.paymentDate = this.today;
-    this.paymentNote = '';
-    this.addingPayment = true;
-  }
-
-  submitPayment(): void {
-    this.updating = true;
-    this.reservationService.addPayment(this.reservation!.id, {
-      amount: Number(this.paymentAmount),
-      paidOn: this.paymentDate || undefined,
-      note: this.paymentNote || undefined,
-    }).subscribe({
-      next: () => {
-        this.updating = false;
-        this.addingPayment = false;
-        this.loadMoney();
-        this.snackBar.open(this.t('payment_recorded'), this.t('close'), { duration: 2500 });
-      },
-      error: (err) => {
-        this.updating = false;
-        this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 });
-      },
-    });
-  }
-
-  removePayment(payment: ReservationPayment): void {
-    if (!confirm(this.t('delete_payment_confirm'))) return;
-    this.reservationService.removePayment(this.reservation!.id, payment.id).subscribe({
-      next: () => this.loadMoney(),
-      error: (err) => this.snackBar.open(err.error?.message || this.t('error_generic'), this.t('close'), { duration: 4000 }),
-    });
-  }
-
   /** Payments and history are only shown to the samsar of the booking and the owner of the house. */
-  private loadMoney(): void {
+  loadMoney(): void {
     if (!this.reservation || !this.canManage) return;
     this.reservationService.findPayments(this.reservation.id).subscribe(payments => this.payments = payments);
     this.reservationService.findHistory(this.reservation.id).subscribe(history => this.history = history);
   }
 
-  /** One line of the history, in the reader's language. */
-  describe(event: ReservationEvent): string {
-    let details: Record<string, unknown> = {};
-    try {
-      details = JSON.parse(event.details || '{}');
-    } catch {
-      details = {};
-    }
-    const who = event.actorName || this.t('history_system');
-    const status = (value: unknown) => this.t(statusKey(String(value)));
-    const amount = (value: unknown) => `${Number(value || 0).toLocaleString(this.locale)} TND`;
-    const date = (value: unknown) => String(value || '').split('-').reverse().join('/');
-    const text = this.t('history_' + event.action)
-      .replace('{{actor}}', who)
-      .replace('{{to}}', status(details['to']))
-      .replace('{{from}}', status(details['from']))
-      .replace('{{amount}}', amount(details['amount']))
-      .replace('{{total}}', amount(details['total']))
-      .replace('{{newEnd}}', date(details['to']))
-      .replace('{{plannedEnd}}', date(details['from']));
-    return text.startsWith('history_') ? `${who} — ${event.action}` : text;
+  /** WhatsApp chat with the client, the summary of his stay already typed in. */
+  get whatsApp(): string | null {
+    const r = this.reservation;
+    if (!r) return null;
+    return whatsAppLink({
+      clientName: r.clientName,
+      clientPhone: r.clientPhone,
+      propertyTitle: r.property?.title,
+      address: r.property?.address,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      checkInTime: r.checkInTime,
+      checkOutTime: r.checkOutTime,
+      total: r.totalAmount,
+      paid: this.paid,
+    }, this.uiPrefs.getLanguage());
   }
 
-  private get locale(): string {
-    return { fr: 'fr-FR', en: 'en-GB', ar: 'ar-TN' }[this.uiPrefs.getLanguage()] ?? 'fr-FR';
+  /** After an early end or money given back: the booking and its money changed. */
+  onStayChanged(updated: Reservation): void {
+    this.reservation = updated;
+    this.loadMoney();
   }
 
-  /** Always voluntary, once money has really been received by the one giving it back. */
-  get canRefund(): boolean {
-    return this.canManage && this.maxRefund > 0 && ['in-progress', 'cancelled'].includes(this.status);
-  }
-
-  get refundExplanationKey(): string {
-    if (!this.isHouseOwner) return 'give_back_samsar';
-    return this.status === 'cancelled' ? 'give_back_cancelled' : 'give_back_owner';
-  }
-
-  get latestEarlyEnd(): string {
-    const dayBefore = parseIsoDate(this.reservation!.endDate);
-    dayBefore.setDate(dayBefore.getDate() - 1);
-    return formatIsoDate(dayBefore);
-  }
-
-  openPanel(panel: 'early' | 'refund'): void {
-    this.panel = panel;
-    this.refundInput = (this.isHouseOwner ? this.reservation?.refundAmount : this.reservation?.samsarRefundAmount) ?? null;
-    if (panel === 'early') {
-      const today = todayIso();
-      this.earlyEndDate = today < this.latestEarlyEnd ? today : this.latestEarlyEnd;
-      this.refundInput = null;
-    }
-  }
-
-  submitEarlyEnd(): void {
-    this.applyStayChange(
-      this.reservationService.endEarly(this.reservation!.id, this.earlyEndDate, Number(this.refundInput || 0) || undefined),
-      this.t('stay_ended_early'),
-    );
-  }
-
-  submitRefund(): void {
-    this.applyStayChange(
-      this.reservationService.setRefund(this.reservation!.id, Number(this.refundInput || 0)),
-      this.t('refund_saved'),
-    );
-  }
-
-  private applyStayChange(change: Observable<Reservation>, message: string): void {
-    this.updating = true;
-    change.subscribe({
-      next: (updated) => {
-        this.reservation = updated;
-        this.updating = false;
-        this.panel = null;
-        this.loadMoney();
-        this.snackBar.open(message, this.t('close'), { duration: 3000 });
-      },
-      error: (err) => {
-        this.updating = false;
-        this.snackBar.open(err.error?.message || this.t('reservation_update_failed'), this.t('close'), { duration: 4000 });
-      },
-    });
+  /** "Save as PDF" in the print dialog: only the receipt is printed. */
+  printReceipt(): void {
+    window.print();
   }
 
   get editable(): boolean {

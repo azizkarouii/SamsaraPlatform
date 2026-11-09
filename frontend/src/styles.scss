@@ -262,6 +262,9 @@ button:disabled, .cal-day:disabled { cursor: not-allowed; }
 }
 
 /* ---------- Page scaffolding ---------- */
+/* Arrows meaning previous / next point the other way when the page reads right to left */
+html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
+
 /* Period filter of the dashboard and the reports: two labelled date inputs and buttons */
 .date-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
 .date-filters label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--text-secondary); gap: 2px; }

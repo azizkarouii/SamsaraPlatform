@@ -13,6 +13,12 @@ public interface PropertyAvailabilityRepository extends JpaRepository<PropertyAv
     List<PropertyAvailability> findByPropertyIdOrderByDateAsc(Long propertyId);
     Optional<PropertyAvailability> findByPropertyIdAndDate(Long propertyId, LocalDate date);
 
+    /** Planning: the days the owners blocked on these houses during the period. */
+    @Query("SELECT pa FROM PropertyAvailability pa WHERE pa.propertyId IN :propertyIds " +
+           "AND pa.status <> 'available' AND pa.date BETWEEN :from AND :to")
+    List<PropertyAvailability> findBlockedForPlanning(@Param("propertyIds") List<Long> propertyIds,
+                                                      @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     @Query("SELECT COUNT(pa) > 0 FROM PropertyAvailability pa WHERE pa.propertyId = :propertyId " +
            "AND pa.status <> 'available' AND pa.date BETWEEN :startDate AND :endDate")
     boolean existsBlockedBetween(@Param("propertyId") Long propertyId,

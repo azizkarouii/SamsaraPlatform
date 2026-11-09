@@ -404,6 +404,26 @@ class ReservationFlowTest {
     }
 
     @Test
+    void planningShowsEveryHouseOverTheMonth() throws Exception {
+        long id = booked(commissionSamsar, 20, 22, 450, null, 100).get("id").asLong();
+        long cancelled = booked(commissionSamsar, 24, 25, 300, null, 0).get("id").asLong();
+        setStatus(owner.token(), cancelled, "cancelled");
+        String month = day(20).substring(0, 7);
+
+        JsonNode planning = call("GET", "/dashboard/planning?month=" + month, owner.token(), null).body();
+        assertThat(planning.get("from").asText()).isEqualTo(month + "-01");
+        assertThat(planning.get("houses")).hasSize(1);
+        assertThat(planning.get("houses").get(0).get("id").asLong()).isEqualTo(house);
+        List<Long> stays = new ArrayList<>();
+        planning.get("stays").forEach(stay -> stays.add(stay.get("id").asLong()));
+        assertThat(stays).as("cancelled bookings left out").contains(id).doesNotContain(cancelled);
+
+        JsonNode shared = call("GET", "/dashboard/planning?month=" + month, marginSamsar, null).body();
+        assertThat(shared.get("houses")).as("a samsar sees the houses shared with him").hasSize(1);
+        assertThat(call("GET", "/dashboard/planning?month=2026-13", owner.token(), null).status()).isEqualTo(400);
+    }
+
+    @Test
     void earlyEndFreesTheFollowingDaysAndKeepsThePriceAndTheGain() throws Exception {
         long id = booked(commissionSamsar, 0, 6, 1050, null, 100).get("id").asLong();
         setStatus(commissionSamsar, id, "in-progress");

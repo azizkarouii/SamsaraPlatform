@@ -29,6 +29,7 @@ export const routes: Routes = [
       { path: 'reservations/:id', loadComponent: () => import('./pages/reservations/reservation-detail/reservation-detail.component').then(m => m.ReservationDetailComponent) },
       { path: 'reservations/:id/edit', loadComponent: () => import('./pages/reservations/reservation-form/reservation-form.component').then(m => m.ReservationFormComponent) },
       { path: 'shared-houses', loadComponent: () => import('./pages/shared-houses/shared-houses.component').then(m => m.SharedHousesComponent) },
+      { path: 'planning', loadComponent: () => import('./pages/planning/planning.component').then(m => m.PlanningComponent) },
       { path: 'availability', loadComponent: () => import('./pages/availability/availability.component').then(m => m.AvailabilityComponent) },
       { path: 'notifications', loadComponent: () => import('./pages/notifications/notifications.component').then(m => m.NotificationsComponent) },
       { path: 'reports', loadComponent: () => import('./pages/reports/reports.component').then(m => m.ReportsComponent) },

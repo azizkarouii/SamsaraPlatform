@@ -72,10 +72,10 @@ public class ReminderService {
         }
         LocalDate today = now.toLocalDate();
         int sent = 0;
-        for (Reservation reservation : reservationRepository.findByStatusAndStartDate(ReservationService.CONFIRMED, today.plusDays(1))) {
+        for (Reservation reservation : reservationRepository.findByStatusAndStartDate(ReservationStatus.CONFIRMED, today.plusDays(1))) {
             sent += remind(reservation, ARRIVAL, reservation.getStartDate(), reservation.getCheckInTime(), today);
         }
-        for (Reservation reservation : reservationRepository.findByStatusAndEndDate(ReservationService.IN_PROGRESS, today)) {
+        for (Reservation reservation : reservationRepository.findByStatusAndEndDate(ReservationStatus.IN_PROGRESS, today)) {
             sent += remind(reservation, DEPARTURE, reservation.getEndDate(), reservation.getCheckOutTime(), today);
         }
         return sent;

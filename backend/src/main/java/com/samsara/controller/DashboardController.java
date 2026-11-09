@@ -2,10 +2,12 @@ package com.samsara.controller;
 
 import com.samsara.dto.DashboardSummaryDto;
 import com.samsara.dto.DashboardSummaryDto.RentalEarning;
+import com.samsara.dto.PlanningDto;
 import com.samsara.entity.Reservation;
 import com.samsara.service.DashboardService;
 import com.samsara.service.DashboardService.Line;
 import com.samsara.service.Money;
+import com.samsara.service.PlanningService;
 import com.samsara.service.XlsxWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -40,12 +42,19 @@ public class DashboardController {
             "ar", Map.of("confirmed", "مؤكد", "in-progress", "جارٍ", "completed", "مكتمل", "cancelled", "ملغى"));
 
     private final DashboardService dashboardService;
+    private final PlanningService planningService;
 
     @GetMapping("/dashboard/summary")
     public ResponseEntity<DashboardSummaryDto> summary(@RequestParam(required = false) String from,
                                                        @RequestParam(required = false) String to,
                                                        Authentication authentication) {
         return ResponseEntity.ok(dashboardService.summary((Long) authentication.getPrincipal(), date(from), date(to)));
+    }
+
+    /** Every house of the user over one month (yyyy-MM, the current one by default). */
+    @GetMapping("/dashboard/planning")
+    public ResponseEntity<PlanningDto> planning(@RequestParam(required = false) String month, Authentication authentication) {
+        return ResponseEntity.ok(planningService.month((Long) authentication.getPrincipal(), month));
     }
 
     /** Rows of the earnings report (stays overlapping the period, pending requests excluded). */

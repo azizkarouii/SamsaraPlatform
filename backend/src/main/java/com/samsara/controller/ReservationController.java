@@ -9,6 +9,7 @@ import com.samsara.dto.ReservationPageDto;
 import com.samsara.dto.ReservationEarning;
 import com.samsara.dto.ReservationEarlyEndDto;
 import com.samsara.entity.Reservation;
+import com.samsara.service.ReservationPaymentService;
 import com.samsara.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final ReservationPaymentService paymentService;
 
     @GetMapping
     public ResponseEntity<List<Reservation>> findAll(Authentication authentication) {
@@ -108,23 +110,23 @@ public class ReservationController {
                                                  @RequestBody Map<String, BigDecimal> body,
                                                  Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
-        return ResponseEntity.ok(reservationService.setRefund(id, body.get("amount"), userId));
+        return ResponseEntity.ok(paymentService.setRefund(id, body.get("amount"), userId));
     }
 
     @GetMapping("/{id}/payments")
     public ResponseEntity<List<ReservationPayment>> findPayments(@PathVariable Long id, Authentication authentication) {
-        return ResponseEntity.ok(reservationService.findPayments(id, (Long) authentication.getPrincipal()));
+        return ResponseEntity.ok(paymentService.findPayments(id, (Long) authentication.getPrincipal()));
     }
 
     @PostMapping("/{id}/payments")
     public ResponseEntity<ReservationPayment> addPayment(@PathVariable Long id, @RequestBody ReservationPaymentDto dto,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(reservationService.addPayment(id, dto, (Long) authentication.getPrincipal()));
+        return ResponseEntity.ok(paymentService.addPayment(id, dto, (Long) authentication.getPrincipal()));
     }
 
     @DeleteMapping("/{id}/payments/{paymentId}")
     public ResponseEntity<Void> removePayment(@PathVariable Long id, @PathVariable Long paymentId, Authentication authentication) {
-        reservationService.removePayment(id, paymentId, (Long) authentication.getPrincipal());
+        paymentService.removePayment(id, paymentId, (Long) authentication.getPrincipal());
         return ResponseEntity.noContent().build();
     }
 

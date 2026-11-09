@@ -242,6 +242,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       ...(isOwner ? [{ path: '/properties', icon: 'home_work', label: 'my_houses' }] : []),
       { path: '/shared-houses', icon: isOwner ? 'groups' : 'apartment', label: isOwner ? 'my_samsars' : 'shared_houses' },
       { path: '/reservations', icon: 'event_available', label: 'reservations' },
+      { path: '/planning', icon: 'view_timeline', label: 'planning' },
       { path: '/availability', icon: 'calendar_month', label: 'availability' },
       { path: '/reports', icon: 'bar_chart', label: 'reports' },
       { path: '/notifications', icon: 'notifications', label: 'notifications' },

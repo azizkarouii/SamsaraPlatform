@@ -142,7 +142,6 @@ import { HOUSE_TYPES } from '../../shared/house-types';
     .result-side { display: flex; align-items: center; gap: 0.6rem; }
     .price { font-weight: 700; font-size: 0.9rem; display: flex; flex-direction: column; align-items: flex-end; }
     .price small { font-weight: 400; color: var(--text-secondary); }
-    :host-context(html[dir='rtl']) .flip-rtl { transform: scaleX(-1); }
     @media (max-width: 960px) {
       .layout { grid-template-columns: 1fr; }
       .results { position: static; }

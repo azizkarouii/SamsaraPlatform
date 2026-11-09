@@ -11,8 +11,8 @@ Interface disponible en **français, anglais et arabe** (RTL), en mode clair et 
 | Comptes | Inscription avec rôle (Propriétaire / Samsar) et confirmation de l'adresse email, session dans un cookie sécurisé avec limite de tentatives, mot de passe oublié par email, déconnexion de tous les appareils, profil, photo de profil |
 | Maisons | Création et modification (équipements, contact, type), prix principal et prix par période chaque année, jusqu'à 10 photos avec couverture, liens externes, page publique partageable |
 | Partage | Invitation d'un samsar sur une ou toutes les maisons, tarif de 10, 20 ou 30 TND par jour ou 10 % du total, retrait |
-| Disponibilités | Calendriers par maison, blocage de dates par le propriétaire, recherche de maisons libres par période et par type |
-| Réservations | Workflow `en attente → confirmée → en cours → terminée` (ou annulée) ; confirmation directe avec acompte ; une réservation en attente ne bloque pas les dates tant qu'une autre n'est pas confirmée ; prix négocié, fin anticipée, argent rendu ; chaque paiement du client est enregistré ; historique de qui a fait quoi ; deux séjours confirmés ne peuvent pas se chevaucher (contrainte en base) |
+| Disponibilités | Calendriers par maison, blocage de dates par le propriétaire, recherche de maisons libres par période et par type, planning de toutes les maisons sur un mois |
+| Réservations | Workflow `en attente → confirmée → en cours → terminée` (ou annulée) ; confirmation directe avec acompte ; une réservation en attente ne bloque pas les dates tant qu'une autre n'est pas confirmée ; prix négocié, fin anticipée, argent rendu ; chaque paiement du client est enregistré ; historique de qui a fait quoi ; deux séjours confirmés ne peuvent pas se chevaucher (contrainte en base) ; reçu PDF pour le client et récapitulatif envoyé par WhatsApp |
 | Suivi | Tableau de bord calculé par le serveur (argent reçu, à venir, reste à encaisser, gains par location), rapports par période en Excel ou PDF, notifications traduites, rappels automatiques (arrivée demain, départ aujourd'hui) par notification et email dans la langue de chacun |
 
 ## Stack technique
@@ -105,7 +105,7 @@ Samsara/
 │   └── src/main/java/com/samsara/
 │       ├── config/              sécurité, CORS, JWT, erreurs traduites, service des fichiers
 │       ├── controller/          endpoints REST
-│       ├── service/             règles métier (accès, réservations, partage, photos…)
+│       ├── service/             règles métier (accès, réservations, paiements, prix, partage, photos…)
 │       ├── entity/  repository/ dto/
 │   └── src/main/resources/db/migration/   migrations Flyway
 ├── frontend/                    application Angular

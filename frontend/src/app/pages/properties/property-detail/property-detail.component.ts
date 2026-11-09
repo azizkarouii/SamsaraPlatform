@@ -275,7 +275,6 @@ import { toDayMonth } from '../../../shared/pricing';
     .samsar-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .samsar-body span { font-size: 0.75rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .margin-btn { min-width: 0; padding: 0 0.6rem; font-size: 0.78rem; }
-    :host-context(html[dir='rtl']) .flip-rtl { transform: scaleX(-1); }
     @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
   `]
 })
