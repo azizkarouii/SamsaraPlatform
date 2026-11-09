@@ -47,3 +47,6 @@ backend/uploads/
 
 # Local secrets
 backend/.env
+
+# Database dumps written by the backup service of docker compose
+backups/

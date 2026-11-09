@@ -92,6 +92,30 @@ GitHub Actions (`.github/workflows/ci.yml`) lance ces tests à chaque push : le 
 
 ## Déploiement
 
+### Avec Docker (recommandé)
+
+Toute l'application (PostgreSQL, API, site servi par Nginx et sauvegarde de la base) démarre avec une commande :
+
+```bash
+cp .env.example .env      # renseigner au moins DB_PASSWORD et JWT_SECRET, puis APP_URL et le SMTP
+docker compose up -d --build
+```
+
+Le site répond sur **http://localhost:8080** (`HTTP_PORT`), l'API sur `/api` du même domaine. En production, placer un HTTPS devant (Caddy, Traefik, Nginx de l'hébergeur ou Cloudflare) et mettre l'adresse publique dans `APP_URL`.
+
+| Service | Rôle |
+|---|---|
+| `db` | PostgreSQL 16, données dans le volume `db-data` |
+| `backend` | API Spring Boot ; les migrations Flyway s'appliquent au démarrage ; photos dans le volume `uploads` |
+| `frontend` | Nginx : le site, `/api` transmis au backend, envois de photos jusqu'à 52 Mo, cache des fichiers |
+| `backup` | chaque nuit, `backups/samsara-<date>.sql.gz` ; les 14 derniers jours sont gardés |
+
+- Mettre à jour : `git pull`, puis `docker compose up -d --build`.
+- Logs : `docker compose logs -f backend`. Sans SMTP, les liens de confirmation y sont écrits.
+- Restaurer une sauvegarde : `gunzip -c backups/samsara-<date>.sql.gz | docker compose exec -T db psql -U postgres -d samsara`.
+
+### Sans Docker
+
 1. Définir les variables ci-dessus sur l'hébergeur, avec un nouveau `JWT_SECRET` et un vrai serveur d'emails (sinon personne ne peut confirmer son compte).
 2. Backend : `mvn package`, puis lancer le jar. Les migrations s'appliquent au démarrage.
 3. Frontend : `npx ng build`, puis servir `dist/frontend/browser` en renvoyant les routes inconnues vers `index.html`. Il appelle l'API sur `/api` du même domaine. C'est nécessaire pour le cookie de session (`SameSite=Lax`) : servir le site et l'API sous le même domaine, en HTTPS.

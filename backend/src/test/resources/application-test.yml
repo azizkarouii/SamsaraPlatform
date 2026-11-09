@@ -12,6 +12,9 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+  # The tests replace the mail sender with a mock that keeps the messages; any host turns sending on
+  mail:
+    host: mail.test.invalid
 
 application:
   jwt:

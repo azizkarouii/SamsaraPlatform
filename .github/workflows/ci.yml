@@ -62,3 +62,13 @@ jobs:
       - run: npm ci
       - run: npx ng build
       - run: npx ng test --watch=false --browsers=ChromeHeadless
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t samsara-backend backend
+      - run: docker build -t samsara-frontend frontend
+      - name: Nginx configuration is valid
+        run: docker run --rm samsara-frontend nginx -t

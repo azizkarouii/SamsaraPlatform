@@ -20,8 +20,12 @@ public class MailService {
     @Value("${application.mail.from}")
     private String from;
 
+    /** Docker compose always passes the variable: an empty host means no server, like a missing one. */
+    @Value("${spring.mail.host:}")
+    private String host;
+
     public void send(String to, String subject, String text) {
-        JavaMailSender sender = mailSender.getIfAvailable();
+        JavaMailSender sender = host == null || host.isBlank() ? null : mailSender.getIfAvailable();
         if (sender == null) {
             log.warn("No mail server configured (spring.mail.host). Email to {} - {}:\n{}", to, subject, text);
             return;
