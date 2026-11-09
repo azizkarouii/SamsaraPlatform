@@ -72,7 +72,7 @@ import { t } from '../../../shared/translations';
     @media print {
       :host { display: block; }
     }
-    .receipt { color: #111; font-size: 12pt; max-width: 720px; margin: 0 auto; }
+    .receipt { color: #111; font-size: 12pt; max-width: 720px; margin: 0 auto; padding: 14mm 16mm; box-sizing: border-box; }
     header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #15803d; }
     .brand { display: flex; align-items: center; }
     .brand img { width: 48px; height: 48px; object-fit: contain; }
