@@ -11,6 +11,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+
+    /** Reminders: stays arriving or leaving on a given day. */
+    List<Reservation> findByStatusAndStartDate(String status, LocalDate startDate);
+
+    List<Reservation> findByStatusAndEndDate(String status, LocalDate endDate);
     String VISIBLE_TO_USER = "(r.samsarId = :userId OR p.createdBy = :userId "
             + "OR r.propertyId IN (SELECT ps.propertyId FROM PropertySamsar ps WHERE ps.samsarId = :userId))";
     String MATCHES_SEARCH = "(LOWER(r.clientName) LIKE :search OR LOWER(COALESCE(r.clientPhone, '')) LIKE :search "

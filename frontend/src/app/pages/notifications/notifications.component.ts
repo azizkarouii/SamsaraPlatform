@@ -232,6 +232,8 @@ export class NotificationsComponent implements OnInit {
       case 'reservation_deleted': return 'delete';
       case 'reservation_ended_early': return 'event_busy';
       case 'property_assignment': return 'home_work';
+      case 'reminder_arrival': return 'flight_land';
+      case 'reminder_departure': return 'flight_takeoff';
       default: return 'notifications';
     }
   }
@@ -240,6 +242,7 @@ export class NotificationsComponent implements OnInit {
     if (['reservation_confirmed', 'reservation_in_progress', 'property_assignment'].includes(type)) return 'success';
     if (['reservation_cancelled', 'reservation_deleted'].includes(type)) return 'danger';
     if (type === 'reservation_completed') return 'neutral';
+    if (type.startsWith('reminder_')) return 'success';
     return 'info';
   }
 }

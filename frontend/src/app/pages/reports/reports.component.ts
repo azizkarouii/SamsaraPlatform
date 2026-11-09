@@ -28,7 +28,7 @@ import { t } from '../../shared/translations';
           <h1>{{ t('reports') }}</h1>
           <p class="subtitle">{{ t('reports_subtitle') }}</p>
         </div>
-        <div class="filters">
+        <div class="date-filters">
           <label><span>{{ t('from') }}</span><input type="date" [(ngModel)]="from" (change)="load()" /></label>
           <label><span>{{ t('to') }}</span><input type="date" [(ngModel)]="to" (change)="load()" /></label>
           <button mat-stroked-button (click)="downloadExcel()" [disabled]="!rows.length || downloading"><mat-icon>table_view</mat-icon> Excel</button>
@@ -79,9 +79,6 @@ import { t } from '../../shared/translations';
     </div>
   `,
   styles: [`
-    .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
-    .filters label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--text-secondary); gap: 2px; }
-    .filters input { border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 0.85rem; background: var(--bg-card); color: var(--text-primary); }
     .print-title { display: none; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }

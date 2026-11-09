@@ -53,6 +53,12 @@ public class User {
     @Builder.Default
     private Integer tokenVersion = 0;
 
+    /** fr, en or ar: the language of the emails sent without a request from the user (reminders). */
+    @JsonIgnore
+    @Column(nullable = false, length = 5)
+    @Builder.Default
+    private String language = "fr";
+
     @JsonIgnore
     @OneToMany(mappedBy = "creator")
     private List<Property> properties;

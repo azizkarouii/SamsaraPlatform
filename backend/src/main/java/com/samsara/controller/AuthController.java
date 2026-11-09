@@ -40,7 +40,14 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
-        return withSession(authService.login(dto, request.getRemoteAddr()));
+        return withSession(authService.login(dto, request.getRemoteAddr(), request.getHeader(HttpHeaders.ACCEPT_LANGUAGE)));
+    }
+
+    /** The language chosen in the app, kept for the emails sent later (reminders). */
+    @PutMapping("/language")
+    public ResponseEntity<Void> updateLanguage(@RequestBody Map<String, String> body, Authentication authentication) {
+        authService.updateLanguage((Long) authentication.getPrincipal(), body.get("language"));
+        return ResponseEntity.noContent().build();
     }
 
     /** Signs this browser out (the cookie is erased). */

@@ -1,8 +1,9 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, catchError, of, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, distinctUntilChanged, of, skip, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { LoginDto, RegisterDto, AuthResponse, User } from '../models/auth.model';
+import { UiPreferencesService } from './ui-preferences.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,7 +14,14 @@ export class AuthService {
   /** Emits whenever the connected user changes (login, profile edit, photo...). */
   readonly currentUser$ = this.currentUserSubject.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // The server keeps the language of each user for the emails it sends on its own (reminders)
+    inject(UiPreferencesService).language$.pipe(skip(1), distinctUntilChanged()).subscribe(language => {
+      if (this.isLoggedIn()) {
+        this.http.put<void>(`${this.apiUrl}/language`, { language }).subscribe({ error: () => undefined });
+      }
+    });
+  }
 
   private storeUser(user: User): void {
     localStorage.setItem('user', JSON.stringify(user));

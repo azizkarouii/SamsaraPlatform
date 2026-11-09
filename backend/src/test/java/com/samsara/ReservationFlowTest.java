@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samsara.entity.Notification;
 import com.samsara.repository.NotificationRepository;
 import com.samsara.service.NotificationService;
+import com.samsara.service.ReminderService;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,9 @@ class ReservationFlowTest {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private ReminderService reminderService;
 
     @MockBean
     private JavaMailSender mailSender;
@@ -377,6 +381,26 @@ class ReservationFlowTest {
         assertThat(book(owner.token(), 2, 4, 300, null, 0).status()).as("its dates are held").isEqualTo(409);
 
         assertThat(booked(commissionSamsar, 10, 12, 450, null, 0).get("status").asText()).isEqualTo("pending");
+    }
+
+    @Test
+    void remindersGoOutOnceTheDayBeforeArrivalAndOnTheDepartureDay() throws Exception {
+        assertThat(call("PUT", "/auth/language", owner.token(), Map.of("language", "ar")).status()).isEqualTo(204);
+        long arriving = booked(commissionSamsar, 1, 3, 450, null, 100).get("id").asLong();
+        long leaving = booked(commissionSamsar, 0, 0, 150, null, 50).get("id").asLong();
+        setStatus(commissionSamsar, leaving, "in-progress");
+        MAILBOX.clear();
+
+        reminderService.sendDueReminders();
+        reminderService.sendDueReminders();
+
+        String count = "SELECT COUNT(*) FROM notifications WHERE reservation_id = ? AND message_key = ?";
+        assertThat(jdbc.queryForObject(count, Integer.class, arriving, "reminder_arrival")).as("owner and samsar, once").isEqualTo(2);
+        assertThat(jdbc.queryForObject(count, Integer.class, leaving, "reminder_departure")).isEqualTo(2);
+
+        List<String> ownerSubjects = MAILBOX.stream().filter(mail -> mail.getTo()[0].equals(owner.email())).map(SimpleMailMessage::getSubject).toList();
+        assertThat(ownerSubjects).as("in the owner's language").hasSize(2).anyMatch(subject -> subject.startsWith("وصول غدًا"));
+        assertThat(MAILBOX).as("the samsar's in French").anyMatch(mail -> mail.getSubject().startsWith("Arrivée demain : Client"));
     }
 
     @Test

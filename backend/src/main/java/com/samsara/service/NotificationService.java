@@ -134,6 +134,42 @@ public class NotificationService {
     }
 
     /**
+     * Reminder of an arrival or a departure (messageKey reminder_arrival / reminder_departure), for the people
+     * who deal with the client: the owner and the samsar who booked. Returns who was notified.
+     */
+    public Set<Long> notifyReminder(Reservation reservation, Property property, String messageKey) {
+        Set<Long> recipients = new LinkedHashSet<>();
+        recipients.add(property.getCreatedBy());
+        recipients.add(reservation.getSamsarId());
+        recipients.remove(null);
+
+        boolean arrival = "reminder_arrival".equals(messageKey);
+        Map<String, String> params = new HashMap<>();
+        params.put("property", property.getTitle());
+        params.put("client", reservation.getClientName());
+        params.put("date", (arrival ? reservation.getStartDate() : reservation.getEndDate()).toString());
+        params.put("time", arrival ? reservation.getCheckInTime() : reservation.getCheckOutTime());
+        String title = arrival ? "Arrivée demain" : "Départ aujourd'hui";
+        String message = arrival
+                ? reservation.getClientName() + " arrive demain à " + property.getTitle() + " à " + reservation.getCheckInTime()
+                : reservation.getClientName() + " quitte " + property.getTitle() + " aujourd'hui à " + reservation.getCheckOutTime();
+        for (Long userId : recipients) {
+            notificationRepository.save(Notification.builder()
+                    .userId(userId)
+                    .propertyId(property.getId())
+                    .reservationId(reservation.getId())
+                    .type(messageKey)
+                    .title(title)
+                    .message(message)
+                    .messageKey(messageKey)
+                    .messageParams(json(params))
+                    .isRead(false)
+                    .build());
+        }
+        return recipients;
+    }
+
+    /**
      * Notifies the property owner, the samsar who made the reservation and every samsar the
      * property is shared with (they share the same calendar), except the user who acted.
      * The French title and message remain as a readable record; the app shows the translated key.

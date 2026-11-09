@@ -262,6 +262,13 @@ button:disabled, .cal-day:disabled { cursor: not-allowed; }
 }
 
 /* ---------- Page scaffolding ---------- */
+/* Period filter of the dashboard and the reports: two labelled date inputs and buttons */
+.date-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.date-filters label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--text-secondary); gap: 2px; }
+.date-filters input {
+  border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 10px;
+  font: inherit; font-size: 0.85rem; background: var(--bg-card); color: var(--text-primary);
+}
 .page {
   display: grid;
   gap: 1.25rem;

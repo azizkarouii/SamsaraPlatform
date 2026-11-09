@@ -7,10 +7,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
+
+    /** Whether a reminder of this kind already went out for this booking since the given time. */
+    boolean existsByReservationIdAndMessageKeyAndCreatedAtGreaterThanEqual(Long reservationId, String messageKey, LocalDateTime since);
+
     List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
     long countByUserIdAndIsReadFalse(Long userId);
     List<Notification> findByMessageKeyIsNull();

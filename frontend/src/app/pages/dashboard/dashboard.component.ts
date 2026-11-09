@@ -36,7 +36,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
           <h1>{{ t('hello') }}, {{ user?.name }}</h1>
           <p class="subtitle">{{ t('dashboard_subtitle') }}</p>
         </div>
-        <div class="filters">
+        <div class="date-filters">
           <label>
             <span>{{ t('from') }}</span>
             <input type="date" [(ngModel)]="dateFrom" (change)="loadData()" />
@@ -186,12 +186,6 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     </div>
   `,
   styles: [`
-    .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
-    .filters label { display: flex; flex-direction: column; font-size: 0.72rem; color: var(--text-secondary); gap: 2px; }
-    .filters input {
-      border: 1px solid var(--border-color); border-radius: 8px; padding: 7px 10px;
-      font: inherit; font-size: 0.85rem; background: var(--bg-card); color: var(--text-primary);
-    }
     .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
     .metric {
       display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem; border-radius: 14px;

@@ -43,6 +43,7 @@ public class AuthService {
                 .password(passwordEncoder.encode(dto.getPassword()))
                 .phone(phone)
                 .role(dto.getRole())
+                .language(supportedLanguage(dto.getLanguage(), "fr"))
                 .build();
 
         if (!emailVerificationService.isEnabled()) {
@@ -56,8 +57,30 @@ public class AuthService {
         return toAuthResponse(user);
     }
 
+    /** fr, en or ar from a language code or an Accept-Language header ("ar", "fr-FR,fr;q=0.9"); otherwise the fallback. */
+    static String supportedLanguage(String value, String fallback) {
+        if (value == null || value.length() < 2) {
+            return fallback;
+        }
+        String code = value.trim().substring(0, 2).toLowerCase();
+        return switch (code) {
+            case "fr", "en", "ar" -> code;
+            default -> fallback;
+        };
+    }
+
+    /** The language the user reads the app in, for the emails sent to him later (reminders). */
+    public void updateLanguage(Long userId, String language) {
+        User user = getUser(userId);
+        String chosen = supportedLanguage(language, user.getLanguage());
+        if (!chosen.equals(user.getLanguage())) {
+            user.setLanguage(chosen);
+            userRepository.save(user);
+        }
+    }
+
     /** After too many failures for an email from one address, attempts are refused for a while. */
-    public AuthResponse login(LoginDto dto, String clientAddress) {
+    public AuthResponse login(LoginDto dto, String clientAddress, String language) {
         String email = dto.getEmail().trim();
         String limitKey = "login:" + email.toLowerCase() + ":" + clientAddress;
         if (attemptLimiter.isBlocked(limitKey, MAX_LOGIN_FAILURES)) {
@@ -73,6 +96,11 @@ public class AuthService {
         attemptLimiter.reset(limitKey);
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please confirm your email address first");
+        }
+        String chosen = supportedLanguage(language, user.getLanguage());
+        if (!chosen.equals(user.getLanguage())) {
+            user.setLanguage(chosen);
+            user = userRepository.save(user);
         }
         return toAuthResponse(user);
     }

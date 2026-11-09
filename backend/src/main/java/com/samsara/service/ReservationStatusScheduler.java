@@ -7,7 +7,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Moves reservations along the workflow when their dates are reached (spec §9). */
+/** Moves reservations along the workflow when their dates are reached (spec §9), and sends the reminders. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -16,6 +16,7 @@ public class ReservationStatusScheduler {
     private final ReservationService reservationService;
     private final PropertyService propertyService;
     private final NotificationService notificationService;
+    private final ReminderService reminderService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
@@ -52,6 +53,14 @@ public class ReservationStatusScheduler {
             reservationService.autoUpdateStatuses();
         } catch (RuntimeException e) {
             log.warn("Automatic reservation status update failed", e);
+        }
+        try {
+            int reminded = reminderService.sendDueReminders();
+            if (reminded > 0) {
+                log.info("Sent reminders for {} reservations", reminded);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Sending the reminders failed", e);
         }
     }
 }
