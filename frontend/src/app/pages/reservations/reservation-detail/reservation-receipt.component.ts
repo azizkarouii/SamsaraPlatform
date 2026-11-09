@@ -18,7 +18,6 @@ import { t } from '../../../shared/translations';
       <header>
         <div class="brand">
           <img src="assets/brand/logo-icon.png" alt="" />
-          <strong>Samsara</strong>
         </div>
         <div class="title">
           <h1>{{ t('receipt_title') }}</h1>
@@ -35,7 +34,7 @@ import { t } from '../../../shared/translations';
         <div>
           <h2>{{ t('property_label') }}</h2>
           <p><strong>{{ reservation.property?.title }}</strong></p>
-          <p *ngIf="reservation.property?.address">{{ reservation.property?.address }}</p>
+          <p *ngIf="reservation.property?.address as address">{{ address }}</p>
         </div>
       </section>
 
@@ -63,7 +62,7 @@ import { t } from '../../../shared/translations';
       </section>
 
       <footer>
-        <span>{{ t('receipt_issued_by') }} {{ issuer?.name }}<ng-container *ngIf="issuer?.phone"> · <span class="ltr">+216 {{ issuer?.phone }}</span></ng-container></span>
+        <span>{{ t('receipt_issued_by') }} {{ issuer?.name }}<ng-container *ngIf="issuer?.phone as phone"> · <span class="ltr">+216 {{ phone }}</span></ng-container></span>
         <span>{{ t('receipt_thanks') }}</span>
       </footer>
     </article>
@@ -75,8 +74,8 @@ import { t } from '../../../shared/translations';
     }
     .receipt { color: #111; font-size: 12pt; max-width: 720px; margin: 0 auto; }
     header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding-bottom: 1rem; border-bottom: 2px solid #15803d; }
-    .brand { display: flex; align-items: center; gap: 0.5rem; font-size: 16pt; color: #15803d; }
-    .brand img { width: 40px; height: 40px; object-fit: contain; }
+    .brand { display: flex; align-items: center; }
+    .brand img { width: 48px; height: 48px; object-fit: contain; }
     .title { text-align: end; }
     .title h1 { margin: 0; font-size: 18pt; }
     .title span { font-size: 10pt; color: #555; }
