@@ -9,7 +9,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
-import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../services/auth.service';
@@ -37,7 +36,6 @@ const VIEW_KEY = 'samsara-reservations-view';
     MatButtonModule,
     MatIconModule,
     MatCardModule,
-    MatTabsModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
     ReservationKanbanComponent,
@@ -71,13 +69,15 @@ const VIEW_KEY = 'samsara-reservations-view';
 
       <mat-card *ngIf="view === 'table'">
         <mat-card-content>
-          <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="filter-tabs">
-            <a mat-tab-link *ngFor="let tab of tabs" [active]="activeTab === tab" (click)="filterByStatus(tab)">
-              {{ tab === 'all' ? t('all') : t(statusKey(tab)) }}
-              <span class="tab-count">{{ countFor(tab) }}</span>
-            </a>
-          </nav>
-          <mat-tab-nav-panel #tabPanel></mat-tab-nav-panel>
+          <div class="filter-tabs">
+            <div class="segmented" role="tablist">
+              <button type="button" role="tab" *ngFor="let tab of tabs" [class.active]="activeTab === tab"
+                      [attr.aria-selected]="activeTab === tab" (click)="filterByStatus(tab)">
+                <i class="tab-dot" [ngClass]="'bg-' + tab" *ngIf="tab !== 'all'"></i>{{ tab === 'all' ? t('all') : t(statusKey(tab)) }}
+                <span class="count">{{ countFor(tab) }}</span>
+              </button>
+            </div>
+          </div>
 
           <mat-form-field appearance="outline" class="search-field">
             <mat-label>{{ t('search_reservations') }}</mat-label>
@@ -159,11 +159,14 @@ const VIEW_KEY = 'samsara-reservations-view';
     </div>
   `,
   styles: [`
-    .filter-tabs { margin-bottom: 1rem; }
-    .tab-count {
-      margin-inline-start: 0.4rem; font-size: 0.7rem; padding: 0 0.45rem; border-radius: 999px;
-      background: var(--surface-subtle); color: var(--text-secondary);
-    }
+    .filter-tabs { margin-bottom: 1rem; overflow-x: auto; }
+    .filter-tabs .segmented { white-space: nowrap; }
+    .tab-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 0.4rem; vertical-align: 1px; }
+    .tab-dot.bg-pending { background: var(--status-pending); }
+    .tab-dot.bg-confirmed { background: var(--status-confirmed); }
+    .tab-dot.bg-in-progress { background: var(--status-in-progress); }
+    .tab-dot.bg-completed { background: var(--status-completed); }
+    .tab-dot.bg-cancelled { background: var(--status-cancelled); }
     .search-field { width: 100%; }
     .header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
     .segmented mat-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -4px; margin-inline-end: 0.2rem; }

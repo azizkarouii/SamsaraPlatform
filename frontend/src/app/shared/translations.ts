@@ -284,6 +284,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   copy_public_link: { fr: 'Copier le lien public', en: 'Copy public link', ar: 'نسخ الرابط العام' },
   previous: { fr: 'Précédent', en: 'Previous', ar: 'السابق' },
   next: { fr: 'Suivant', en: 'Next', ar: 'التالي' },
+  yesterday: { fr: 'Hier', en: 'Yesterday', ar: 'أمس' },
   today: { fr: "Aujourd'hui", en: 'Today', ar: 'اليوم' },
   unavailable: { fr: 'Indisponible', en: 'Unavailable', ar: 'غير متاح' },
   book: { fr: 'Réserver', en: 'Book', ar: 'احجز' },

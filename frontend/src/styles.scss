@@ -313,10 +313,14 @@ html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
   gap: 1rem;
 }
 
+/* Page titles in the condensed face of the planning */
 .page-header h1 {
   margin: 0;
-  font-size: 1.6rem;
+  font-family: var(--display-font);
+  font-size: 2.2rem;
   font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
 }
 
 .page-header .subtitle {
@@ -683,7 +687,7 @@ html.dark-theme .segmented button.active { color: #0B1215; }
   }
 
   .page-header h1 {
-    font-size: 1.35rem;
+    font-size: 1.8rem;
   }
 }
 

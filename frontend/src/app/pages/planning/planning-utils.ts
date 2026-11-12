@@ -56,3 +56,23 @@ const ORDER: Record<string, number> = { 'in-progress': 0, confirmed: 1, complete
 export function byImportance(a: PlanningStay, b: PlanningStay): number {
   return (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || a.startDate.localeCompare(b.startDate);
 }
+
+/**
+ * Lines of a week: each stay keeps one line from its first to its last day, so an arrival or a departure
+ * in another house never pushes it to another line. A stay takes the first line free on all its days.
+ */
+export function assignLanes(stays: PlanningStay[], days: string[]): { stay: PlanningStay; lane: number }[] {
+  const last = days[days.length - 1];
+  const ends: number[] = [];
+  return stays
+    .filter(stay => stay.endDate >= days[0] && stay.startDate <= last)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || byImportance(a, b))
+    .map(stay => {
+      const start = Math.max(0, days.indexOf(stay.startDate));
+      const end = stay.endDate > last ? days.length - 1 : days.indexOf(stay.endDate);
+      let lane = ends.findIndex(taken => taken < start);
+      if (lane < 0) lane = ends.length;
+      ends[lane] = end;
+      return { stay, lane };
+    });
+}

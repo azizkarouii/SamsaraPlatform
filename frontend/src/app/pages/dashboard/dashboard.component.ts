@@ -19,7 +19,7 @@ import {
   normalizeReservationStatus,
   statusKey,
 } from '../../models/reservation.model';
-import { getShortMonthLabel } from '../../shared/calendar-utils';
+import { getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
 import { t } from '../../shared/translations';
 
 interface MonthBucket { key: string; label: string; revenue: number; count: number; }
@@ -91,7 +91,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             <mat-card-header><mat-card-title>{{ isSamsar ? t('gains_trend') : t('revenue_trend') }}</mat-card-title></mat-card-header>
             <mat-card-content>
               <div *ngIf="months.length; else noData" class="columns">
-                <div class="column" *ngFor="let m of months" [title]="(m.revenue | number:'1.0-0') + ' TND'">
+                <div class="column" *ngFor="let m of months" [class.current]="m.key === currentMonth" [title]="(m.revenue | number:'1.0-0') + ' TND'">
                   <span class="column-value">{{ m.revenue ? (m.revenue | number:'1.0-0') : '' }}</span>
                   <div class="column-track"><div class="column-fill" [style.height.%]="(m.revenue / maxMonthRevenue) * 100"></div></div>
                   <span class="column-label">{{ m.label }}</span>
@@ -140,7 +140,8 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
             <mat-card-content>
               <div *ngIf="upcoming.length; else noUpcoming" class="upcoming">
                 <a class="upcoming-item" *ngFor="let r of upcoming" [routerLink]="['/reservations', r.id]">
-                  <div class="date-box">
+                  <div class="date-box" [class.today]="r.startDate === today">
+                    <span class="leaf-rings" aria-hidden="true"></span>
                     <strong>{{ r.startDate | date:'dd' }}</strong>
                     <span>{{ monthShort(r.startDate) }}</span>
                   </div>
@@ -198,7 +199,7 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     .metric-icon.pending { background: var(--status-pending-bg); color: var(--status-pending); }
     .metric-icon.houses { background: var(--primary-soft); color: var(--primary); }
     .metric-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
-    .metric-value { font-size: 1.6rem; font-weight: 700; }
+    .metric-value { font-family: var(--display-font); font-size: 2.1rem; font-weight: 700; line-height: 1.05; }
     .metric-sub { font-size: 0.75rem; color: var(--text-secondary); }
     .metric-value small { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
 
@@ -212,6 +213,9 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     .column-track { flex: 1; width: 100%; max-width: 36px; display: flex; align-items: flex-end; background: var(--surface-subtle); border-radius: 6px 6px 0 0; }
     .column-fill { width: 100%; background: var(--primary); border-radius: 6px 6px 0 0; min-height: 2px; transition: height 0.4s ease; }
     .column-label { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; }
+    .column.current .column-track { background: var(--accent-gold-soft); }
+    .column.current .column-fill { background: var(--accent-gold); }
+    .column.current .column-label, .column.current .column-value { color: var(--accent-gold); font-weight: 700; }
 
     .stacked { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-subtle); margin: 0.5rem 0 1rem; }
     .stacked-part { height: 100%; transition: width 0.4s ease; }
@@ -236,12 +240,16 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
       color: inherit; text-decoration: none;
     }
     .upcoming-item:hover { background: var(--surface-hover); }
+    /* A leaf of a desk calendar: rings on top, the day in the condensed face, the month in gold */
     .date-box {
-      width: 44px; flex-shrink: 0; text-align: center; border-radius: 10px; padding: 4px 0;
-      background: var(--primary-soft); color: var(--primary); display: flex; flex-direction: column; line-height: 1.1;
+      position: relative; width: 48px; flex-shrink: 0; text-align: center; border-radius: 8px; padding: 9px 0 4px;
+      background: var(--bg-card); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column; line-height: 1;
     }
-    .date-box strong { font-size: 1.1rem; }
-    .date-box span { font-size: 0.65rem; text-transform: uppercase; }
+    .leaf-rings { position: absolute; top: -4px; inset-inline: 8px; height: 8px; background: repeating-linear-gradient(90deg, var(--ring-color) 0 2px, transparent 2px 8px); }
+    .date-box strong { font-family: var(--display-font); font-size: 1.45rem; color: var(--text-primary); }
+    .date-box span { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; color: var(--accent-gold); margin-top: 2px; }
+    .date-box.today { border-color: var(--accent-gold); box-shadow: 0 0 0 1px var(--accent-gold); }
     .upcoming-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .upcoming-body span { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .empty-state.small { padding: 1.5rem; }
@@ -316,6 +324,10 @@ export class DashboardComponent implements OnInit {
   countByStatus(status: string): number {
     return this.summary?.counts[status] ?? 0;
   }
+
+  readonly today = todayIso();
+  /** yyyy-MM: its column of the chart is in gold, as the current month of the planning. */
+  readonly currentMonth = this.today.slice(0, 7);
 
   get months(): MonthBucket[] {
     return (this.summary?.months ?? []).map(month => {

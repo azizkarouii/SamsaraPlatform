@@ -6,7 +6,7 @@ import { Planning, PlanningStay, statusKey } from '../../models/reservation.mode
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { t } from '../../shared/translations';
 import { getWeekdayLabels, todayIso } from '../../shared/calendar-utils';
-import { PlanningHouse, addDays, byImportance, covers, daysBetween, shortDate, startOfWeek, weekdayIndex } from './planning-utils';
+import { PlanningHouse, addDays, assignLanes, byImportance, covers, daysBetween, shortDate, startOfWeek, weekdayIndex } from './planning-utils';
 
 interface Chip { stay: PlanningStay; house: PlanningHouse; label: boolean; starts: boolean; ends: boolean }
 /** chips: one place per lane of the week, null where that lane is free on this day. */
@@ -120,7 +120,7 @@ export class PlanningMonthComponent implements OnChanges {
     this.weeks = [];
     for (let monday = startOfWeek(first); monday <= last; monday = addDays(monday, 7)) {
       const days = daysBetween(monday, addDays(monday, 6));
-      const lanes = this.lanes(stays.filter(s => houses.has(s.propertyId) && s.endDate >= days[0] && s.startDate <= days[6]), days);
+      const lanes = assignLanes(stays.filter(s => houses.has(s.propertyId)), days);
       const used = Math.min(SHOWN, lanes.reduce((max, lane) => Math.max(max, lane.lane + 1), 0));
       this.weeks.push(days.map(iso => {
         const chips: (Chip | null)[] = Array.from({ length: used }, () => null);
@@ -145,20 +145,5 @@ export class PlanningMonthComponent implements OnChanges {
         };
       }));
     }
-  }
-
-  /** Each stay of the week keeps one line from its first to its last day: the first line free on all of them. */
-  private lanes(stays: PlanningStay[], days: string[]): { stay: PlanningStay; lane: number }[] {
-    const ends: number[] = [];
-    return [...stays]
-      .sort((a, b) => a.startDate.localeCompare(b.startDate) || byImportance(a, b))
-      .map(stay => {
-        const start = Math.max(0, days.indexOf(stay.startDate));
-        const end = stay.endDate > days[6] ? 6 : days.indexOf(stay.endDate);
-        let lane = ends.findIndex(last => last < start);
-        if (lane < 0) lane = ends.length;
-        ends[lane] = end;
-        return { stay, lane };
-      });
   }
 }

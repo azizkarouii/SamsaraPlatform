@@ -23,7 +23,7 @@ import {
   statusKey,
 } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
-import { todayIso } from '../../../shared/calendar-utils';
+import { getMonthLabel, getWeekdayLabels, parseIsoDate, todayIso } from '../../../shared/calendar-utils';
 import { whatsAppLink } from '../../../shared/whatsapp';
 import { ReservationPaymentsComponent } from './reservation-payments.component';
 import { ReservationHistoryComponent } from './reservation-history.component';
@@ -113,24 +113,22 @@ import { ReservationStayChangesComponent } from './reservation-stay-changes.comp
         <mat-card>
           <mat-card-content>
             <h3>{{ t('dates_times') }}</h3>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="label">{{ t('arrival') }}</span>
-                <span class="value">{{ r.startDate | date:'dd/MM/yyyy' }} · {{ r.checkInTime }}</span>
+            <!-- Arrival and departure as two leaves of a desk calendar -->
+            <div class="leaves">
+              <div class="leaf" *ngFor="let leaf of leaves; let last = last" [class.departure]="last">
+                <span class="leaf-rings" aria-hidden="true"></span>
+                <span class="leaf-label">{{ t(last ? 'departure' : 'arrival') }}</span>
+                <span class="leaf-weekday">{{ leaf.weekday }}</span>
+                <strong class="leaf-day">{{ leaf.day }}</strong>
+                <span class="leaf-month">{{ leaf.month }} {{ leaf.year }}</span>
+                <span class="leaf-time">{{ last ? r.checkOutTime : r.checkInTime }}</span>
               </div>
-              <div class="info-item">
-                <span class="label">{{ t('departure') }}</span>
-                <span class="value">{{ r.endDate | date:'dd/MM/yyyy' }} · {{ r.checkOutTime }}</span>
-              </div>
-              <div class="info-item" *ngIf="r.originalEndDate">
-                <span class="label">{{ t('planned_end') }}</span>
-                <span class="value">{{ r.originalEndDate | date:'dd/MM/yyyy' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ t('days_count') }}</span>
-                <span class="value">{{ days }}</span>
+              <div class="leaf-span">
+                <span class="nights">{{ days }}</span>
+                <span>{{ t('days_count') }}</span>
               </div>
             </div>
+            <p class="planned" *ngIf="r.originalEndDate">{{ t('planned_end') }} : {{ r.originalEndDate | date:'dd/MM/yyyy' }}</p>
 
             <mat-divider></mat-divider>
             <h3>{{ t('client_information') }}</h3>
@@ -208,6 +206,24 @@ import { ReservationStayChangesComponent } from './reservation-stay-changes.comp
     .link { color: var(--primary); text-decoration: none; }
     .muted { color: var(--text-secondary); font-weight: 400; }
     .notes { white-space: pre-line; margin: 0.5rem 0 0; }
+    .leaves { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.75rem; margin: 1.1rem 0 0.5rem; max-width: 460px; }
+    .leaf { grid-column: 1; grid-row: 1; }
+    .leaf.departure { grid-column: 3; }
+    .leaf-span { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: center; font-size: 0.72rem; color: var(--text-secondary); }
+    .leaf-span::before { content: '→'; font-size: 1.1rem; color: var(--accent-gold); }
+    :host-context(html[dir='rtl']) .leaf-span::before { content: '←'; }
+    .leaf-span .nights { font-family: var(--display-font); font-size: 1.5rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+    .leaf {
+      position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0.9rem 0.5rem 0.6rem;
+      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: var(--shadow-sm); text-align: center;
+    }
+    .leaf-rings { position: absolute; top: -6px; inset-inline: 14px; height: 12px; background: repeating-linear-gradient(90deg, var(--ring-color) 0 2px, transparent 2px 12px); }
+    .leaf-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+    .leaf-weekday { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+    .leaf-day { font-family: var(--display-font); font-size: 2.6rem; line-height: 1; }
+    .leaf-month { font-size: 0.8rem; font-weight: 600; color: var(--accent-gold); }
+    .leaf-time { margin-top: 0.3rem; padding: 1px 8px; border-radius: 6px; background: var(--surface-subtle); font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .planned { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--text-secondary); }
     .whatsapp { color: #128c7e; border-color: #25d366 !important; }
 
     .workflow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -354,6 +370,22 @@ export class ReservationDetailComponent implements OnInit {
 
   get editable(): boolean {
     return this.canManage && this.status !== 'completed' && this.status !== 'cancelled';
+  }
+
+  /** Arrival and departure as calendar leaves: weekday, day, month and year. */
+  get leaves(): { weekday: string; day: number; month: string; year: number }[] {
+    const r = this.reservation;
+    if (!r) return [];
+    const language = this.uiPrefs.getLanguage();
+    return [r.startDate, r.endDate].map(iso => {
+      const date = parseIsoDate(iso);
+      return {
+        weekday: getWeekdayLabels(language)[(date.getDay() + 6) % 7],
+        day: date.getDate(),
+        month: getMonthLabel(date.getMonth(), language),
+        year: date.getFullYear(),
+      };
+    });
   }
 
   get days(): number {

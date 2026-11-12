@@ -4,7 +4,6 @@ import { Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -12,6 +11,7 @@ import { NotificationService } from '../../services/notification.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { Notification } from '../../models/notification.model';
 import { t } from '../../shared/translations';
+import { getMonthLabel, todayIso } from '../../shared/calendar-utils';
 
 
 const PAGE_SIZE = 20;
@@ -25,7 +25,6 @@ const PAGE_SIZE = 20;
     MatCardModule,
     MatButtonModule,
     MatIconModule,
-    MatButtonToggleModule,
     MatTooltipModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
@@ -38,10 +37,10 @@ const PAGE_SIZE = 20;
           <p class="subtitle">{{ unreadCount }} {{ t('unread') }}</p>
         </div>
         <div class="header-actions">
-          <mat-button-toggle-group [value]="filter" (change)="setFilter($event.value)">
-            <mat-button-toggle value="all">{{ t('all') }}</mat-button-toggle>
-            <mat-button-toggle value="unread">{{ t('unread') }}</mat-button-toggle>
-          </mat-button-toggle-group>
+          <div class="segmented" role="group">
+            <button type="button" [class.active]="filter === 'all'" (click)="setFilter('all')">{{ t('all') }}</button>
+            <button type="button" [class.active]="filter === 'unread'" (click)="setFilter('unread')">{{ t('unread') }}<span class="count">{{ unreadCount }}</span></button>
+          </div>
           <button mat-stroked-button (click)="markAllAsRead()" [disabled]="!unreadCount">
             <mat-icon>done_all</mat-icon> {{ t('mark_all_read') }}
           </button>
@@ -58,7 +57,9 @@ const PAGE_SIZE = 20;
           </div>
 
           <div class="list" *ngIf="notifications.length">
-            <div class="item" *ngFor="let notif of notifications" [class.unread]="!notif.isRead" (click)="open(notif)">
+            <ng-container *ngFor="let group of groups">
+            <h2 class="day">{{ group.label }}</h2>
+            <div class="item" *ngFor="let notif of group.items" [class.unread]="!notif.isRead" (click)="open(notif)">
               <div class="icon" [ngClass]="tone(notif.type)"><mat-icon>{{ icon(notif.type) }}</mat-icon></div>
               <div class="body">
                 <div class="title">
@@ -66,12 +67,13 @@ const PAGE_SIZE = 20;
                   <span class="dot" *ngIf="!notif.isRead"></span>
                 </div>
                 <div class="message">{{ messageOf(notif) }}</div>
-                <div class="time">{{ notif.createdAt | date:'dd/MM/yyyy HH:mm' }}</div>
+                <div class="time">{{ notif.createdAt | date:'HH:mm' }}</div>
               </div>
               <button mat-icon-button (click)="$event.stopPropagation(); deleteNotification(notif)" [matTooltip]="t('delete')">
                 <mat-icon>close</mat-icon>
               </button>
             </div>
+            </ng-container>
           </div>
           <div class="more" *ngIf="notifications.length < total">
             <button mat-stroked-button (click)="loadMore()" [disabled]="loading">{{ t('load_more') }}</button>
@@ -84,6 +86,9 @@ const PAGE_SIZE = 20;
     .narrow { max-width: 900px; }
     .more { display: flex; justify-content: center; margin-top: 1rem; }
     .list { display: grid; }
+    .day { margin: 1.1rem 0 0.35rem; font-family: var(--display-font); font-size: 1.35rem; font-weight: 700; }
+    .day:first-child { margin-top: 0; }
+    .day::first-letter { text-transform: uppercase; }
     .item {
       display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.9rem 0.5rem; cursor: pointer;
       border-bottom: 1px solid var(--border-color); border-radius: 8px;
@@ -105,6 +110,28 @@ const PAGE_SIZE = 20;
 })
 export class NotificationsComponent implements OnInit {
   notifications: Notification[] = [];
+
+  /** The notifications by day, the latest first: Today, Yesterday, then the date. */
+  get groups(): { label: string; items: Notification[] }[] {
+    const today = todayIso();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const groups: { key: string; label: string; items: Notification[] }[] = [];
+    for (const notif of this.notifications) {
+      const key = String(notif.createdAt).slice(0, 10);
+      let group = groups.find(g => g.key === key);
+      if (!group) {
+        const [year, month, day] = key.split('-').map(Number);
+        const label = key === today ? this.t('today') : key === yesterdayIso ? this.t('yesterday')
+          : `${day} ${getMonthLabel(month - 1, this.uiPrefs.getLanguage())}${year !== new Date().getFullYear() ? ' ' + year : ''}`;
+        group = { key, label, items: [] };
+        groups.push(group);
+      }
+      group.items.push(notif);
+    }
+    return groups;
+  }
   loading = true;
   filter: 'all' | 'unread' = 'all';
   unreadCount = 0;
