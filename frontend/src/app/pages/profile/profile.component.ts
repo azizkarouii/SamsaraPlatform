@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -32,6 +33,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
@@ -71,9 +73,11 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
             <span class="pill primary">{{ user?.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
           </div>
           <div class="stats">
-            <div><strong>{{ propertyCount }}</strong><span>{{ user?.role === 'PROPRIETAIRE' ? t('properties_count') : t('shared_houses') }}</span></div>
-            <div><strong>{{ reservationCount }}</strong><span>{{ t('reservations_count') }}</span></div>
-            <div><strong>{{ totalRevenue | number:'1.0-0' }} <small>TND</small></strong><span>{{ user?.role === 'SAMSAR' ? t('my_gains') : t('revenue_suffix') }}</span></div>
+            <a class="stat" [routerLink]="user?.role === 'PROPRIETAIRE' ? '/properties' : '/shared-houses'">
+              <strong>{{ propertyCount }}</strong><span>{{ user?.role === 'PROPRIETAIRE' ? t('properties_count') : t('shared_houses') }}</span>
+            </a>
+            <a class="stat" routerLink="/reservations"><strong>{{ reservationCount }}</strong><span>{{ t('reservations_count') }}</span></a>
+            <a class="stat gold" routerLink="/reports"><strong>{{ totalRevenue | number:'1.0-0' }} <small>TND</small></strong><span>{{ user?.role === 'SAMSAR' ? t('my_gains') : t('revenue_suffix') }}</span></a>
           </div>
         </mat-card-content>
       </mat-card>
@@ -112,16 +116,29 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
             <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('current_password') }}</mat-label>
-                <input matInput type="password" formControlName="currentPassword" autocomplete="current-password" />
+                <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="currentPassword" autocomplete="current-password" />
+                <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
+                  <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('new_password') }}</mat-label>
-                <input matInput type="password" formControlName="newPassword" autocomplete="new-password" />
+                <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="newPassword" autocomplete="new-password" />
+                <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
+                  <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
                 <mat-error>{{ t('password_min') }}</mat-error>
               </mat-form-field>
+              <div class="strength" *ngIf="passwordForm.value.newPassword" [attr.data-level]="strength">
+                <span class="strength-bars"><i></i><i></i><i></i><i></i></span>
+                <span class="strength-label">{{ t('password_strength_' + strength) }}</span>
+              </div>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('confirm_password') }}</mat-label>
-                <input matInput type="password" formControlName="confirmPassword" autocomplete="new-password" />
+                <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="confirmPassword" autocomplete="new-password" />
+                <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
+                  <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
               </mat-form-field>
               <div class="inline-error" *ngIf="passwordForm.hasError('mismatch') && passwordForm.get('confirmPassword')?.dirty">
                 {{ t('passwords_dont_match') }}
@@ -152,11 +169,25 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     .who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; flex: 1; min-width: 200px; }
     .who strong { font-size: 1.25rem; }
     .who span:not(.pill) { color: var(--text-secondary); }
-    .stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
-    .stats div { display: flex; flex-direction: column; align-items: center; }
-    .stats strong { font-size: 1.3rem; }
-    .stats small { font-size: 0.75rem; color: var(--text-secondary); }
-    .stats span { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .identity { position: relative; overflow: hidden; }
+    .identity::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 76px; background: linear-gradient(120deg, var(--primary-soft), var(--accent-gold-soft)); pointer-events: none; }
+    .identity mat-card-content { position: relative; }
+    .avatar { border-radius: 50%; box-shadow: 0 0 0 4px var(--bg-card), 0 0 0 6px var(--accent-gold-soft); }
+    .who strong { font-family: var(--display-font); font-size: 2rem !important; line-height: 1.05; }
+    .stats { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; align-items: flex-start; min-width: 110px; padding: 0.6rem 0.9rem; border-radius: 12px; border: 1px solid var(--border-color); border-top: 3px solid var(--primary); background: var(--bg-card); color: inherit; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat.gold { border-top-color: var(--accent-gold); }
+    .stat strong { font-family: var(--display-font); font-size: 1.7rem; line-height: 1; }
+    .stat small { font-size: 0.75rem; color: var(--text-secondary); }
+    .stat span { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .strength { display: flex; align-items: center; gap: 0.6rem; margin: -0.6rem 0 0.9rem; font-size: 0.78rem; color: var(--text-secondary); }
+    .strength-bars { display: grid; grid-template-columns: repeat(4, 28px); gap: 4px; }
+    .strength-bars i { height: 5px; border-radius: 3px; background: var(--border-color); }
+    .strength[data-level='weak'] i:nth-child(-n + 1) { background: var(--status-cancelled); }
+    .strength[data-level='fair'] i:nth-child(-n + 2) { background: var(--status-pending); }
+    .strength[data-level='good'] i:nth-child(-n + 3) { background: var(--status-confirmed); }
+    .strength[data-level='strong'] i { background: var(--primary); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 1.25rem; }
     form { display: flex; flex-direction: column; padding-top: 0.75rem; }
     form button { align-self: flex-start; }
@@ -171,6 +202,15 @@ export class ProfileComponent implements OnInit {
   totalRevenue = 0;
   saving = false;
   changingPassword = false;
+  showPasswords = false;
+
+  /** Length, then the kinds of characters mixed (lower and upper case, digits, symbols). */
+  get strength(): 'weak' | 'fair' | 'good' | 'strong' {
+    const value = this.passwordForm.value.newPassword || '';
+    const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(r => r.test(value)).length;
+    const score = (value.length >= 6 ? 1 : 0) + (value.length >= 10 ? 1 : 0) + (kinds >= 2 ? 1 : 0) + (kinds >= 3 ? 1 : 0);
+    return (['weak', 'weak', 'fair', 'good', 'strong'] as const)[score];
+  }
 
   profileForm = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(3)]],

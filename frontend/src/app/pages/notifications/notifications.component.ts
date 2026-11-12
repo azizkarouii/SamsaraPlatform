@@ -47,19 +47,26 @@ const PAGE_SIZE = 20;
         </div>
       </div>
 
+      <div class="kinds" role="group" [attr.aria-label]="t('notif_kind')">
+        <button type="button" *ngFor="let k of kinds" class="kind" [class.active]="kind === k.id" (click)="kind = k.id">
+          <mat-icon>{{ k.icon }}</mat-icon>{{ t(k.label) }}<span class="count">{{ countOf(k.id) }}</span>
+        </button>
+      </div>
+
       <mat-card>
         <mat-card-content>
-          <div *ngIf="loading" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
+          <div *ngIf="loading && !notifications.length" class="loading-container"><mat-spinner diameter="40"></mat-spinner></div>
 
-          <div *ngIf="!loading && !notifications.length" class="empty-state">
-            <mat-icon>notifications_none</mat-icon>
-            <p>{{ t('no_notifications') }}</p>
+          <div *ngIf="!loading && !groups.length" class="empty-panel">
+            <div class="empty-art" aria-hidden="true"><mat-icon>notifications_none</mat-icon></div>
+            <h2>{{ t(filter === 'unread' ? 'notif_all_read' : 'no_notifications') }}</h2>
+            <p *ngIf="filter === 'unread'">{{ t('notif_all_read_hint') }}</p>
           </div>
 
-          <div class="list" *ngIf="notifications.length">
-            <ng-container *ngFor="let group of groups">
+          <div class="list" *ngIf="groups.length">
+            <ng-container *ngFor="let group of groups; trackBy: trackGroup">
             <h2 class="day">{{ group.label }}</h2>
-            <div class="item" *ngFor="let notif of group.items" [class.unread]="!notif.isRead" (click)="open(notif)">
+            <div class="item" *ngFor="let notif of group.items; trackBy: trackNotification" [class.unread]="!notif.isRead" (click)="open(notif)">
               <div class="icon" [ngClass]="tone(notif.type)"><mat-icon>{{ icon(notif.type) }}</mat-icon></div>
               <div class="body">
                 <div class="title">
@@ -67,11 +74,16 @@ const PAGE_SIZE = 20;
                   <span class="dot" *ngIf="!notif.isRead"></span>
                 </div>
                 <div class="message">{{ messageOf(notif) }}</div>
-                <div class="time">{{ notif.createdAt | date:'HH:mm' }}</div>
+                <div class="time" [title]="notif.createdAt | date:'dd/MM/yyyy HH:mm'">{{ ago(notif.createdAt) }}</div>
               </div>
-              <button mat-icon-button (click)="$event.stopPropagation(); deleteNotification(notif)" [matTooltip]="t('delete')">
-                <mat-icon>close</mat-icon>
-              </button>
+              <div class="item-actions">
+                <button mat-icon-button *ngIf="!notif.isRead" (click)="$event.stopPropagation(); markRead(notif)" [matTooltip]="t('mark_read')" [attr.aria-label]="t('mark_read')">
+                  <mat-icon>done</mat-icon>
+                </button>
+                <button mat-icon-button (click)="$event.stopPropagation(); deleteNotification(notif)" [matTooltip]="t('delete')" [attr.aria-label]="t('delete')">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
             </div>
             </ng-container>
           </div>
@@ -84,6 +96,18 @@ const PAGE_SIZE = 20;
   `,
   styles: [`
     .narrow { max-width: 900px; }
+    .kinds { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .kind { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.8rem; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .kind mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--text-secondary); }
+    .kind .count { font-size: 0.7rem; padding: 0 0.4rem; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); }
+    .kind:hover { border-color: var(--primary); }
+    .kind.active { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+    .kind.active mat-icon, .kind.active .count { color: inherit; background: rgba(255,255,255,0.18); }
+    .item { position: relative; }
+    .item.unread::before { content: ''; position: absolute; inset-block: 10px; inset-inline-start: 0; width: 3px; border-radius: 2px; background: var(--primary); }
+    .item-actions { display: flex; flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s ease; }
+    .item:hover .item-actions, .item:focus-within .item-actions { opacity: 1; }
+    @media (hover: none) { .item-actions { opacity: 1; } }
     .more { display: flex; justify-content: center; margin-top: 1rem; }
     .list { display: grid; }
     .day { margin: 1.1rem 0 0.35rem; font-family: var(--display-font); font-size: 1.35rem; font-weight: 700; }
@@ -111,6 +135,57 @@ const PAGE_SIZE = 20;
 export class NotificationsComponent implements OnInit {
   notifications: Notification[] = [];
 
+  /** Kinds of notification, to see only one of them. */
+  readonly kinds: { id: 'all' | 'bookings' | 'reminders' | 'sharing'; label: string; icon: string }[] = [
+    { id: 'all', label: 'notif_kind_all', icon: 'inbox' },
+    { id: 'bookings', label: 'notif_kind_bookings', icon: 'event' },
+    { id: 'reminders', label: 'notif_kind_reminders', icon: 'alarm' },
+    { id: 'sharing', label: 'notif_kind_sharing', icon: 'home_work' },
+  ];
+  kind: 'all' | 'bookings' | 'reminders' | 'sharing' = 'all';
+
+  private kindOf(notif: Notification): 'bookings' | 'reminders' | 'sharing' {
+    if (notif.type.startsWith('reminder_')) return 'reminders';
+    if (notif.type === 'property_assignment') return 'sharing';
+    return 'bookings';
+  }
+
+  countOf(kind: string): number {
+    return kind === 'all' ? this.notifications.length : this.notifications.filter(n => this.kindOf(n) === kind).length;
+  }
+
+  /** "just now", "5 min ago", "3 h ago", then the time of day (the day is the heading above). */
+  ago(createdAt: string): string {
+    const minutes = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+    if (minutes < 1) return this.t('just_now');
+    if (minutes < 60) return this.t('minutes_ago').replace('{{n}}', String(minutes));
+    if (minutes < 6 * 60) return this.t('hours_ago').replace('{{n}}', String(Math.floor(minutes / 60)));
+    return String(createdAt).slice(11, 16);
+  }
+
+  /**
+   * The groups are rebuilt at each check: without these, every hover would recreate the rows,
+   * and a click pressed on one row and released on its new copy would be lost.
+   */
+  trackGroup(_: number, group: { label: string }): string {
+    return group.label;
+  }
+
+  trackNotification(_: number, notif: Notification): number {
+    return notif.id;
+  }
+
+  /** Read without opening it. */
+  markRead(notif: Notification): void {
+    this.notificationService.markAsRead(notif.id).subscribe({
+      next: () => {
+        notif.isRead = true;
+        this.loadUnreadCount();
+        this.notificationService.unreadCountChange$.next();
+      },
+    });
+  }
+
   /** The notifications by day, the latest first: Today, Yesterday, then the date. */
   get groups(): { label: string; items: Notification[] }[] {
     const today = todayIso();
@@ -118,7 +193,7 @@ export class NotificationsComponent implements OnInit {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
     const groups: { key: string; label: string; items: Notification[] }[] = [];
-    for (const notif of this.notifications) {
+    for (const notif of this.notifications.filter(n => this.kind === 'all' || this.kindOf(n) === this.kind)) {
       const key = String(notif.createdAt).slice(0, 10);
       let group = groups.find(g => g.key === key);
       if (!group) {
