@@ -59,11 +59,13 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
 
 import { MatSelectModule } from '@angular/material/select';
 import { HOUSE_TYPES } from '../../../shared/house-types';
+import { PropertyThumbComponent } from '../../../shared/property-thumb.component';
 @Component({
   selector: 'app-property-form',
   standalone: true,
   imports: [
     PropertyPhotosEditorComponent,
+    PropertyThumbComponent,
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
@@ -80,23 +82,25 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
     MatSelectModule,
   ],
   template: `
-    <div class="form-container">
-      <div class="header">
-        <h1>{{ isEdit ? t('edit_property_title') : t('add_property') }}</h1>
-        <button mat-stroked-button routerLink="/properties">
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1>{{ isEdit ? t('edit_property_title') : t('add_property') }}</h1>
+          <p class="subtitle">{{ t('property_form_subtitle') }}</p>
+        </div>
+        <button mat-stroked-button type="button" routerLink="/properties">
           <mat-icon>arrow_back</mat-icon> {{ t('back_to_list') }}
         </button>
       </div>
 
-      <mat-card>
-        <mat-card-content>
-          <form [formGroup]="propertyForm" (ngSubmit)="onSubmit()">
-            <h2>{{ t('basic_information') }}</h2>
-            <mat-divider class="section-divider"></mat-divider>
+      <div class="form-layout">
+          <form [formGroup]="propertyForm" (ngSubmit)="onSubmit()" class="steps">
+            <section class="step-card">
+            <h2 class="step-title"><span class="num" [class.done]="propertyForm.get('title')?.valid">1</span>{{ t('basic_information') }}</h2>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-2">
-                <mat-label>{{ t('title_col') }} *</mat-label>
+                <mat-label>{{ t('title_col') }}</mat-label>
                 <input matInput formControlName="title" placeholder="{{ t('title_col') }}" />
                 <mat-error *ngIf="propertyForm.get('title')?.hasError('required')">{{ t('property_title_required') }}</mat-error>
               </mat-form-field>
@@ -133,8 +137,10 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
               </mat-form-field>
             </div>
 
-            <h2>{{ t('pricing') }}</h2>
-            <mat-divider class="section-divider"></mat-divider>
+            </section>
+
+            <section class="step-card">
+            <h2 class="step-title"><span class="num" [class.done]="!!propertyForm.value.pricePerDay">2</span>{{ t('pricing') }}</h2>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
@@ -190,8 +196,10 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
               </button>
             </div>
 
-            <h2>{{ t('details') }}</h2>
-            <mat-divider class="section-divider"></mat-divider>
+            </section>
+
+            <section class="step-card">
+            <h2 class="step-title"><span class="num" [class.done]="!!propertyForm.value.maxCapacity">3</span>{{ t('details') }}</h2>
 
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
@@ -210,27 +218,21 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
               </mat-form-field>
             </div>
 
-            <h2>{{ t('options') }}</h2>
-            <mat-divider class="section-divider"></mat-divider>
+            </section>
 
-            <div class="checkbox-row">
-              <mat-checkbox formControlName="hautStanding">{{ t('high_standing') }}</mat-checkbox>
-              <mat-checkbox formControlName="appartientResidence">{{ t('residence') }}</mat-checkbox>
+            <section class="step-card">
+            <h2 class="step-title"><span class="num" [class.done]="equipmentCount > 0">4</span>{{ t('equipment') }}</h2>
+            <p class="seasons-hint">{{ t('equipment_hint') }}</p>
+            <div class="toggles" role="group" [attr.aria-label]="t('equipment')">
+              <button type="button" *ngFor="let f of features" class="toggle" [class.on]="!!propertyForm.get(f.control)?.value"
+                      [attr.aria-pressed]="!!propertyForm.get(f.control)?.value" (click)="toggleFeature(f.control)">
+                <mat-icon>{{ f.icon }}</mat-icon>{{ t(f.label) }}
+              </button>
             </div>
+            </section>
 
-            <h3>{{ t('equipment') }}</h3>
-            <div class="checkbox-row">
-              <mat-checkbox formControlName="wifi">{{ t('wifi') }}</mat-checkbox>
-              <mat-checkbox formControlName="airCondition">{{ t('air_condition') }}</mat-checkbox>
-              <mat-checkbox formControlName="pool">{{ t('pool') }}</mat-checkbox>
-              <mat-checkbox formControlName="garage">{{ t('garage') }}</mat-checkbox>
-              <mat-checkbox formControlName="kitchen">{{ t('kitchen') }}</mat-checkbox>
-              <mat-checkbox formControlName="seaView">{{ t('sea_view') }}</mat-checkbox>
-              <mat-checkbox formControlName="terrace">{{ t('terrace') }}</mat-checkbox>
-            </div>
-
-            <h2>{{ t('photos') }}</h2>
-            <mat-divider class="section-divider"></mat-divider>
+            <section class="step-card">
+            <h2 class="step-title"><span class="num">5</span>{{ t('photos') }}</h2>
             <app-property-photos-editor #photos [propertyId]="propertyId"></app-property-photos-editor>
 
             <div class="links" formArrayName="links">
@@ -252,7 +254,10 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
               </button>
             </div>
 
+            </section>
+
             <div class="form-actions">
+              <span class="missing" *ngIf="propertyForm.invalid">{{ t('summary_missing') }} {{ t('title_col') }}</span>
               <button mat-stroked-button type="button" routerLink="/properties">{{ t('cancel') }}</button>
               <button mat-raised-button color="primary" type="submit" [disabled]="propertyForm.invalid || loading">
                 <mat-spinner *ngIf="loading" diameter="20" class="spinner"></mat-spinner>
@@ -260,14 +265,48 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
               </button>
             </div>
           </form>
-        </mat-card-content>
-      </mat-card>
+
+          <!-- What the house will look like in "My houses" -->
+          <aside class="preview">
+            <p class="preview-title">{{ t('preview') }}</p>
+            <article class="house-card">
+              <div class="cover">
+                <app-property-thumb class="photo" [path]="coverImage"></app-property-thumb>
+                <span class="shade" aria-hidden="true"></span>
+                <span class="config" *ngIf="propertyForm.value.configuration">{{ propertyForm.value.configuration }}</span>
+                <span class="price" *ngIf="propertyForm.value.pricePerDay"><b>{{ propertyForm.value.pricePerDay | number:'1.0-0' }}</b> TND <small>/ {{ t('day') }}</small></span>
+              </div>
+              <div class="body">
+                <h3>{{ propertyForm.value.title || t('title_col') }}</h3>
+                <p class="address"><mat-icon inline>place</mat-icon>{{ propertyForm.value.address || '—' }}</p>
+                <div class="preview-features">
+                  <span *ngIf="propertyForm.value.maxCapacity"><mat-icon>group</mat-icon>{{ propertyForm.value.maxCapacity }}</span>
+                  <ng-container *ngFor="let f of features"><mat-icon *ngIf="propertyForm.get(f.control)?.value" [title]="t(f.label)">{{ f.icon }}</mat-icon></ng-container>
+                </div>
+              </div>
+            </article>
+            <p class="seasons-hint">{{ t('preview_hint') }}</p>
+          </aside>
+      </div>
     </div>
   `,
   styles: [`
-    .form-container {
-      max-width: 900px;
-    }
+    .form-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.25rem; align-items: start; }
+    .steps { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .toggles { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .toggle { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+    .toggle mat-icon { font-size: 20px; width: 20px; height: 20px; color: var(--text-secondary); }
+    .toggle:hover { border-color: var(--primary); }
+    .toggle.on { background: var(--primary-soft); border-color: var(--primary-strong); box-shadow: inset 0 0 0 1px var(--primary-strong); }
+    .toggle.on mat-icon { color: var(--primary-strong); }
+    .preview { position: sticky; top: 72px; display: flex; flex-direction: column; gap: 0.5rem; }
+    .preview-title { margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+    .preview .house-card { cursor: default; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 18px; box-shadow: var(--shadow-md); }
+    .preview-features { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--text-secondary); min-height: 20px; }
+    .preview-features span { display: inline-flex; align-items: center; gap: 0.15rem; font-size: 0.8rem; font-weight: 600; }
+    .preview-features mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .missing { margin-inline-end: auto; font-size: 0.8rem; color: var(--text-secondary); }
+    @media (max-width: 1000px) { .form-layout { grid-template-columns: 1fr; } .preview { position: static; order: -1; } }
     .header {
       display: flex;
       justify-content: space-between;
@@ -311,6 +350,8 @@ import { HOUSE_TYPES } from '../../../shared/house-types';
       margin-bottom: 1rem;
     }
     .form-actions {
+      position: sticky; bottom: 0; z-index: 5; align-items: center; padding: 0.75rem 1rem; border-radius: 14px;
+      background: color-mix(in srgb, var(--bg-card) 92%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border-color); box-shadow: var(--shadow-md);
       display: flex;
       justify-content: flex-end;
       gap: 1rem;
@@ -366,6 +407,31 @@ export class PropertyFormComponent implements OnInit {
   @ViewChild('photos') photosEditor?: PropertyPhotosEditorComponent;
   isEdit = false;
   propertyId?: number;
+  /** Cover photo of the house being edited, for the preview. */
+  coverImage?: string;
+
+  /** Options and equipment, shown as toggles with their icon. */
+  readonly features: { control: string; label: string; icon: string }[] = [
+    { control: 'wifi', label: 'wifi', icon: 'wifi' },
+    { control: 'airCondition', label: 'air_condition', icon: 'ac_unit' },
+    { control: 'pool', label: 'pool', icon: 'pool' },
+    { control: 'seaView', label: 'sea_view', icon: 'waves' },
+    { control: 'terrace', label: 'terrace', icon: 'deck' },
+    { control: 'kitchen', label: 'kitchen', icon: 'kitchen' },
+    { control: 'garage', label: 'garage', icon: 'garage' },
+    { control: 'hautStanding', label: 'high_standing', icon: 'diamond' },
+    { control: 'appartientResidence', label: 'residence', icon: 'apartment' },
+  ];
+
+  get equipmentCount(): number {
+    return this.features.filter(f => this.propertyForm.get(f.control)?.value).length;
+  }
+
+  toggleFeature(control: string): void {
+    const field = this.propertyForm.get(control);
+    field?.setValue(!field.value);
+    field?.markAsDirty();
+  }
   loading = false;
 
   propertyForm: FormGroup = this.fb.group({
@@ -437,6 +503,7 @@ export class PropertyFormComponent implements OnInit {
         if (property.configuration && !this.houseTypes.includes(property.configuration)) {
           this.houseTypes = [...this.houseTypes, property.configuration];
         }
+        this.coverImage = property.coverImage ?? property.images?.find(image => image.isMain)?.imagePath ?? property.images?.[0]?.imagePath;
         property.seasonalPrices?.forEach(price => this.addSeasonalRow(price));
         property.links?.forEach(link => this.addLinkRow(link.url));
         this.propertyForm.patchValue({

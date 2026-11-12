@@ -234,7 +234,8 @@ interface MonthBucket { key: string; label: string; revenue: number; count: numb
     .bar-fill { height: 100%; background: var(--status-in-progress); border-radius: 6px; min-width: 2px; }
     .bar-value { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
 
-    .upcoming { display: grid; gap: 0.5rem; }
+    .upcoming { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+    .upcoming-item .status-chip { flex-shrink: 0; }
     .upcoming-item {
       display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: 10px;
       color: inherit; text-decoration: none;

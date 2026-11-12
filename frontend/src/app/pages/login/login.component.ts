@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { AuthShowcaseComponent } from '../../shared/auth-showcase.component';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -17,7 +18,7 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [
+  imports: [AuthShowcaseComponent, 
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
@@ -32,6 +33,7 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
   ],
   template: `
     <div class="login-container auth-shell">
+      <app-auth-showcase></app-auth-showcase>
       <app-ui-preferences-controls class="prefs"></app-ui-preferences-controls>
       <mat-card class="login-card">
         <div class="card-accent"></div>

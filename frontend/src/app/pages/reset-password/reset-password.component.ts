@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { AuthShowcaseComponent } from '../../shared/auth-showcase.component';
 import { CommonModule } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -19,9 +20,10 @@ function passwordsMatch(form: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-reset-password',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSnackBarModule, UiPreferencesControlsComponent],
+  imports: [AuthShowcaseComponent, CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSnackBarModule, UiPreferencesControlsComponent],
   template: `
     <div class="auth-shell auth-page">
+      <app-auth-showcase></app-auth-showcase>
       <app-ui-preferences-controls class="prefs"></app-ui-preferences-controls>
       <mat-card class="auth-card">
         <mat-card-content>

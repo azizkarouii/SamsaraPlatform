@@ -577,6 +577,17 @@ html.dark-theme .segmented button.active { color: #0B1215; }
 .empty-art { width: 96px; height: 96px; border-radius: 28px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); transform: rotate(-6deg); }
 .empty-art mat-icon { font-size: 48px; width: 48px; height: 48px; }
 
+/* ---------- Forms in numbered steps (reservation, house) ---------- */
+.step-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 18px; padding: 1.1rem 1.2rem; box-shadow: var(--shadow-sm); }
+.step-card.locked { opacity: 0.75; }
+.step-title { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.9rem; font-family: var(--display-font); font-size: 1.45rem; font-weight: 700; }
+.step-title .num { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; font-family: inherit; font-size: 1rem; border: 2px solid var(--accent-gold); color: var(--accent-gold); flex-shrink: 0; }
+.step-title .num.done { background: var(--primary-strong); border-color: var(--primary-strong); color: #fff; }
+.inline-error, .inline-warning { display: flex; align-items: flex-start; gap: 0.35rem; font-size: 0.82rem; margin: 0.5rem 0; }
+.inline-error { color: var(--status-cancelled); }
+.inline-warning { color: var(--status-pending); }
+.inline-error mat-icon, .inline-warning mat-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
+
 /* ---------- Availability calendars (property detail + availability page) ---------- */
 .cal-toolbar {
   display: flex;
@@ -760,6 +771,17 @@ html.dark-theme .segmented button.active { color: #0B1215; }
     radial-gradient(circle at 85% 90%, rgba(20, 83, 45, 0.55), transparent 45%),
     linear-gradient(135deg, #16A34A 0%, #15803D 50%, #14532D 100%);
 }
+
+/* auth-shell gap: the showcase beside the form on a wide screen, the form alone on a phone */
+.auth-shell { gap: clamp(2rem, 6vw, 5rem); }
+.auth-shell > .mat-mdc-card { position: relative; border-radius: 22px !important; padding-top: 2.2rem !important; flex-shrink: 0; }
+/* Spiral rings along the top of the form card, as on the planning */
+.auth-shell > .mat-mdc-card::before {
+  content: ''; position: absolute; top: 10px; inset-inline: 26px; height: 10px; opacity: 0.55;
+  background: repeating-linear-gradient(90deg, var(--ring-color) 0 2px, transparent 2px 14px);
+}
+.auth-shell .card-accent { display: none !important; }
+.auth-shell .mat-mdc-card h1:not(.logo-title), .auth-shell .mat-mdc-card .mat-mdc-card-title { font-family: var(--display-font); font-size: 1.9rem !important; line-height: 1.1; }
 
 /* Wordmark text next to the logo: same geometric bold as the "SAMSARA" of the logo */
 .auth-brand {

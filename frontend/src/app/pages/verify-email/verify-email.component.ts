@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { AuthShowcaseComponent } from '../../shared/auth-showcase.component';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,9 +15,10 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
 @Component({
   selector: 'app-verify-email',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatButtonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, UiPreferencesControlsComponent],
+  imports: [AuthShowcaseComponent, CommonModule, RouterModule, MatButtonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, UiPreferencesControlsComponent],
   template: `
     <div class="auth-shell auth-page">
+      <app-auth-showcase></app-auth-showcase>
       <app-ui-preferences-controls class="prefs"></app-ui-preferences-controls>
       <mat-card class="auth-card">
         <mat-card-content>

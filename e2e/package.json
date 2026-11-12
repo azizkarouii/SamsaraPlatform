@@ -1,0 +1,12 @@
+{
+  "name": "samsara-e2e",
+  "private": true,
+  "description": "End-to-end tests: the real site in a real browser, against a running backend",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

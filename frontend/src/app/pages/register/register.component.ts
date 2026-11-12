@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { AuthShowcaseComponent } from '../../shared/auth-showcase.component';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -17,7 +18,7 @@ import { AppLanguage, t } from '../../shared/translations';
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [
+  imports: [AuthShowcaseComponent, 
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
@@ -32,6 +33,7 @@ import { AppLanguage, t } from '../../shared/translations';
   ],
   template: `
     <div class="register-container auth-shell">
+      <app-auth-showcase></app-auth-showcase>
       <mat-card class="register-card">
         <div class="card-accent"></div>
         <img src="assets/brand/logo-icon.png" alt="Samsara" width="256" height="256" class="logo-icon" />

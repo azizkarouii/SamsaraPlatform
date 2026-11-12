@@ -50,3 +50,8 @@ backend/.env
 
 # Database dumps written by the backup service of docker compose
 backups/
+
+# End-to-end tests (e2e/): what Playwright writes
+e2e/test-results/
+e2e/playwright-report/
+e2e/node_modules/

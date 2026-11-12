@@ -88,7 +88,13 @@ cd backend && mvn test        # règles métier via l'API, sur une base H2 en m�
 cd frontend && npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) lance ces tests à chaque push : le backend deux fois, sur H2 puis sur PostgreSQL 16 avec le schéma construit par Flyway (ce qui teste aussi la contrainte anti-chevauchement), et le frontend (build et tests).
+Tests de bout en bout (`e2e/`, Playwright) : le vrai site dans un navigateur, contre un backend lancé avec `EMAIL_VERIFICATION=false` et `COOKIE_SECURE=false` sur le port 3099 et le build du front (`npx ng build`) :
+
+```bash
+cd e2e && npm install && npx playwright test     # en local, Chrome installé est utilisé
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) lance ces tests à chaque push : le backend deux fois, sur H2 puis sur PostgreSQL 16 avec le schéma construit par Flyway (ce qui teste aussi la contrainte anti-chevauchement), le frontend (build et tests), les scénarios de bout en bout et la construction des images Docker.
 
 ## Déploiement
 

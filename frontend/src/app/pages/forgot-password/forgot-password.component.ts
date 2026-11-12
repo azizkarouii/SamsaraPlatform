@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { AuthShowcaseComponent } from '../../shared/auth-showcase.component';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -15,9 +16,10 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
 @Component({
   selector: 'app-forgot-password',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, UiPreferencesControlsComponent],
+  imports: [AuthShowcaseComponent, CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, UiPreferencesControlsComponent],
   template: `
     <div class="auth-shell auth-page">
+      <app-auth-showcase></app-auth-showcase>
       <app-ui-preferences-controls class="prefs"></app-ui-preferences-controls>
       <mat-card class="auth-card">
         <mat-card-content>

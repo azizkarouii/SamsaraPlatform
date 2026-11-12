@@ -62,7 +62,7 @@ import { toDayMonth } from '../../../shared/pricing';
         <div class="page-header">
           <div>
             <p class="eyebrow">{{ p.configuration || t('property_label') }}</p>
-            <h1>{{ p.title }}</h1>
+            <h1>{{ p.title }} <span class="today-badge" [class.busy]="busyToday" *ngIf="!loadingOccupancy"><i></i>{{ t(busyToday ? 'house_occupied' : 'house_free') }} · {{ t('today') | lowercase }}</span></h1>
             <p class="subtitle" *ngIf="p.address"><mat-icon inline>place</mat-icon> {{ p.address }}</p>
           </div>
           <div class="header-actions">
@@ -251,13 +251,18 @@ import { toDayMonth } from '../../../shared/pricing';
     .fact { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; padding: 0.75rem; border-radius: 12px; background: var(--surface-subtle); }
     .fact mat-icon { color: var(--primary); }
     .fact span, .fact a { font-weight: 700; color: inherit; text-decoration: none; }
+    .fact > span { font-family: var(--display-font); font-size: 1.6rem; line-height: 1; }
+    .fact { border: 1px solid var(--border-color); background: var(--bg-card) !important; }
+    .today-badge { display: inline-flex; align-items: center; gap: 0.35rem; vertical-align: middle; margin-inline-start: 0.5rem; padding: 3px 10px; border-radius: 999px; font-family: 'Fira Sans', 'Almarai', sans-serif; font-size: 0.75rem; font-weight: 700; letter-spacing: 0; background: var(--primary-soft); color: var(--primary-strong); }
+    .today-badge i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .today-badge.busy { background: var(--status-in-progress-bg); color: var(--status-in-progress); }
     .fact small { color: var(--text-secondary); font-size: 0.72rem; }
     .equipment { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .cal-legend { margin-top: 0.5rem; }
     .selection-warning { width: 100%; color: var(--status-cancelled); font-size: 0.85rem; }
     .selection-warning.pending { color: var(--status-pending); }
     .price-main { margin: 0.75rem 0 0.25rem; font-size: 1rem; }
-    .price-main strong { font-size: 2rem; }
+    .price-main strong { font-family: var(--display-font); font-size: 2.6rem; line-height: 1; }
     .margin-note { font-size: 0.78rem; color: var(--text-secondary); margin: 0 0 0.5rem; }
     .price-lines { display: grid; gap: 0.35rem; margin: 0.75rem 0 1rem; }
     .external-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -297,6 +302,13 @@ export class PropertyDetailComponent implements OnInit {
   readonly sameDeal = sameDeal;
   private monthOffset = 0;
   private dayStatuses: Record<string, DayStatus> = {};
+  loadingOccupancy = true;
+
+  /** Booked or blocked today (a pending request does not hold the house). */
+  get busyToday(): boolean {
+    const status = this.dayStatuses[this.today];
+    return status === 'reserved' || status === 'blocked';
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -390,6 +402,7 @@ export class PropertyDetailComponent implements OnInit {
     this.availabilityService.getOccupancy(this.property!.id).subscribe({
       next: (occupancy) => {
         this.dayStatuses = createDayStatusMap(occupancy.reservations, occupancy.blockedDates);
+        this.loadingOccupancy = false;
         this.rebuildMonths();
       },
     });
