@@ -181,6 +181,8 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
               <span>{{ t('advance_quick') }}</span>
               <button type="button" *ngFor="let share of [0, 25, 30, 50, 100]" (click)="setAdvance(share)"
                       [class.active]="advanceShare === share">{{ share }} %</button>
+              <button type="button" *ngIf="Number(form.value.totalAmount) >= 100" (click)="setAdvanceAmount(100)"
+                      [class.active]="Number(form.value.advanceAmount) === 100">100 DT</button>
             </div>
             <div class="inline-error" *ngIf="exceedsMax"><mat-icon>error</mat-icon>{{ t('total_above_max').replace('{{max}}', '' + maxTotal) }}</div>
             <div class="inline-error" *ngIf="form.hasError('advanceTooHigh')"><mat-icon>error</mat-icon>{{ t('advance_above_total') }}</div>
@@ -522,6 +524,11 @@ export class ReservationFormComponent implements OnInit {
     if (!total) return null;
     const share = Math.round(Number(this.form.value.advanceAmount || 0) * 100 / total);
     return [0, 25, 30, 50, 100].includes(share) ? share : null;
+  }
+
+  /** A fixed advance, the usual amount asked for a short stay. */
+  setAdvanceAmount(amount: number): void {
+    this.form.patchValue({ advanceAmount: Math.min(amount, Number(this.form.value.totalAmount || 0)) });
   }
 
   setAdvance(share: number): void {

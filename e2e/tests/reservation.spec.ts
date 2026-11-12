@@ -15,6 +15,8 @@ test.describe('A booking from start to end', () => {
     await expect(page.locator('.ticket .total b')).toContainText('450');
     await page.locator('[formcontrolname="clientName"]').fill('Mounir Trabelsi');
     await page.locator('[formcontrolname="clientPhone"]').fill('98765432');
+    await page.locator('.advance-quick button', { hasText: '100 DT' }).click();
+    await expect(page.locator('[formcontrolname="advanceAmount"]')).toHaveValue('100');
     await page.locator('.advance-quick button', { hasText: '30 %' }).click();
     await expect(page.locator('[formcontrolname="advanceAmount"]')).toHaveValue('135');
     await expect(page.locator('.ticket .status-hint')).toContainText('confirmée');

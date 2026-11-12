@@ -19,7 +19,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
     locale: 'fr-FR',
-    timezoneId: 'Africa/Tunis',
+    timezoneId: 'Africa/Tunis', // same as APP_TIMEZONE of the backend (see tests/helpers.ts)
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

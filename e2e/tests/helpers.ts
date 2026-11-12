@@ -2,12 +2,13 @@ import { Page, expect } from '@playwright/test';
 
 export const PASSWORD = 'secret123';
 
-/** yyyy-MM-dd, days from today in the browser's time zone. */
+/** The time zone of the app (backend APP_TIMEZONE and the browser of these tests), whatever the machine running them. */
+export const TIMEZONE = 'Africa/Tunis';
+
+/** yyyy-MM-dd, days from today in Tunisia: the "today" of the site, even when the CI runs at 23:30 UTC. */
 export function iso(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  // Tunisia has no daylight saving time: whole days of 24 h are exact
+  return new Date(Date.now() + days * 86_400_000).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
 }
 
 /** An address no other test (or earlier run on the same database) has used. */

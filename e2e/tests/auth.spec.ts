@@ -12,7 +12,8 @@ test.describe('Accounts', () => {
     await page.locator('[formcontrolname="confirmPassword"]').fill(PASSWORD);
     await page.locator('[formcontrolname="phone"]').fill('20111111');
     await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    // The very first sign-up warms the backend up (password hashing, first queries): it may take a little longer
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
     await expect(page.locator('h1')).toContainText('Leila Ben Salah');
 
     // The session is an HttpOnly cookie: page scripts never see a token

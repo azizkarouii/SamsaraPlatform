@@ -78,6 +78,7 @@ Par variables d'environnement, ou dans `backend/.env` en local (ignoré par git,
 | `CORS_ALLOWED_ORIGINS` | Origines autorisées à appeler l'API, séparées par des virgules |
 | `spring.mail.*`, `MAIL_FROM` | Serveur d'envoi des emails. Sans serveur, les liens (confirmation, réinitialisation) sont écrits dans les logs du backend |
 | `EMAIL_VERIFICATION` | `true` par défaut : un nouveau compte doit confirmer son adresse avant de se connecter. `false` pour s'en passer en local |
+| `APP_TIMEZONE` | `Africa/Tunis` par défaut : le « aujourd'hui » des séjours, des paiements et des rappels, quel que soit le fuseau du serveur |
 | `COOKIE_SECURE` | `true` par défaut : le cookie de session n'est envoyé qu'en HTTPS. Mettre `false` en local sur `http://localhost` |
 | `STORAGE_TYPE`, `S3_*` | Photos dans un stockage compatible S3 (`STORAGE_TYPE=s3`) au lieu du disque |
 
