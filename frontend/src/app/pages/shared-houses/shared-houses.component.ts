@@ -36,6 +36,11 @@ interface SamsarGroup {
 }
 
 import { PropertyThumbComponent } from '../../shared/property-thumb.component';
+import { OccupancyStripComponent } from '../../shared/occupancy-strip.component';
+import { HouseToday, OccupancyDay, houseToday, occupancyOf, stripRange } from '../../shared/house-occupancy';
+import { whatsAppNumber } from '../../shared/whatsapp';
+import { ReservationService } from '../../services/reservation.service';
+import { Planning, statusKey } from '../../models/reservation.model';
 import { UserAvatarComponent } from '../../shared/user-avatar.component';
 import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../shared/samsar-deal';
 @Component({
@@ -43,6 +48,7 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
   standalone: true,
   imports: [
     PropertyThumbComponent,
+    OccupancyStripComponent,
     UserAvatarComponent,
     CommonModule,
     RouterModule,
@@ -72,14 +78,106 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
 
       <!-- ===== Owner ===== -->
       <ng-container *ngIf="isOwner && !loading">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>{{ t('invite_samsar') }}</mat-card-title>
-            <mat-card-subtitle>{{ t('invite_samsar_sub') }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div *ngIf="!ownedProperties.length" class="empty-state">
-              <mat-icon>add_home</mat-icon>
+        <div class="kpis">
+          <div class="kpi"><span class="kpi-value">{{ samsarGroups.length }}</span><span class="kpi-label">{{ t('kpi_samsars') }}</span></div>
+          <div class="kpi gold"><span class="kpi-value">{{ accessCount }}</span><span class="kpi-label">{{ t('kpi_accesses') }}</span></div>
+          <div class="kpi green"><span class="kpi-value">{{ fullAccessCount }}</span><span class="kpi-label">{{ t('kpi_full_access') }}</span></div>
+          <div class="kpi warn" [class.calm]="!housesWithoutSamsar"><span class="kpi-value">{{ housesWithoutSamsar }}</span><span class="kpi-label">{{ t('kpi_houses_alone') }}</span></div>
+        </div>
+
+        <div class="owner-layout">
+          <section class="team">
+            <div class="empty-panel" *ngIf="!samsarGroups.length">
+              <div class="empty-art" aria-hidden="true"><mat-icon>group_add</mat-icon></div>
+              <h2>{{ t('no_samsar_yet') }}</h2>
+              <p>{{ t('invite_samsar_sub') }}</p>
+            </div>
+
+            <article class="samsar lift-card" *ngFor="let group of samsarGroups; let i = index; trackBy: trackSamsar" [style.--i]="i">
+              <header class="samsar-head">
+                <app-user-avatar class="avatar" [name]="group.name" [photo]="group.photo" aria-hidden="true"></app-user-avatar>
+                <div class="who">
+                  <strong>{{ group.name }}</strong>
+                  <span>{{ group.email }}</span>
+                </div>
+                <button mat-icon-button [matMenuTriggerFor]="samsarMenu" [attr.aria-label]="t('remove_access') + ' — ' + group.name">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #samsarMenu="matMenu">
+                  <button mat-menu-item *ngIf="!group.allHouses" (click)="addToAllHouses(group)">
+                    <mat-icon>done_all</mat-icon>{{ t('add_to_all_houses') }}
+                  </button>
+                  <button mat-menu-item class="danger" (click)="removeFromAll(group)">
+                    <mat-icon>person_remove</mat-icon>{{ t('remove_from_all_properties') }}
+                  </button>
+                </mat-menu>
+              </header>
+
+              <div class="contact">
+                <a *ngIf="whatsApp(group.phone) as wa" class="chip wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon> WhatsApp</a>
+                <a *ngIf="group.phone" class="chip" [href]="'tel:+216' + group.phone"><mat-icon>call</mat-icon><span class="ltr">+216 {{ group.phone }}</span></a>
+                <a *ngIf="group.email" class="chip" [href]="'mailto:' + group.email"><mat-icon>mail</mat-icon> Email</a>
+              </div>
+
+              <div class="deal-row">
+                <span class="deal-label">{{ t('samsar_rate') }}</span>
+                <button type="button" class="deal" [matMenuTriggerFor]="allMarginMenu" [matTooltip]="t('margin_all_houses')">
+                  {{ group.commonDeal ? dealOption(group.commonDeal) : t('mixed_margins') }} <mat-icon>expand_more</mat-icon>
+                </button>
+                <mat-menu #allMarginMenu="matMenu">
+                  <button mat-menu-item *ngFor="let deal of deals" (click)="updateMarginForAll(group, deal)">
+                    <mat-icon>{{ group.commonDeal && sameDeal(group.commonDeal, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealOption(deal) }}
+                  </button>
+                </mat-menu>
+                <span class="pill" [class.primary]="group.allHouses">
+                  <mat-icon inline aria-hidden="true">{{ group.allHouses ? 'done_all' : 'home' }}</mat-icon>
+                  {{ group.allHouses ? t('all_houses') : t('houses_count').replace('{{n}}', '' + group.relations.length) }}
+                </span>
+              </div>
+
+              <div class="houses">
+                <div class="stack">
+                  <a *ngFor="let rel of group.relations | slice:0:5" class="stack-item" [routerLink]="['/properties', rel.propertyId]"
+                     [matTooltip]="rel.property?.title || ''">
+                    <app-property-thumb class="mini" [path]="rel.property?.coverImage"></app-property-thumb>
+                  </a>
+                  <span class="stack-more" *ngIf="group.relations.length > 5">+{{ group.relations.length - 5 }}</span>
+                </div>
+                <button mat-button class="details-btn" (click)="toggleDetails(group.samsarId)" [attr.aria-expanded]="expanded.has(group.samsarId)">
+                  {{ expanded.has(group.samsarId) ? t('hide_details') : t('show_details') }}
+                  <mat-icon iconPositionEnd>{{ expanded.has(group.samsarId) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+              </div>
+
+              <div class="details" *ngIf="expanded.has(group.samsarId)">
+                <div class="house-row" *ngFor="let rel of group.relations">
+                  <app-property-thumb class="mini" [path]="rel.property?.coverImage"></app-property-thumb>
+                  <a class="house-title link" [routerLink]="['/properties', rel.propertyId]">{{ rel.property?.title || '#' + rel.propertyId }}</a>
+                  <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">{{ dealLabel(rel) }}</button>
+                  <mat-menu #marginMenu="matMenu">
+                    <button mat-menu-item *ngFor="let deal of deals" (click)="updateMargin(rel, deal)">
+                      <mat-icon>{{ sameDeal(rel, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealOption(deal) }}
+                    </button>
+                  </mat-menu>
+                  <button mat-icon-button color="warn" (click)="remove(rel)"
+                          [matTooltip]="t('remove_from_this_property')" [attr.aria-label]="t('remove_from_this_property')">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <!-- The invitation stays in view beside the team -->
+          <aside class="invite">
+            <div class="invite-head">
+              <span class="invite-icon" aria-hidden="true"><mat-icon>mark_email_unread</mat-icon></span>
+              <div>
+                <h2>{{ t('invite_samsar') }}</h2>
+                <p>{{ t('invite_samsar_sub') }}</p>
+              </div>
+            </div>
+            <div *ngIf="!ownedProperties.length" class="empty-panel small">
               <p>{{ t('add_property_first') }}</p>
               <a mat-raised-button color="primary" routerLink="/properties/add">{{ t('add_property') }}</a>
             </div>
@@ -87,9 +185,7 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('property_label') }}</mat-label>
                 <mat-select formControlName="propertyId">
-                  <mat-option [value]="ALL">
-                    <strong>{{ t('all_my_houses') }}</strong> ({{ ownedProperties.length }})
-                  </mat-option>
+                  <mat-option [value]="ALL"><strong>{{ t('all_my_houses') }}</strong> ({{ ownedProperties.length }})</mat-option>
                   <mat-option *ngFor="let property of ownedProperties" [value]="property.id">{{ property.title }}</mat-option>
                 </mat-select>
               </mat-form-field>
@@ -104,166 +200,140 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
                 <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
                 <mat-error>{{ t('phone_invalid') }}</mat-error>
               </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>{{ t('allowed_increase') }}</mat-label>
-                <mat-select formControlName="deal">
-                  <mat-option *ngFor="let deal of deals" [value]="deal">{{ dealOption(deal) }}</mat-option>
-                </mat-select>
-              </mat-form-field>
-              <div class="invite-actions">
-                <button mat-raised-button color="primary" type="submit" [disabled]="inviteForm.invalid || submitting">
-                  <mat-icon>person_add</mat-icon> {{ t('send_invite') }}
+              <p class="field-title">{{ t('allowed_increase') }}</p>
+              <div class="deal-choices" role="radiogroup">
+                <button type="button" role="radio" *ngFor="let deal of deals" class="deal-choice"
+                        [class.active]="inviteForm.value.deal === deal" [attr.aria-checked]="inviteForm.value.deal === deal"
+                        (click)="inviteForm.patchValue({ deal: deal })">
+                  <b>{{ dealLabel(deal) }}</b>
+                  <span>{{ deal.commissionPercent ? t('of_total') : '/ ' + t('day') }}</span>
                 </button>
               </div>
+              <button mat-raised-button color="primary" type="submit" class="send" [disabled]="inviteForm.invalid || submitting">
+                <mat-icon>send</mat-icon> {{ t('send_invite') }}
+              </button>
             </form>
-          </mat-card-content>
-        </mat-card>
-
-        <h2 class="section-title">{{ t('invited_samsars') }}</h2>
-        <mat-card *ngIf="!samsarGroups.length">
-          <mat-card-content>
-            <div class="empty-state"><mat-icon>group_off</mat-icon><p>{{ t('no_samsar_yet') }}</p></div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card *ngFor="let group of samsarGroups; trackBy: trackSamsar" class="samsar-card">
-          <div class="samsar-head">
-            <app-user-avatar class="avatar" [name]="group.name" [photo]="group.photo" aria-hidden="true"></app-user-avatar>
-            <div class="samsar-info">
-              <strong>{{ group.name }}</strong>
-              <span>{{ group.email }}<ng-container *ngIf="group.phone"> · <span class="ltr">+216 {{ group.phone }}</span></ng-container></span>
-            </div>
-            <span class="pill" [class.primary]="group.allHouses">
-              <mat-icon inline aria-hidden="true">{{ group.allHouses ? 'done_all' : 'home' }}</mat-icon>
-              {{ group.allHouses ? t('all_houses') : t('houses_count').replace('{{n}}', '' + group.relations.length) }}
-            </span>
-            <button mat-icon-button [matMenuTriggerFor]="samsarMenu" [attr.aria-label]="t('remove_access') + ' — ' + group.name">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-            <mat-menu #samsarMenu="matMenu">
-              <button mat-menu-item *ngIf="!group.allHouses" (click)="addToAllHouses(group)">
-                <mat-icon>done_all</mat-icon>{{ t('add_to_all_houses') }}
-              </button>
-              <button mat-menu-item class="danger" (click)="removeFromAll(group)">
-                <mat-icon>person_remove</mat-icon>{{ t('remove_from_all_properties') }}
-              </button>
-            </mat-menu>
-          </div>
-
-          <!-- Access to every house: one summary line with a shared margin, detail on demand -->
-          <div class="house-row summary" *ngIf="group.allHouses">
-            <mat-icon class="house-icon" aria-hidden="true">holiday_village</mat-icon>
-            <span class="house-title">{{ t('all_houses') }} ({{ group.relations.length }})</span>
-            <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="allMarginMenu" [matTooltip]="t('margin_all_houses')">
-              {{ group.commonDeal ? dealLabel(group.commonDeal) : t('mixed_margins') }}
-            </button>
-            <mat-menu #allMarginMenu="matMenu">
-              <button mat-menu-item *ngFor="let deal of deals" (click)="updateMarginForAll(group, deal)">
-                <mat-icon>{{ group.commonDeal && sameDeal(group.commonDeal, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealLabel(deal) }}
-              </button>
-            </mat-menu>
-            <button mat-button class="details-btn" (click)="toggleDetails(group.samsarId)" [attr.aria-expanded]="expanded.has(group.samsarId)">
-              {{ expanded.has(group.samsarId) ? t('hide_details') : t('show_details') }}
-              <mat-icon iconPositionEnd>{{ expanded.has(group.samsarId) ? 'expand_less' : 'expand_more' }}</mat-icon>
-            </button>
-          </div>
-
-          <ng-container *ngIf="!group.allHouses || expanded.has(group.samsarId)">
-            <div class="house-row" *ngFor="let rel of group.relations">
-              <mat-icon class="house-icon" aria-hidden="true">home</mat-icon>
-              <a class="house-title link" [routerLink]="['/properties', rel.propertyId]">{{ rel.property?.title || '#' + rel.propertyId }}</a>
-              <button mat-stroked-button class="margin-btn" [matMenuTriggerFor]="marginMenu" [matTooltip]="t('edit_margin')">{{ dealLabel(rel) }}</button>
-              <mat-menu #marginMenu="matMenu">
-                <button mat-menu-item *ngFor="let deal of deals" (click)="updateMargin(rel, deal)">
-                  <mat-icon>{{ sameDeal(rel, deal) ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ dealLabel(deal) }}
-                </button>
-              </mat-menu>
-              <button mat-icon-button color="warn" (click)="remove(rel)"
-                      [matTooltip]="t('remove_from_this_property')" [attr.aria-label]="t('remove_from_this_property')">
-                <mat-icon>close</mat-icon>
-              </button>
-            </div>
-          </ng-container>
-        </mat-card>
+          </aside>
+        </div>
       </ng-container>
 
       <!-- ===== Samsar ===== -->
       <ng-container *ngIf="!isOwner && !loading">
+        <div class="kpis" *ngIf="relations.length">
+          <div class="kpi"><span class="kpi-value">{{ relations.length }}</span><span class="kpi-label">{{ t('kpi_houses') }}</span></div>
+          <div class="kpi green"><span class="kpi-value">{{ freeToday }}</span><span class="kpi-label">{{ t('kpi_free_today') }}</span></div>
+          <div class="kpi gold"><span class="kpi-value">{{ relations.length - freeToday }}</span><span class="kpi-label">{{ t('kpi_occupied_today') }}</span></div>
+        </div>
+
         <div class="grid" *ngIf="relations.length; else emptySamsar">
-          <!-- The whole card opens the house; the "View" button stays as the keyboard entry point -->
-          <mat-card class="house-card" *ngFor="let relation of relations" (click)="openHouse(relation)">
-            <app-property-thumb class="card-cover" [path]="relation.property?.coverImage"></app-property-thumb>
-            <mat-card-header>
-              <mat-card-title>{{ relation.property?.title || '#' + relation.propertyId }}</mat-card-title>
-              <mat-card-subtitle>{{ relation.property?.address || relation.property?.configuration || '-' }}</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <div class="price" *ngIf="relation.property?.pricePerDay">
-                <strong>{{ (relation.property?.pricePerDay || 0) + (relation.priceIncreaseTnd || 0) | number:'1.0-0' }} TND</strong>
-                <span>/ {{ t('day') }}</span>
-              </div>
-              <div class="meta">
+          <article class="house-card lift-card" *ngFor="let relation of relations; let i = index" [style.--i]="i" (click)="openHouse(relation)">
+            <div class="cover">
+              <app-property-thumb class="photo" [path]="relation.property?.coverImage"></app-property-thumb>
+              <span class="shade" aria-hidden="true"></span>
+              <span class="badge" *ngIf="today(relation) as now" [class.occupied]="now.occupied">
+                <i class="pulse"></i>
+                <ng-container *ngIf="now.occupied">{{ t('house_occupied') }} → {{ short(now.until) }}</ng-container>
+                <ng-container *ngIf="!now.occupied">{{ t('house_free') }}<ng-container *ngIf="now.nextArrival"> · {{ t('next_arrival_on') }} {{ short(now.nextArrival) }}</ng-container></ng-container>
+              </span>
+              <span class="config" *ngIf="relation.property?.configuration">{{ relation.property?.configuration }}</span>
+              <span class="price" *ngIf="relation.property?.pricePerDay">
+                <b>{{ (relation.property?.pricePerDay || 0) + (relation.priceIncreaseTnd || 0) | number:'1.0-0' }}</b> TND <small>/ {{ t('day') }}</small>
+              </span>
+            </div>
+            <div class="body">
+              <h3>{{ relation.property?.title || '#' + relation.propertyId }}</h3>
+              <p class="address"><mat-icon inline>place</mat-icon>{{ relation.property?.address || '—' }}</p>
+              <div class="deal-row">
                 <span class="pill">{{ t('base_price') }} {{ relation.property?.pricePerDay | number:'1.0-0' }} TND</span>
                 <span class="pill primary">{{ t('your_margin') }} {{ dealLabel(relation) }}</span>
               </div>
-              <p class="contact" *ngIf="relation.property?.ownerContact">
-                <mat-icon inline>call</mat-icon> {{ t('owner_contact') }} : <a class="ltr" [href]="'tel:+216' + relation.property?.ownerContact" (click)="$event.stopPropagation()">+216 {{ relation.property?.ownerContact }}</a>
-              </p>
-            </mat-card-content>
-            <mat-card-actions (click)="$event.stopPropagation()">
-              <a mat-button color="primary" [routerLink]="['/properties', relation.propertyId]"><mat-icon>visibility</mat-icon> {{ t('view') }}</a>
-              <a mat-button color="primary" [routerLink]="['/reservations/add']" [queryParams]="{ propertyId: relation.propertyId }"><mat-icon>add</mat-icon> {{ t('book') }}</a>
-              <span class="spacer"></span>
-              <button mat-icon-button (click)="leave(relation)" [matTooltip]="t('leave_property')"><mat-icon>logout</mat-icon></button>
-            </mat-card-actions>
-          </mat-card>
+              <ng-container *ngIf="days(relation) as strip">
+                <span class="strip-title">{{ t('next_14_days') }}</span>
+                <app-occupancy-strip [days]="strip" [labels]="stripLabels"></app-occupancy-strip>
+              </ng-container>
+              <div class="contact" *ngIf="relation.property?.ownerContact" (click)="$event.stopPropagation()">
+                <a *ngIf="whatsApp(relation.property?.ownerContact) as wa" class="chip wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon> {{ t('owner_contact') }}</a>
+                <a class="chip" [href]="'tel:+216' + relation.property?.ownerContact"><mat-icon>call</mat-icon><span class="ltr">+216 {{ relation.property?.ownerContact }}</span></a>
+              </div>
+              <div class="foot" (click)="$event.stopPropagation()">
+                <a mat-raised-button color="primary" [routerLink]="['/reservations/add']" [queryParams]="{ propertyId: relation.propertyId }"><mat-icon>event_available</mat-icon> {{ t('book') }}</a>
+                <a mat-button [routerLink]="['/properties', relation.propertyId]">{{ t('view') }}</a>
+                <span class="spacer"></span>
+                <button mat-icon-button (click)="leave(relation)" [matTooltip]="t('leave_property')"><mat-icon>logout</mat-icon></button>
+              </div>
+            </div>
+          </article>
         </div>
         <ng-template #emptySamsar>
-          <mat-card>
-            <mat-card-content>
-              <div class="empty-state">
-                <mat-icon>home_work</mat-icon>
-                <h2>{{ t('no_shared_properties') }}</h2>
-                <p>{{ t('no_shared_desc_samsar') }}</p>
-              </div>
-            </mat-card-content>
-          </mat-card>
+          <div class="empty-panel">
+            <div class="empty-art" aria-hidden="true"><mat-icon>home_work</mat-icon></div>
+            <h2>{{ t('no_shared_properties') }}</h2>
+            <p>{{ t('no_shared_desc_samsar') }}</p>
+          </div>
         </ng-template>
       </ng-container>
     </div>
   `,
   styles: [`
-    .section-title { margin: 0.5rem 0 0; font-size: 1.1rem; font-weight: 600; }
-    .invite-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1rem; margin-top: 1rem; }
-    .invite-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+
+    .owner-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.25rem; align-items: start; }
+    .team { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; align-content: start; }
+    @media (max-width: 1100px) { .owner-layout { grid-template-columns: 1fr; } .invite { position: static !important; order: -1; } }
+
+    .samsar { padding: 1rem 1.1rem 0.6rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .samsar-head { display: flex; align-items: center; gap: 0.75rem; }
+    .avatar { --avatar-size: 52px; --avatar-bg: var(--primary-soft); --avatar-fg: var(--primary); border-radius: 50%; box-shadow: 0 0 0 3px var(--bg-card), 0 0 0 5px var(--accent-gold-soft); }
+    .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .who strong { font-family: var(--display-font); font-size: 1.45rem; line-height: 1.1; }
+    .who span { font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .contact { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-color); font-size: 0.78rem; font-weight: 600; color: var(--text-primary); text-decoration: none; background: var(--bg-card); }
+    .chip mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .chip:hover { border-color: var(--primary); color: var(--primary); }
+    .chip.wa { color: #128c7e; border-color: #25d366; }
+    .chip.wa:hover { background: rgba(37, 211, 102, 0.08); }
+
+    .deal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+    .deal-label { font-size: 0.75rem; color: var(--text-secondary); }
+    .deal { display: inline-flex; align-items: center; gap: 0.1rem; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 0.85rem; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--accent-gold-soft); color: var(--text-primary); }
+    .deal mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    .houses { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color); }
+    .stack { display: flex; align-items: center; padding-inline-start: 6px; }
+    .stack-item { margin-inline-start: -6px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-card); transition: transform 0.15s ease; }
+    .stack-item:hover { transform: translateY(-2px); z-index: 1; }
+    .mini { --thumb-w: 34px; --thumb-ratio: 1 / 1; --thumb-radius: 50%; }
+    .mini ::ng-deep mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    .stack-more { margin-inline-start: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+    .details-btn { font-size: 0.8rem; }
+    .details { display: flex; flex-direction: column; }
+    .house-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0; border-top: 1px dashed var(--border-color); }
+    .house-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.88rem; }
     .link { color: inherit; text-decoration: none; }
     .link:hover { color: var(--primary); }
-    .samsar-card { padding: 0.5rem 1rem; }
-    .samsar-head { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0 0.75rem; }
-    .house-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0 0.4rem 0.5rem; border-top: 1px solid var(--border-color); }
-    .house-row.summary { background: var(--primary-soft); border-radius: 10px; border-top: 0; margin-bottom: 0.25rem; }
-    .house-icon { color: var(--text-secondary); flex-shrink: 0; }
-    .house-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-    .details-btn { font-size: 0.8rem; }
-    .danger { color: var(--status-cancelled); }
-    .avatar { --avatar-size: 36px; --avatar-bg: var(--primary-soft); --avatar-fg: var(--primary); }
-    .samsar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .samsar-info span { font-size: 0.8rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .margin-btn { min-width: 0; padding: 0 0.7rem; font-size: 0.8rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .house-card { display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease; }
-    .house-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md) !important; }
-    .house-card { overflow: hidden; }
-    .house-card mat-card-content { flex: 1; }
-    .card-cover { --thumb-w: 100%; --thumb-ratio: 16 / 9; --thumb-radius: 0; }
-    .card-cover ::ng-deep mat-icon { font-size: 40px; width: 40px; height: 40px; opacity: 0.5; }
-    .price { margin: 0.5rem 0; }
-    .price strong { font-size: 1.6rem; }
-    .price span { color: var(--text-secondary); }
-    .meta { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .contact { font-size: 0.85rem; margin: 0.75rem 0 0; }
-    .contact a { color: var(--primary); text-decoration: none; }
-    .spacer { flex: 1; }
+    .danger { color: var(--status-cancelled); }
+
+    .invite { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; padding: 1.2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-top: 4px solid var(--accent-gold); border-radius: 18px; box-shadow: var(--shadow-md); }
+    .invite-head { display: flex; gap: 0.75rem; }
+    .invite-head h2 { margin: 0; font-family: var(--display-font); font-size: 1.5rem; line-height: 1.1; }
+    .invite-head p { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--text-secondary); }
+    .invite-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .invite-form { display: flex; flex-direction: column; }
+    .field-title { margin: 0 0 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
+    .deal-choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; margin-bottom: 1rem; }
+    .deal-choice { display: flex; flex-direction: column; align-items: center; padding: 0.5rem; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); cursor: pointer; font: inherit; }
+    .deal-choice b { font-family: var(--display-font); font-size: 1.3rem; line-height: 1; }
+    .deal-choice span { font-size: 0.7rem; color: var(--text-secondary); }
+    .deal-choice:hover { border-color: var(--primary); }
+    .deal-choice.active { border-color: var(--primary-strong); background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary-strong); }
+    .send { align-self: stretch; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.1rem; }
+    .strip-title { font-size: 0.72rem; color: var(--text-secondary); }
+
   `]
 })
 export class SharedHousesComponent implements OnInit {
@@ -275,6 +345,8 @@ export class SharedHousesComponent implements OnInit {
   expanded = new Set<number>();
   loading = true;
   submitting = false;
+  /** The next 14 days of the samsar's houses. */
+  planning?: Planning;
   user: User | null = null;
   readonly deals = SAMSAR_DEALS;
   readonly dealLabel = dealLabel;
@@ -295,6 +367,7 @@ export class SharedHousesComponent implements OnInit {
     private snackBar: MatSnackBar,
     private uiPrefs: UiPreferencesService,
     private router: Router,
+    private reservationService: ReservationService,
   ) {}
 
   openHouse(relation: PropertySamsar): void {
@@ -303,6 +376,50 @@ export class SharedHousesComponent implements OnInit {
 
   get isOwner(): boolean {
     return this.user?.role === 'PROPRIETAIRE';
+  }
+
+  get accessCount(): number {
+    return this.samsarGroups.reduce((sum, group) => sum + group.relations.length, 0);
+  }
+
+  get fullAccessCount(): number {
+    return this.samsarGroups.filter(group => group.allHouses).length;
+  }
+
+  /** Owned houses no samsar works on yet. */
+  get housesWithoutSamsar(): number {
+    const shared = new Set(this.samsarGroups.flatMap(group => group.relations.map(rel => rel.propertyId)));
+    return this.ownedProperties.filter(p => !shared.has(p.id)).length;
+  }
+
+  get freeToday(): number {
+    return this.relations.filter(rel => !this.today(rel)?.occupied).length;
+  }
+
+  get stripLabels(): Record<string, string> {
+    return {
+      free: this.t('planning_free'), blocked: this.t('planning_blocked'),
+      pending: this.t(statusKey('pending')), confirmed: this.t(statusKey('confirmed')),
+      'in-progress': this.t(statusKey('in-progress')), completed: this.t(statusKey('completed')),
+    };
+  }
+
+  /** Chat on WhatsApp, when the number can be used for it. */
+  whatsApp(phone?: string | null): string | null {
+    const number = whatsAppNumber(phone);
+    return number ? `https://wa.me/${number}` : null;
+  }
+
+  today(relation: PropertySamsar): HouseToday | null {
+    return this.planning ? houseToday(this.planning, relation.propertyId) : null;
+  }
+
+  days(relation: PropertySamsar): OccupancyDay[] | null {
+    return this.planning ? occupancyOf(this.planning, relation.propertyId) : null;
+  }
+
+  short(iso?: string): string {
+    return iso ? iso.slice(8) + '/' + iso.slice(5, 7) : '';
   }
 
   ngOnInit(): void {
@@ -392,6 +509,8 @@ export class SharedHousesComponent implements OnInit {
       },
       error: () => this.loading = false,
     });
+    const { from, to } = stripRange();
+    this.reservationService.planning(from, to).subscribe(planning => this.planning = planning);
   }
 
   private showError(err: any): void {

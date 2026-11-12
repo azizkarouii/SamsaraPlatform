@@ -520,6 +520,63 @@ html.dark-theme .segmented button.active { color: #0B1215; }
 .segmented button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .segmented .count { margin-inline-start: 0.3rem; font-size: 0.7rem; opacity: 0.7; }
 
+/* ---------- Houses and samsars pages: KPI tiles, house cards, empty state ---------- */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+.kpi { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.8rem 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; border-top: 3px solid var(--text-secondary); }
+.kpi.occupied { border-top-color: var(--status-in-progress); }
+.kpi.free, .kpi.green { border-top-color: var(--primary); }
+.kpi.arrivals, .kpi.gold { border-top-color: var(--accent-gold); }
+.kpi.warn { border-top-color: var(--status-pending); }
+.kpi.warn .kpi-value { color: var(--note-text); }
+.kpi.warn.calm .kpi-value { color: inherit; }
+.kpi-value { font-family: var(--display-font); font-size: 2rem; font-weight: 700; line-height: 1; }
+.kpi-label { font-size: 0.8rem; color: var(--text-secondary); }
+
+@keyframes card-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes card-pulse { 0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); } 70% { box-shadow: 0 0 0 7px rgba(0, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
+
+/* A card that lifts on hover and comes in one after the other (--i: its place in the list) */
+.lift-card {
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 18px; box-shadow: var(--shadow-sm);
+  animation: card-rise 0.35s ease both; animation-delay: calc(var(--i, 0) * 45ms);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.lift-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--primary) 40%, var(--border-color)); }
+@media (prefers-reduced-motion: reduce) { .lift-card { animation: none; transition: none; } }
+
+.house-card { display: flex; flex-direction: column; overflow: hidden; cursor: pointer; }
+.house-card .cover { position: relative; }
+.house-card .photo { --thumb-w: 100%; --thumb-ratio: 16 / 10; --thumb-radius: 0; display: grid; }
+.house-card .photo img { transition: transform 0.4s ease; }
+.house-card:hover .photo img { transform: scale(1.05); }
+.house-card .photo mat-icon { font-size: 44px; width: 44px; height: 44px; opacity: 0.4; }
+.house-card .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.35) 0, transparent 35%, transparent 60%, rgba(0,0,0,0.55) 100%); pointer-events: none; }
+.house-card .badge {
+  position: absolute; top: 10px; inset-inline-start: 10px; max-width: calc(100% - 80px); display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.92); color: #14532d; font-size: 0.72rem; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.house-card .badge.occupied { color: #5b21b6; }
+.house-card .pulse { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; flex-shrink: 0; animation: card-pulse 2s infinite; }
+.house-card .badge.occupied .pulse { background: #7c3aed; }
+.house-card .config { position: absolute; top: 10px; inset-inline-end: 10px; padding: 3px 9px; border-radius: 8px; background: rgba(15,23,42,0.75); color: #fff; font-size: 0.72rem; font-weight: 700; }
+.house-card .price { position: absolute; bottom: 10px; inset-inline-start: 12px; color: #fff; font-size: 0.85rem; text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+.house-card .price b { font-family: var(--display-font); font-size: 1.7rem; }
+.house-card .price small { opacity: 0.85; }
+.house-card .body { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.9rem 1rem 0.6rem; flex: 1; }
+.house-card h3 { margin: 0; font-family: var(--display-font); font-size: 1.45rem; font-weight: 700; line-height: 1.1; }
+.house-card .address { margin: 0; display: flex; align-items: center; gap: 0.25rem; font-size: 0.82rem; color: var(--text-secondary); }
+.house-card .foot { display: flex; align-items: center; gap: 0.2rem; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--border-color); }
+.house-card .spacer { flex: 1; }
+@media (prefers-reduced-motion: reduce) { .house-card .pulse { animation: none; } .house-card .photo img { transition: none; } }
+
+.empty-panel { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 3rem 1rem; text-align: center; color: var(--text-secondary); }
+.empty-panel h2 { margin: 0; font-family: var(--display-font); font-size: 1.6rem; color: var(--text-primary); }
+.empty-panel p { margin: 0; max-width: 420px; }
+.empty-panel.small { padding: 1rem 0; }
+.empty-art { width: 96px; height: 96px; border-radius: 28px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); transform: rotate(-6deg); }
+.empty-art mat-icon { font-size: 48px; width: 48px; height: 48px; }
+
 /* ---------- Availability calendars (property detail + availability page) ---------- */
 .cal-toolbar {
   display: flex;
