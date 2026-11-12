@@ -87,6 +87,16 @@ body {
   --status-completed-bg: rgba(100, 116, 139, 0.14);
   --status-cancelled: #dc2626;
   --status-cancelled-bg: rgba(220, 38, 38, 0.12);
+  /* Planning and calendars: notebook look */
+  --display-font: 'Barlow Condensed', 'Almarai', 'Fira Sans', sans-serif;
+  --accent-gold: #B7791F;
+  --accent-gold-soft: rgba(183, 121, 31, 0.12);
+  --ring-color: #1E293B;
+  --weekend: rgba(15, 23, 42, 0.06);
+  --note-bg: #FFF3E3;
+  --note-text: #B45309;
+  --envelope-bg: #F1E9DA;
+  --envelope-flap: #E6DAC3;
   --day-blocked: #475569;
 }
 
@@ -115,6 +125,14 @@ html.dark-theme {
   --status-completed: #94a3b8;
   --status-cancelled: #f87171;
   --status-pending: #fbbf24;
+  --accent-gold: #F6C453;
+  --accent-gold-soft: rgba(246, 196, 83, 0.14);
+  --ring-color: #94A3B8;
+  --weekend: rgba(255, 255, 255, 0.06);
+  --note-bg: #2B2117;
+  --note-text: #FDBA74;
+  --envelope-bg: #221E18;
+  --envelope-flap: #2C261E;
   --day-blocked: #94a3b8;
 
   color-scheme: dark;
@@ -414,6 +432,90 @@ html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
 .status-chip.status-completed { color: var(--status-completed); background: var(--status-completed-bg); }
 .status-chip.status-cancelled { color: var(--status-cancelled); background: var(--status-cancelled-bg); }
 
+/* ---------- Notebook: the planning and the calendars, as a spiral-bound desk calendar ---------- */
+.notebook {
+  position: relative;
+  margin-top: 14px;
+  padding: 1.75rem 1.25rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* The rings of the binding, above the top edge */
+.notebook::before {
+  content: '';
+  position: absolute;
+  top: -11px;
+  inset-inline: 18px;
+  height: 22px;
+  background: repeating-linear-gradient(90deg, var(--ring-color) 0 3px, transparent 3px 20px);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* The hook it hangs from */
+.notebook::after {
+  content: '';
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  border: 2px solid var(--accent-gold);
+  border-bottom-color: transparent;
+  border-inline-start-color: transparent;
+  border-radius: 50%;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
+.notebook-title {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: clamp(2.1rem, 4.5vw, 3.3rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.notebook-title small {
+  margin-inline-start: 0.4rem;
+  font-size: 0.55em;
+  color: var(--accent-gold);
+  font-weight: 600;
+}
+
+/* Segmented buttons (views, periods) */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.segmented button {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+.segmented button + button { border-inline-start: 1px solid var(--border-color); }
+.segmented button:hover:not(.active) { background: var(--surface-hover); }
+.segmented button.active { background: var(--primary-strong); color: #fff; }
+html.dark-theme .segmented button.active { color: #0B1215; }
+.segmented button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.segmented .count { margin-inline-start: 0.3rem; font-size: 0.7rem; opacity: 0.7; }
+
 /* ---------- Availability calendars (property detail + availability page) ---------- */
 .cal-toolbar {
   display: flex;
@@ -465,17 +567,30 @@ html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
 }
 
 .cal-month {
+  position: relative;
+  margin-top: 8px;
   border: 1px solid var(--border-color);
   border-radius: 14px;
-  padding: 0.75rem;
+  padding: 1rem 0.75rem 0.75rem;
   background: var(--bg-card);
+}
+
+.cal-month::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  inset-inline: 14px;
+  height: 14px;
+  background: repeating-linear-gradient(90deg, var(--ring-color) 0 2px, transparent 2px 14px);
+  pointer-events: none;
 }
 
 .cal-month h4 {
   margin: 0 0 0.5rem;
-  text-align: center;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-family: var(--display-font);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
 .cal-weekdays, .cal-days {
@@ -486,9 +601,17 @@ html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
 
 .cal-weekdays span {
   text-align: center;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--text-secondary);
   padding-bottom: 0.25rem;
+}
+
+/* Weekends a shade darker, as in the planning (weeks start on Monday) */
+.cal-days > :is(:nth-child(7n + 6), :nth-child(7n)):not(.empty, .pending, .reserved, .blocked, .in-range, .selected, .past) {
+  background-color: var(--weekend);
 }
 
 .cal-day {
@@ -515,7 +638,7 @@ html[dir='rtl'] .flip-rtl { transform: scaleX(-1); }
 .cal-day.blocked { background: repeating-linear-gradient(45deg, var(--surface-subtle), var(--surface-subtle) 3px, var(--status-completed-bg) 3px, var(--status-completed-bg) 6px); color: var(--day-blocked); }
 .cal-day.in-range { background: var(--primary-soft); color: var(--primary); }
 .cal-day.selected { background: var(--primary); color: var(--on-primary); font-weight: 700; }
-.cal-day.today { box-shadow: inset 0 0 0 2px var(--primary); }
+.cal-day.today { box-shadow: inset 0 0 0 2px var(--accent-gold); border-radius: 50%; font-weight: 700; }
 
 .cal-selection {
   display: flex;

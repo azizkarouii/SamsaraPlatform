@@ -1,154 +1,124 @@
-import { Component, ElementRef, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { ReservationService } from '../../services/reservation.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
-import { Planning, statusKey } from '../../models/reservation.model';
+import { Planning, PlanningOverview } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
-import { formatIsoDate, getMonthLabel, getWeekdayLabels, todayIso } from '../../shared/calendar-utils';
+import { getMonthLabel, getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
+import { PlanningHouse, PlanningView, addDays, colorHouses, startOfWeek } from './planning-utils';
+import { PlanningOverviewComponent } from './planning-overview.component';
+import { PlanningMonthComponent } from './planning-month.component';
+import { PlanningWeekComponent } from './planning-week.component';
+import { PlanningGanttComponent } from './planning-gantt.component';
+import { PlanningSideComponent } from './planning-side.component';
 
-type Stay = Planning['stays'][number];
+const VIEW_KEY = 'samsara-planning-view';
 
-/** Consecutive days of one house with the same content: a booking, a blocked day or free days. */
-interface Segment {
-  kind: 'stay' | 'blocked' | 'free';
-  span: number;
-  stay?: Stay;
-}
-
-interface Row {
-  id: number;
-  title: string;
-  occupancy: number;
-  segments: Segment[];
-}
-
-/** Confirmed and running stays hold the dates: they win over pending requests on the same day. */
-const PRIORITY: Record<string, number> = { 'in-progress': 0, confirmed: 1, completed: 2, pending: 3 };
-
-/** Every house of the user over one month: who is where, what is free, what the owner blocked. */
+/**
+ * Every house of the user: the year ahead, then a desk calendar (month, week or Gantt),
+ * and beside it what needs attention (requests to confirm, today's arrivals and departures).
+ */
 @Component({
   selector: 'app-planning',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatButtonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule],
+  imports: [CommonModule, MatIconModule, MatProgressSpinnerModule, PlanningOverviewComponent, PlanningMonthComponent,
+    PlanningWeekComponent, PlanningGanttComponent, PlanningSideComponent],
   template: `
     <div class="page">
       <div class="page-header">
-        <div>
+        <div class="title-line">
           <h1>{{ t('planning') }}</h1>
-          <p class="subtitle">{{ t('planning_subtitle') }}</p>
-        </div>
-        <div class="month-nav">
-          <button mat-icon-button (click)="shift(-1)" [attr.aria-label]="t('previous')"><mat-icon class="flip-rtl">chevron_left</mat-icon></button>
-          <strong class="month">{{ monthLabel }}</strong>
-          <button mat-icon-button (click)="shift(1)" [attr.aria-label]="t('next')"><mat-icon class="flip-rtl">chevron_right</mat-icon></button>
-          <button mat-stroked-button (click)="goToday()">{{ t('today') }}</button>
+          <p class="stats" *ngIf="overview">
+            <span><b>{{ staysShown }}</b> {{ t(view === 'week' ? 'planning_stays_week' : 'planning_stays_period') }}</span>
+            <span class="warn" *ngIf="overview.toConfirmCount"><b>{{ overview.toConfirmCount }}</b> {{ t('planning_to_confirm_short') }}</span>
+            <span><b>{{ overview.arrivingToday.length }}</b> {{ t('planning_arrivals_today') }}</span>
+          </p>
         </div>
       </div>
 
-      <mat-card>
-        <mat-card-content>
-          <div class="legend">
-            <span *ngFor="let s of legend"><i [class]="'swatch ' + s"></i>{{ t(statusKey(s)) }}</span>
-            <span><i class="swatch blocked"></i>{{ t('planning_blocked') }}</span>
-            <span><i class="swatch free"></i>{{ t('planning_free') }}</span>
+      <app-planning-overview *ngIf="overview" [overview]="overview"></app-planning-overview>
+
+      <div class="layout">
+        <section class="notebook">
+          <div class="notebook-head">
+            <h2 class="notebook-title">{{ title }}<small>{{ subtitle }}</small></h2>
+            <div class="controls">
+              <div class="nav segmented">
+                <button type="button" (click)="shift(-1)" [attr.aria-label]="t('previous')"><mat-icon class="flip-rtl">chevron_left</mat-icon></button>
+                <button type="button" (click)="goToday()">{{ t('today') }}</button>
+                <button type="button" (click)="shift(1)" [attr.aria-label]="t('next')"><mat-icon class="flip-rtl">chevron_right</mat-icon></button>
+              </div>
+              <div class="segmented" role="group">
+                <button type="button" [class.active]="view === 'month'" (click)="setView('month')">{{ t('planning_view_month') }}</button>
+                <button type="button" [class.active]="view === 'week'" (click)="setView('week')">{{ t('planning_view_week') }}</button>
+                <button type="button" [class.active]="view === 'gantt'" (click)="setView('gantt')">Gantt</button>
+              </div>
+            </div>
           </div>
 
-          <div *ngIf="loading" class="loading-container"><mat-spinner diameter="36"></mat-spinner></div>
-          <p class="empty" *ngIf="!loading && !rows.length">{{ t('planning_no_houses') }}</p>
-
-          <div class="scroller" *ngIf="!loading && rows.length">
-            <table>
-              <thead>
-                <tr>
-                  <th class="house">{{ t('property_label') }}</th>
-                  <th *ngFor="let day of days" class="day" [class.weekend]="day.weekend" [class.today]="day.iso === today">
-                    <span>{{ day.weekday }}</span><strong>{{ day.number }}</strong>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of rows">
-                  <th class="house" scope="row">
-                    <a [routerLink]="['/properties', row.id]">{{ row.title }}</a>
-                    <span [matTooltip]="t('planning_occupancy')">{{ row.occupancy }} %</span>
-                  </th>
-                  <ng-container *ngFor="let segment of row.segments">
-                    <td *ngIf="segment.kind === 'stay'" [attr.colspan]="segment.span" class="stay-cell">
-                      <a [class]="'stay ' + segment.stay!.status" [routerLink]="['/reservations', segment.stay!.id]"
-                         [matTooltip]="tooltip(segment.stay!)">{{ segment.stay!.clientName }}</a>
-                    </td>
-                    <td *ngIf="segment.kind === 'blocked'" [attr.colspan]="segment.span"><span class="blocked-day"></span></td>
-                    <td *ngIf="segment.kind === 'free'" [attr.colspan]="segment.span" class="free-cell"></td>
-                  </ng-container>
-                </tr>
-              </tbody>
-            </table>
+          <div class="gantt-bar" *ngIf="view === 'gantt'">
+            <span><b>{{ staysShown }}</b> {{ t('planning_stays_short') }}<ng-container *ngIf="pendingShown"> · <b class="warn">{{ pendingShown }}</b> {{ t('planning_to_confirm_short') }}</ng-container></span>
+            <div class="segmented">
+              <button type="button" [class.active]="ganttDays === 14" (click)="setGanttDays(14)">{{ t('planning_two_weeks') }}</button>
+              <button type="button" [class.active]="ganttDays === 28" (click)="setGanttDays(28)">{{ t('planning_four_weeks') }}</button>
+            </div>
           </div>
-        </mat-card-content>
-      </mat-card>
+
+          <div *ngIf="loading && !planning" class="loading-container"><mat-spinner diameter="36"></mat-spinner></div>
+          <p class="empty" *ngIf="planning && !houses.length">{{ t('planning_no_houses') }}</p>
+          <ng-container *ngIf="planning && houses.length">
+            <app-planning-month *ngIf="view === 'month'" [planning]="planning" [houses]="houses" [month]="month"></app-planning-month>
+            <app-planning-week *ngIf="view === 'week'" [planning]="planning" [houses]="houses" [monday]="from"></app-planning-week>
+            <app-planning-gantt *ngIf="view === 'gantt'" [planning]="planning" [houses]="houses" [from]="from" [dayCount]="ganttDays"></app-planning-gantt>
+          </ng-container>
+        </section>
+
+        <app-planning-side *ngIf="overview" [overview]="overview" [houses]="houses" [counts]="counts" [periodLabel]="periodLabel"></app-planning-side>
+      </div>
     </div>
   `,
   styles: [`
-    .month-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
-    .month { min-width: 7.5rem; text-align: center; font-size: 1.05rem; }
-    .legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem; }
-    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
-    .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
-    .swatch.pending { background: var(--status-pending); }
-    .swatch.confirmed { background: var(--status-confirmed); }
-    .swatch.in-progress { background: var(--status-in-progress); }
-    .swatch.completed { background: var(--status-completed); }
-    .swatch.blocked, .blocked-day { background: repeating-linear-gradient(45deg, var(--border-color) 0 4px, transparent 4px 8px); border: 1px solid var(--border-color); }
-    .swatch.free { background: var(--surface-subtle); border: 1px solid var(--border-color); }
+    .title-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem; }
+    .title-line h1 { font-family: var(--display-font); font-size: 2.2rem; line-height: 1; }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.9rem; margin: 0; font-size: 0.85rem; color: var(--text-secondary); }
+    .stats b { color: var(--text-primary); }
+    .stats .warn b, .stats .warn { color: var(--note-text); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.5rem; align-items: start; margin-top: 0.75rem; }
+    .notebook-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; padding-bottom: 0.75rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .nav button { display: inline-flex; align-items: center; padding-block: 0.3rem; }
+    .nav mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .gantt-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0; border-top: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-secondary); }
+    .gantt-bar b { color: var(--text-primary); }
+    .gantt-bar b.warn { color: var(--note-text); }
     .empty { color: var(--text-secondary); }
-
-    .scroller { overflow-x: auto; }
-    table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; min-width: calc(150px + 31 * 26px); }
-    th, td { padding: 0; height: 40px; border-bottom: 1px solid var(--border-color); }
-    th.house {
-      position: sticky; inset-inline-start: 0; z-index: 1; width: 150px; background: var(--bg-card);
-      text-align: start; padding: 0 0.75rem; font-weight: 600; border-inline-end: 1px solid var(--border-color);
-    }
-    tbody th.house { display: table-cell; }
-    th.house a { display: block; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    th.house a:hover { color: var(--primary); }
-    th.house span { display: block; font-size: 0.7rem; font-weight: 400; color: var(--text-secondary); }
-    th.day { width: 26px; font-size: 0.7rem; font-weight: 400; color: var(--text-secondary); text-align: center; }
-    th.day span, th.day strong { display: block; line-height: 1.2; }
-    th.day strong { font-size: 0.8rem; color: var(--text-primary); }
-    th.day.weekend { background: var(--surface-subtle); }
-    th.day.today strong { color: #fff; background: var(--primary); border-radius: 50%; width: 22px; height: 22px; line-height: 22px; margin: 0 auto; }
-    .free-cell { background: transparent; }
-    .stay-cell { padding: 4px 1px; }
-    .stay {
-      display: block; height: 30px; line-height: 30px; padding: 0 6px; border-radius: 8px; color: #fff; font-size: 0.75rem;
-      font-weight: 600; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .stay.pending { background: var(--status-pending); }
-    .stay.confirmed { background: var(--status-confirmed); }
-    .stay.in-progress { background: var(--status-in-progress); }
-    .stay.completed { background: var(--status-completed); }
-    .blocked-day { display: block; height: 30px; margin: 4px 1px; border-radius: 6px; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   `]
 })
 export class PlanningComponent implements OnInit {
-  readonly statusKey = statusKey;
-  readonly legend = ['pending', 'confirmed', 'in-progress', 'completed'];
-  readonly today = todayIso();
+  view: PlanningView = 'month';
+  ganttDays = 14;
+  anchor = todayIso();
+  from = '';
+  to = '';
   loading = true;
-  month = this.today.slice(0, 7);
-  days: { iso: string; number: number; weekday: string; weekend: boolean }[] = [];
-  rows: Row[] = [];
+  planning?: Planning;
+  overview?: PlanningOverview;
+  houses: PlanningHouse[] = [];
+  counts: Record<number, number> = {};
 
-  constructor(private reservationService: ReservationService, private uiPrefs: UiPreferencesService, private host: ElementRef<HTMLElement>) {}
+  constructor(private reservationService: ReservationService, private uiPrefs: UiPreferencesService) {}
 
   ngOnInit(): void {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === 'month' || saved === 'week' || saved === 'gantt') this.view = saved;
+    } catch {
+      // No storage (private window): the month view
+    }
+    this.reservationService.planningOverview().subscribe(overview => this.overview = overview);
     this.load();
   }
 
@@ -156,85 +126,97 @@ export class PlanningComponent implements OnInit {
     return t(key, this.uiPrefs.getLanguage());
   }
 
-  get monthLabel(): string {
-    const [year, month] = this.month.split('-').map(Number);
-    return `${getMonthLabel(month - 1, this.uiPrefs.getLanguage())} ${year}`;
+  get month(): string {
+    return this.anchor.slice(0, 7);
+  }
+
+  get title(): string {
+    if (this.view === 'month') return getMonthLabel(Number(this.month.slice(5)) - 1, this.uiPrefs.getLanguage());
+    return this.t(this.view === 'week' ? 'planning_week_title' : 'planning_gantt_title');
+  }
+
+  get subtitle(): string {
+    return this.view === 'month' ? this.month.slice(0, 4) : this.rangeLabel;
+  }
+
+  /** "9 nov. → 22 nov." */
+  get rangeLabel(): string {
+    const language = this.uiPrefs.getLanguage();
+    const show = (iso: string) => `${Number(iso.slice(8))} ${getShortMonthLabel(Number(iso.slice(5, 7)) - 1, language)}`;
+    return this.from ? `${show(this.from)} → ${show(this.to)}` : '';
+  }
+
+  get periodLabel(): string {
+    return this.t(this.view === 'month' ? 'planning_this_month' : this.view === 'week' ? 'planning_this_week' : 'planning_these_weeks');
+  }
+
+  /** Stays touching the period shown (in the month view: the month itself, not the days of the weeks around it). */
+  get staysShown(): number {
+    if (!this.planning) return 0;
+    const [from, to] = this.view === 'month' ? [`${this.month}-01`, `${this.month}-31`] : [this.from, this.to];
+    return this.planning.stays.filter(s => s.endDate >= from && s.startDate <= to).length;
+  }
+
+  get pendingShown(): number {
+    return this.planning ? this.planning.stays.filter(s => s.status === 'pending' && s.endDate >= this.from && s.startDate <= this.to).length : 0;
+  }
+
+  setView(view: PlanningView): void {
+    this.view = view;
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // Not kept: fine
+    }
+    this.load();
+  }
+
+  setGanttDays(days: number): void {
+    this.ganttDays = days;
+    this.load();
   }
 
   shift(step: number): void {
-    const [year, month] = this.month.split('-').map(Number);
-    this.month = formatIsoDate(new Date(year, month - 1 + step, 1)).slice(0, 7);
+    if (this.view === 'month') {
+      const [year, month] = this.month.split('-').map(Number);
+      const target = new Date(year, month - 1 + step, 1);
+      this.anchor = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-01`;
+    } else {
+      this.anchor = addDays(this.anchor, 7 * step);
+    }
     this.load();
   }
 
   goToday(): void {
-    this.month = this.today.slice(0, 7);
+    this.anchor = todayIso();
     this.load();
   }
 
-  tooltip(stay: Stay): string {
-    const day = (iso: string) => iso.split('-').reverse().join('/');
-    return `${stay.clientName} · ${day(stay.startDate)} → ${day(stay.endDate)} · ${this.t(statusKey(stay.status))}`;
-  }
-
   private load(): void {
+    if (this.view === 'month') {
+      const [year, month] = this.month.split('-').map(Number);
+      const last = `${this.month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+      this.from = startOfWeek(`${this.month}-01`);
+      this.to = addDays(startOfWeek(last), 6);
+    } else {
+      this.from = startOfWeek(this.anchor);
+      this.to = addDays(this.from, (this.view === 'week' ? 7 : this.ganttDays) - 1);
+    }
     this.loading = true;
-    this.reservationService.planning(this.month).subscribe({
+    const from = this.from;
+    this.reservationService.planning(this.from, this.to).subscribe({
       next: (planning) => {
-        this.build(planning);
+        if (from !== this.from) return; // a later navigation already asked for another period
+        this.planning = planning;
+        this.houses = colorHouses(planning);
+        const [start, end] = this.view === 'month' ? [`${this.month}-01`, `${this.month}-31`] : [this.from, this.to];
+        this.counts = {};
+        for (const stay of planning.stays.filter(s => s.endDate >= start && s.startDate <= end)) {
+          this.counts[stay.propertyId] = (this.counts[stay.propertyId] || 0) + 1;
+        }
         this.loading = false;
-        setTimeout(() => this.showToday());
       },
       error: () => this.loading = false,
-    });
-  }
-
-  /** On a narrow screen the month scrolls sideways: start on today rather than on the 1st. */
-  private showToday(): void {
-    const scroller = this.host.nativeElement.querySelector<HTMLElement>('.scroller');
-    const today = scroller?.querySelector<HTMLElement>('th.today');
-    const house = scroller?.querySelector<HTMLElement>('th.house');
-    if (!scroller || !today || !house || scroller.scrollWidth <= scroller.clientWidth) return;
-    const rtl = document.documentElement.dir === 'rtl';
-    const offset = rtl
-      ? scroller.getBoundingClientRect().right - today.getBoundingClientRect().right - house.offsetWidth
-      : today.getBoundingClientRect().left - scroller.getBoundingClientRect().left - house.offsetWidth;
-    scroller.scrollLeft += (rtl ? -1 : 1) * Math.max(0, offset - 2 * today.offsetWidth);
-  }
-
-  private build(planning: Planning): void {
-    const [year, month] = this.month.split('-').map(Number);
-    const count = new Date(year, month, 0).getDate();
-    const labels = getWeekdayLabels(this.uiPrefs.getLanguage());
-    this.days = Array.from({ length: count }, (_, i) => {
-      const date = new Date(year, month - 1, i + 1);
-      const weekday = (date.getDay() + 6) % 7;
-      return { iso: formatIsoDate(date), number: i + 1, weekday: labels[weekday], weekend: weekday >= 5 };
-    });
-
-    this.rows = planning.houses.map(house => {
-      const stays = planning.stays
-        .filter(stay => stay.propertyId === house.id)
-        .sort((a, b) => (PRIORITY[a.status] ?? 9) - (PRIORITY[b.status] ?? 9));
-      const blocked = new Set(planning.blocked.filter(b => b.propertyId === house.id).map(b => b.date));
-      const cells = this.days.map(day => {
-        const stay = stays.find(s => s.startDate <= day.iso && day.iso <= s.endDate);
-        if (stay) return { kind: 'stay' as const, stay };
-        return { kind: blocked.has(day.iso) ? 'blocked' as const : 'free' as const };
-      });
-
-      const segments: Segment[] = [];
-      for (const cell of cells) {
-        const last = segments[segments.length - 1];
-        // Free days merge; a booking spans its days; each blocked day stays its own cell
-        if (last && last.kind === cell.kind && cell.kind !== 'blocked' && last.stay?.id === cell.stay?.id) {
-          last.span++;
-        } else {
-          segments.push({ kind: cell.kind, span: 1, stay: cell.stay });
-        }
-      }
-      const booked = cells.filter(c => c.kind === 'stay' && c.stay!.status !== 'pending').length;
-      return { id: house.id, title: house.title, occupancy: Math.round(booked * 100 / count), segments };
     });
   }
 }

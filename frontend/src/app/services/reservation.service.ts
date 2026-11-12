@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Reservation, ReservationEarning, ReservationPage, DashboardSummary, Planning, RentalEarning, ReservationEvent, ReservationPayment } from '../models/reservation.model';
+import { Reservation, ReservationEarning, ReservationPage, DashboardSummary, Planning, PlanningOverview, RentalEarning, ReservationEvent, ReservationPayment } from '../models/reservation.model';
 
 export interface CreateReservationDto {
   propertyId: number;
@@ -82,9 +82,13 @@ export class ReservationService {
     return this.http.get<DashboardSummary>(`${environment.apiUrl}/dashboard/summary`, { params });
   }
 
-  /** @param month yyyy-MM */
-  planning(month: string): Observable<Planning> {
-    return this.http.get<Planning>(`${environment.apiUrl}/dashboard/planning`, { params: new HttpParams().set('month', month) });
+  /** Every house of the user from one day to another (yyyy-MM-dd, 62 days at most). */
+  planning(from: string, to: string): Observable<Planning> {
+    return this.http.get<Planning>(`${environment.apiUrl}/dashboard/planning`, { params: new HttpParams().set('from', from).set('to', to) });
+  }
+
+  planningOverview(): Observable<PlanningOverview> {
+    return this.http.get<PlanningOverview>(`${environment.apiUrl}/dashboard/planning/overview`);
   }
 
   earningsReport(from?: string, to?: string): Observable<RentalEarning[]> {

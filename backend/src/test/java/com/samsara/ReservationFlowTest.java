@@ -421,6 +421,26 @@ class ReservationFlowTest {
         JsonNode shared = call("GET", "/dashboard/planning?month=" + month, marginSamsar, null).body();
         assertThat(shared.get("houses")).as("a samsar sees the houses shared with him").hasSize(1);
         assertThat(call("GET", "/dashboard/planning?month=2026-13", owner.token(), null).status()).isEqualTo(400);
+
+        JsonNode week = call("GET", "/dashboard/planning?from=" + day(18) + "&to=" + day(24), owner.token(), null).body();
+        assertThat(week.get("stays").get(0).get("checkInTime").asText()).isEqualTo("23:59");
+        assertThat(call("GET", "/dashboard/planning?from=" + day(0) + "&to=" + day(70), owner.token(), null).status()).isEqualTo(400);
+    }
+
+    @Test
+    void planningOverviewCountsTheBookedNightsAndTheRequestsToConfirm() throws Exception {
+        booked(commissionSamsar, 1, 3, 450, null, 100);
+        long pending = booked(commissionSamsar, 10, 11, 300, null, 0).get("id").asLong();
+
+        JsonNode overview = call("GET", "/dashboard/planning/overview", owner.token(), null).body();
+        assertThat(overview.get("houseCount").asInt()).isEqualTo(1);
+        assertThat(overview.get("months")).hasSize(12);
+        int nights = 0;
+        for (JsonNode month : overview.get("months")) nights += month.get("nights").asInt();
+        assertThat(nights).as("3 confirmed nights, the pending request does not count").isEqualTo(3);
+        assertThat(overview.get("bookedHousesByDay").get(day(2)).asInt()).isEqualTo(1);
+        assertThat(overview.get("toConfirmCount").asInt()).isEqualTo(1);
+        assertThat(overview.get("toConfirm").get(0).get("id").asLong()).isEqualTo(pending);
     }
 
     @Test

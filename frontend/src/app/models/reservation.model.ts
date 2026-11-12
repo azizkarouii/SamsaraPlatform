@@ -65,13 +65,44 @@ export interface ReservationEvent {
 }
 
 /** Figures of the dashboard and the profile, computed by the server from the payments received. */
-/** One month of every house of the user (GET /dashboard/planning). */
+/** A period of every house of the user (GET /dashboard/planning). */
 export interface Planning {
   from: string;
   to: string;
   houses: { id: number; title: string }[];
-  stays: { id: number; propertyId: number; startDate: string; endDate: string; status: string; clientName: string }[];
+  stays: PlanningStay[];
   blocked: { propertyId: number; date: string }[];
+}
+
+export interface PlanningStay {
+  id: number;
+  propertyId: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  clientName: string;
+  checkInTime: string;
+  checkOutTime: string;
+}
+
+/** The twelve months ahead (GET /dashboard/planning/overview). */
+export interface PlanningOverview {
+  houseCount: number;
+  months: { month: string; nights: number; capacity: number; arrivals: number; pending: number }[];
+  bookedHousesByDay: Record<string, number>;
+  toConfirmCount: number;
+  toConfirm: PlanningItem[];
+  arrivingToday: PlanningItem[];
+  leavingToday: PlanningItem[];
+}
+
+export interface PlanningItem {
+  id: number;
+  clientName: string;
+  propertyTitle: string;
+  startDate: string;
+  endDate: string;
+  time?: string;
 }
 
 export interface DashboardSummary {

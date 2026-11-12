@@ -45,6 +45,7 @@ public final class ApiMessages {
             entry("Empty image file", "Le fichier image est vide", "ملف الصورة فارغ"),
             entry("End date must be on or after start date", "La date de fin doit être égale ou postérieure à la date de début", "يجب أن يكون تاريخ النهاية مساويًا لتاريخ البداية أو بعده"),
             entry("Invalid month (expected yyyy-MM)", "Mois invalide", "شهر غير صالح"),
+            entry("The planning covers 62 days at most", "Le planning couvre 62 jours au plus", "يغطي الجدول 62 يومًا على الأكثر"),
             entry("Invalid dates (expected yyyy-MM-dd)", "Dates invalides", "تواريخ غير صالحة"),
             entry("Invalid image key", "Image invalide", "صورة غير صالحة"),
             entry("Links must be valid web addresses (http or https)", "Les liens doivent être des adresses web valides (http ou https)", "يجب أن تكون الروابط عناوين ويب صالحة (http أو https)"),

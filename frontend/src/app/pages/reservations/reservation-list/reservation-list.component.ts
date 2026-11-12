@@ -17,8 +17,12 @@ import { ReservationService } from '../../../services/reservation.service';
 import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { Reservation, normalizeReservationStatus, statusKey } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
+import { ReservationKanbanComponent } from './reservation-kanban.component';
 
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+
+const VIEW_KEY = 'samsara-reservations-view';
+
 @Component({
   selector: 'app-reservation-list',
   standalone: true,
@@ -36,6 +40,7 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
     MatTabsModule,
     MatTooltipModule,
     MatProgressSpinnerModule,
+    ReservationKanbanComponent,
   ],
   template: `
     <div class="page">
@@ -44,12 +49,27 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
           <h1>{{ t('reservations') }}</h1>
           <p class="subtitle">{{ isOwner ? t('reservations_owner_subtitle') : t('reservations_samsar_subtitle') }}</p>
         </div>
-        <a mat-raised-button color="primary" routerLink="/reservations/add">
-          <mat-icon>add</mat-icon> {{ t('reservation_new_title') }}
-        </a>
+        <div class="header-actions">
+          <div class="segmented" role="group">
+            <button type="button" [class.active]="view === 'table'" (click)="setView('table')"><mat-icon>table_rows</mat-icon> {{ t('view_table') }}</button>
+            <button type="button" [class.active]="view === 'kanban'" (click)="setView('kanban')"><mat-icon>view_kanban</mat-icon> Kanban</button>
+          </div>
+          <a mat-raised-button color="primary" routerLink="/reservations/add">
+            <mat-icon>add</mat-icon> {{ t('reservation_new_title') }}
+          </a>
+        </div>
       </div>
 
-      <mat-card>
+      <ng-container *ngIf="view === 'kanban'">
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>{{ t('search_reservations') }}</mat-label>
+          <input matInput [value]="searchValue" (input)="applySearch($any($event.target).value)" />
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+        <app-reservation-kanban [search]="searchValue" [currentUserId]="currentUserId" (showAll)="showAllOf($event)"></app-reservation-kanban>
+      </ng-container>
+
+      <mat-card *ngIf="view === 'table'">
         <mat-card-content>
           <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="filter-tabs">
             <a mat-tab-link *ngFor="let tab of tabs" [active]="activeTab === tab" (click)="filterByStatus(tab)">
@@ -61,7 +81,7 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
 
           <mat-form-field appearance="outline" class="search-field">
             <mat-label>{{ t('search_reservations') }}</mat-label>
-            <input matInput (input)="applySearch($any($event.target).value)" />
+            <input matInput [value]="searchValue" (input)="applySearch($any($event.target).value)" />
             <mat-icon matSuffix>search</mat-icon>
           </mat-form-field>
 
@@ -145,6 +165,8 @@ import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs'
       background: var(--surface-subtle); color: var(--text-secondary);
     }
     .search-field { width: 100%; }
+    .header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+    .segmented mat-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -4px; margin-inline-end: 0.2rem; }
     .table-wrap { overflow-x: auto; }
     .reservation-table { width: 100%; min-width: 640px; }
     .client { display: flex; flex-direction: column; }
@@ -163,12 +185,13 @@ export class ReservationListComponent implements OnInit, OnDestroy {
   pageSize = 10;
   loading = true;
   activeTab = 'all';
+  view: 'table' | 'kanban' = 'table';
   isOwner = false;
   currentUserId?: number;
   readonly tabs = ['all', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'];
   readonly statusKey = statusKey;
   readonly normalize = normalizeReservationStatus;
-  private searchValue = '';
+  searchValue = '';
   private sort = 'startDate';
   private direction = 'desc';
   private readonly searches = new Subject<string>();
@@ -191,6 +214,8 @@ export class ReservationListComponent implements OnInit, OnDestroy {
     if (tab && this.tabs.includes(tab)) {
       this.activeTab = tab;
     }
+    const view = this.route.snapshot.queryParamMap.get('view') ?? this.savedView();
+    this.view = view === 'kanban' ? 'kanban' : 'table';
     // Spec F7: search by client name, phone or property title, once typing pauses
     this.subscriptions.add(this.searches.pipe(debounceTime(300), distinctUntilChanged()).subscribe(value => {
       this.searchValue = value;
@@ -211,6 +236,7 @@ export class ReservationListComponent implements OnInit, OnDestroy {
 
   /** A newer request replaces one still in flight, so an old answer cannot overwrite the current list. */
   private load(): void {
+    if (this.view !== 'table') return;
     this.loading = true;
     this.loadRequest?.unsubscribe();
     this.loadRequest = this.reservationService.findPage({
@@ -231,6 +257,30 @@ export class ReservationListComponent implements OnInit, OnDestroy {
         this.loading = false;
       },
     });
+  }
+
+  setView(view: 'table' | 'kanban'): void {
+    this.view = view;
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // Not kept: fine
+    }
+    this.router.navigate([], { queryParams: { view: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    if (view === 'table') this.load();
+  }
+
+  showAllOf(status: string): void {
+    this.setView('table');
+    this.filterByStatus(status);
+  }
+
+  private savedView(): string | null {
+    try {
+      return localStorage.getItem(VIEW_KEY);
+    } catch {
+      return null;
+    }
   }
 
   countFor(tab: string): number {

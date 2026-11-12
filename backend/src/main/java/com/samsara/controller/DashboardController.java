@@ -3,6 +3,7 @@ package com.samsara.controller;
 import com.samsara.dto.DashboardSummaryDto;
 import com.samsara.dto.DashboardSummaryDto.RentalEarning;
 import com.samsara.dto.PlanningDto;
+import com.samsara.dto.PlanningOverviewDto;
 import com.samsara.entity.Reservation;
 import com.samsara.service.DashboardService;
 import com.samsara.service.DashboardService.Line;
@@ -51,10 +52,19 @@ public class DashboardController {
         return ResponseEntity.ok(dashboardService.summary((Long) authentication.getPrincipal(), date(from), date(to)));
     }
 
-    /** Every house of the user over one month (yyyy-MM, the current one by default). */
+    /** Every house of the user over one month (yyyy-MM, the current one by default) or from/to (62 days at most). */
     @GetMapping("/dashboard/planning")
-    public ResponseEntity<PlanningDto> planning(@RequestParam(required = false) String month, Authentication authentication) {
-        return ResponseEntity.ok(planningService.month((Long) authentication.getPrincipal(), month));
+    public ResponseEntity<PlanningDto> planning(@RequestParam(required = false) String month,
+                                                @RequestParam(required = false) String from,
+                                                @RequestParam(required = false) String to,
+                                                Authentication authentication) {
+        return ResponseEntity.ok(planningService.period((Long) authentication.getPrincipal(), month, from, to));
+    }
+
+    /** The twelve months ahead, the requests to confirm and today's arrivals and departures. */
+    @GetMapping("/dashboard/planning/overview")
+    public ResponseEntity<PlanningOverviewDto> planningOverview(Authentication authentication) {
+        return ResponseEntity.ok(planningService.overview((Long) authentication.getPrincipal()));
     }
 
     /** Rows of the earnings report (stays overlapping the period, pending requests excluded). */
