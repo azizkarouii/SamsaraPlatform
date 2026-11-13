@@ -89,16 +89,19 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
             <form [formGroup]="profileForm" (ngSubmit)="onUpdateProfile()">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('name_label') }}</mat-label>
+                <mat-icon matPrefix>person</mat-icon>
                 <input matInput formControlName="name" />
                 <mat-error>{{ t('name_min') }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
                 <mat-label>{{ t('email_label') }}</mat-label>
+                <mat-icon matPrefix>mail</mat-icon>
                 <input matInput type="email" [value]="user?.email" disabled />
                 <mat-hint>{{ t('email_not_editable') }}</mat-hint>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('phone_label') }}</mat-label>
+                <mat-icon matPrefix>call</mat-icon>
                 <span matTextPrefix>+216&nbsp;</span>
                 <input matInput formControlName="phone" inputmode="tel" />
                 <mat-error>{{ t('phone_invalid') }}</mat-error>
@@ -116,6 +119,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
             <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('current_password') }}</mat-label>
+                <mat-icon matPrefix>lock</mat-icon>
                 <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="currentPassword" autocomplete="current-password" />
                 <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
                   <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>
@@ -123,6 +127,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('new_password') }}</mat-label>
+                <mat-icon matPrefix>key</mat-icon>
                 <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="newPassword" autocomplete="new-password" />
                 <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
                   <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>
@@ -135,6 +140,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
               </div>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('confirm_password') }}</mat-label>
+                <mat-icon matPrefix>verified_user</mat-icon>
                 <input matInput [type]="showPasswords ? 'text' : 'password'" formControlName="confirmPassword" autocomplete="new-password" />
                 <button mat-icon-button matSuffix type="button" (click)="showPasswords = !showPasswords" [attr.aria-label]="t(showPasswords ? 'hide_password' : 'show_password')" [attr.aria-pressed]="showPasswords">
                   <mat-icon>{{ showPasswords ? 'visibility_off' : 'visibility' }}</mat-icon>

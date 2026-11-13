@@ -184,6 +184,7 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
             <form *ngIf="ownedProperties.length" class="invite-form" [formGroup]="inviteForm" (ngSubmit)="submitInvite()">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('property_label') }}</mat-label>
+                <mat-icon matPrefix>{{ inviteForm.value.propertyId === ALL ? 'holiday_village' : 'home' }}</mat-icon>
                 <mat-select formControlName="propertyId">
                   <mat-option [value]="ALL"><strong>{{ t('all_my_houses') }}</strong> ({{ ownedProperties.length }})</mat-option>
                   <mat-option *ngFor="let property of ownedProperties" [value]="property.id">{{ property.title }}</mat-option>
@@ -191,13 +192,17 @@ import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('samsar_email') }}</mat-label>
-                <input matInput type="email" formControlName="email" placeholder="samsar@example.com" />
+                <input matInput type="email" formControlName="email" placeholder="samsar@example.com" autocomplete="email" />
+                <mat-icon matPrefix>alternate_email</mat-icon>
+                <mat-icon matSuffix class="field-ok" *ngIf="fieldOk('email')">check_circle</mat-icon>
                 <mat-error>{{ t('email_invalid') }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('samsar_phone') }}</mat-label>
+                <mat-icon matPrefix>call</mat-icon>
                 <span matTextPrefix>+216&nbsp;</span>
-                <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
+                <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" autocomplete="tel-national" />
+                <mat-icon matSuffix class="field-ok" *ngIf="fieldOk('phone')">check_circle</mat-icon>
                 <mat-error>{{ t('phone_invalid') }}</mat-error>
               </mat-form-field>
               <p class="field-title">{{ t('allowed_increase') }}</p>
@@ -597,6 +602,12 @@ export class SharedHousesComponent implements OnInit {
         this.reloadInvitedSamsars();
       },
     });
+  }
+
+  /** A filled, valid invite field earns its green tick. */
+  fieldOk(name: 'email' | 'phone'): boolean {
+    const control = this.inviteForm.get(name);
+    return !!control?.value && control.valid;
   }
 
   submitInvite(): void {

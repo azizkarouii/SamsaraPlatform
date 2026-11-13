@@ -17,6 +17,7 @@ import { UiPreferencesService } from '../../../services/ui-preferences.service';
 import { Reservation, normalizeReservationStatus, statusKey } from '../../../models/reservation.model';
 import { t } from '../../../shared/translations';
 import { ReservationKanbanComponent } from './reservation-kanban.component';
+import { SearchBarComponent } from '../../../shared/search-bar.component';
 
 import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 
@@ -39,6 +40,7 @@ const VIEW_KEY = 'samsara-reservations-view';
     MatTooltipModule,
     MatProgressSpinnerModule,
     ReservationKanbanComponent,
+    SearchBarComponent,
   ],
   template: `
     <div class="page">
@@ -59,11 +61,8 @@ const VIEW_KEY = 'samsara-reservations-view';
       </div>
 
       <ng-container *ngIf="view === 'kanban'">
-        <mat-form-field appearance="outline" class="search-field">
-          <mat-label>{{ t('search_reservations') }}</mat-label>
-          <input matInput [value]="searchValue" (input)="applySearch($any($event.target).value)" />
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
+        <app-search-bar class="search-field" [value]="searchValue" (valueChange)="applySearch($event)"
+                        [label]="t('search_reservations')" [hints]="hints" [clearLabel]="t('clear_filter')"></app-search-bar>
         <app-reservation-kanban [search]="searchValue" [currentUserId]="currentUserId" (showAll)="showAllOf($event)"></app-reservation-kanban>
       </ng-container>
 
@@ -79,11 +78,9 @@ const VIEW_KEY = 'samsara-reservations-view';
             </div>
           </div>
 
-          <mat-form-field appearance="outline" class="search-field">
-            <mat-label>{{ t('search_reservations') }}</mat-label>
-            <input matInput [value]="searchValue" (input)="applySearch($any($event.target).value)" />
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
+          <app-search-bar class="search-field" [value]="searchValue" (valueChange)="applySearch($event)"
+                          [label]="t('search_reservations')" [hints]="hints" [count]="total" [countLabel]="t('result_bookings')" [countLabelOne]="t('result_booking_one')"
+                          [clearLabel]="t('clear_filter')" [busy]="loading"></app-search-bar>
 
           <div *ngIf="loading" class="loading-container">
             <mat-spinner diameter="40"></mat-spinner>
@@ -167,7 +164,7 @@ const VIEW_KEY = 'samsara-reservations-view';
     .tab-dot.bg-in-progress { background: var(--status-in-progress); }
     .tab-dot.bg-completed { background: var(--status-completed); }
     .tab-dot.bg-cancelled { background: var(--status-cancelled); }
-    .search-field { width: 100%; }
+    .search-field { width: 100%; margin-bottom: 1rem; }
     .header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
     .segmented mat-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -4px; margin-inline-end: 0.2rem; }
     .table-wrap { overflow-x: auto; }
@@ -284,6 +281,14 @@ export class ReservationListComponent implements OnInit, OnDestroy {
     } catch {
       return null;
     }
+  }
+
+  /** What can be typed: clients, houses and a phone number seen in the list. */
+  get hints(): string[] {
+    const names = this.rows.slice(0, 3).map(r => r.clientName);
+    const houses = [...new Set(this.rows.map(r => r.property?.title).filter((t): t is string => !!t))].slice(0, 2);
+    const phone = this.rows.find(r => r.clientPhone)?.clientPhone;
+    return [...names, ...houses, ...(phone ? [phone] : [])];
   }
 
   countFor(tab: string): number {

@@ -24,6 +24,8 @@ import { TRANSLATIONS } from '../../../shared/translations';
 import { ShareDialogComponent } from './share-dialog.component';
 import { PropertyThumbComponent } from '../../../shared/property-thumb.component';
 import { OccupancyStripComponent } from '../../../shared/occupancy-strip.component';
+import { SearchBarComponent } from '../../../shared/search-bar.component';
+import { DatePillComponent } from '../../../shared/date-pill.component';
 import { HouseToday, OccupancyDay, houseToday, occupancyOf, occupancyRate, stripRange } from '../../../shared/house-occupancy';
 import { formatIsoDate, parseIsoDate } from '../../../shared/calendar-utils';
 import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -39,6 +41,8 @@ interface HouseState { days: OccupancyDay[]; today: HouseToday; rate: number; sa
   imports: [
     PropertyThumbComponent,
     OccupancyStripComponent,
+    SearchBarComponent,
+    DatePillComponent,
     CommonModule,
     RouterModule,
     ReactiveFormsModule,
@@ -79,20 +83,12 @@ interface HouseState { days: OccupancyDay[]; today: HouseToday; rate: number; sa
       </div>
 
       <div class="toolbar">
-        <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
-          <mat-label>{{ t('search_by_title') }}</mat-label>
-          <input matInput [formControl]="searchControl" [placeholder]="t('search_properties')" />
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-        <mat-form-field appearance="outline" class="date-field" subscriptSizing="dynamic">
-          <mat-label>{{ t('free_on_date') }}</mat-label>
-          <input matInput [matDatepicker]="picker" [formControl]="dateControl" [placeholder]="t('choose_date')" (dateChange)="onDateChange()" />
-          <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-          <mat-datepicker #picker></mat-datepicker>
-          <button *ngIf="dateControl.value" matSuffix mat-icon-button (click)="clearDateFilter($event)" [matTooltip]="t('clear_filter')">
-            <mat-icon>close</mat-icon>
-          </button>
-        </mat-form-field>
+        <app-search-bar class="search-field" [value]="searchControl.value || ''" (valueChange)="searchControl.setValue($event)"
+                        [label]="t('search_houses_label')" [hints]="houseHints" [count]="total" [countLabel]="t('result_houses')" [countLabelOne]="t('result_house_one')"
+                        [clearLabel]="t('clear_filter')" [busy]="loading"></app-search-bar>
+        <app-date-pill class="date-field" [value]="dateControl.value" (valueChange)="onDatePicked($event)" [min]="today"
+                       [label]="t('free_houses_on')" [emptyLabel]="t('free_on_date')" [clearLabel]="t('clear_filter')"
+                       [locale]="locale" [quick]="quickDays"></app-date-pill>
         <div class="segmented sort" role="group" *ngIf="view === 'cards'" [attr.aria-label]="t('sort_by')">
           <button type="button" [class.active]="sort === 'createdAt'" (click)="sortBy('createdAt', 'desc')">{{ t('sort_recent') }}</button>
           <button type="button" [class.active]="sort === 'pricePerDay'" (click)="sortBy('pricePerDay', 'asc')">{{ t('sort_price') }}</button>
@@ -217,7 +213,7 @@ interface HouseState { days: OccupancyDay[]; today: HouseToday; rate: number; sa
 
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
     .search-field { flex: 1 1 260px; }
-    .date-field { flex: 0 1 240px; }
+    .date-field { flex: 0 0 auto; }
 
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.1rem; }
 
@@ -301,6 +297,11 @@ export class PropertyListComponent implements OnInit, OnDestroy {
     };
   }
 
+  /** Titles of the houses as examples in the search field. */
+  get houseHints(): string[] {
+    return this.planning?.houses.slice(0, 5).map(h => h.title) ?? [];
+  }
+
   get occupiedToday(): number {
     return [...this.states.values()].filter(s => s.today.occupied).length;
   }
@@ -363,6 +364,28 @@ export class PropertyListComponent implements OnInit, OnDestroy {
       maxWidth: '95vw',
       data: { propertyId: property.id, propertyTitle: property.title },
     }).afterClosed().subscribe(() => this.loadSamsarCounts());
+  }
+
+  readonly today = new Date(new Date().setHours(0, 0, 0, 0));
+
+  get locale(): string {
+    return { fr: 'fr-FR', en: 'en-GB', ar: 'ar-TN' }[this.uiPrefs.getLanguage()] ?? 'fr-FR';
+  }
+
+  /** Today, and the Saturday of this weekend (today when the weekend has begun). */
+  get quickDays(): { label: string; date: Date }[] {
+    const saturday = new Date(this.today);
+    const weekday = saturday.getDay();
+    if (weekday !== 6 && weekday !== 0) saturday.setDate(saturday.getDate() + (6 - weekday));
+    return [
+      { label: this.t('today'), date: this.today },
+      { label: this.t('preset_weekend'), date: saturday },
+    ];
+  }
+
+  onDatePicked(date: Date | null): void {
+    this.dateControl.setValue(date);
+    this.onDateChange();
   }
 
   onDateChange(): void {

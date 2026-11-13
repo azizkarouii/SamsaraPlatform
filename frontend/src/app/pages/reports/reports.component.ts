@@ -12,6 +12,7 @@ import { ReservationService } from '../../services/reservation.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { RentalEarning, normalizeReservationStatus, statusKey } from '../../models/reservation.model';
 import { t } from '../../shared/translations';
+import { SearchBarComponent } from '../../shared/search-bar.component';
 import { formatIsoDate, getShortMonthLabel, todayIso } from '../../shared/calendar-utils';
 
 type Preset = 'this_month' | 'last_month' | 'this_year' | 'last_year' | 'last_12' | 'custom';
@@ -24,7 +25,7 @@ type Column = 'propertyTitle' | 'clientName' | 'startDate' | 'status' | 'total' 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MatButtonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatButtonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, SearchBarComponent],
   template: `
     <div class="page">
       <div class="page-header no-print">
@@ -101,11 +102,8 @@ type Column = 'propertyTitle' | 'clientName' | 'startDate' | 'status' | 'total' 
         <mat-card class="report">
           <mat-card-content>
             <div class="table-head no-print">
-              <label class="search">
-                <mat-icon>search</mat-icon>
-                <input type="search" [(ngModel)]="search" [placeholder]="t('reports_search')" />
-              </label>
-              <span class="count">{{ shown.length }} / {{ rows.length }}</span>
+              <app-search-bar class="search" [value]="search" (valueChange)="search = $event" [label]="t('reports_search')"
+                              [hints]="reportHints" [count]="shown.length" [countLabel]="'/ ' + rows.length" [clearLabel]="t('clear_filter')"></app-search-bar>
             </div>
             <div class="table-wrap">
               <table>
@@ -171,10 +169,7 @@ type Column = 'propertyTitle' | 'clientName' | 'startDate' | 'status' | 'total' 
     .bar-value { font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
     .table-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
-    .search { display: flex; align-items: center; gap: 0.4rem; flex: 1; max-width: 360px; padding: 0.35rem 0.7rem; border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-secondary); }
-    .search input { border: 0; outline: 0; background: transparent; font: inherit; color: var(--text-primary); flex: 1; min-width: 0; }
-    .search:focus-within { border-color: var(--primary); }
-    .count { font-size: 0.8rem; color: var(--text-secondary); }
+    .search { flex: 1; max-width: 460px; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
     th, td { padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border-color); text-align: start; }
@@ -299,6 +294,11 @@ export class ReportsComponent implements OnInit {
       const y = b[this.sort] ?? '';
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * sign;
     });
+  }
+
+  /** Houses and clients of the period, as examples in the search field. */
+  get reportHints(): string[] {
+    return [...new Set([...this.rows.map(r => r.propertyTitle), ...this.rows.map(r => r.clientName)])].slice(0, 5);
   }
 
   sortBy(column: Column): void {

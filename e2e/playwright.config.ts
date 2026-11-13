@@ -10,6 +10,7 @@ const backendPort = Number(process.env.BACKEND_PORT ?? 3099);
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './global-setup.ts',
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
