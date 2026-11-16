@@ -39,7 +39,9 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
 
       <nav class="side-nav" [attr.aria-label]="t('main_navigation')">
         <ul class="side-menu">
-          <li *ngFor="let item of navItems" routerLinkActive="active" #rla="routerLinkActive">
+          <!-- /admin also prefixes /admin/accounts: only an exact match lights the overview up -->
+          <li *ngFor="let item of navItems" routerLinkActive="active" #rla="routerLinkActive"
+              [routerLinkActiveOptions]="{ exact: item.path === '/admin' }">
             <a [routerLink]="item.path"
                [attr.aria-current]="rla.isActive ? 'page' : null"
                [matTooltip]="sidebarHidden && !isMobile ? t(item.label) : ''" matTooltipPosition="after">
