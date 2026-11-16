@@ -48,7 +48,8 @@ public class PasswordResetService {
         attemptLimiter.record(limitKey);
 
         Optional<User> found = userRepository.findByEmailIgnoreCase(normalized);
-        if (found.isEmpty()) {
+        // A turned-off account gets no link (the answer stays the same, so nobody learns which emails exist)
+        if (found.isEmpty() || !Boolean.TRUE.equals(found.get().getActive())) {
             return;
         }
         User user = found.get();

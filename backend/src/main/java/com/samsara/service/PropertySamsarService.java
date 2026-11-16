@@ -54,6 +54,7 @@ public class PropertySamsarService {
         if (dto.getPropertyId() == null || dto.getEmail() == null || dto.getPhone() == null) {
             throw new IllegalArgumentException("Property, email and phone are required");
         }
+        requireSamsarsEnabled(ownerId);
         Property property = accessService.requireOwner(dto.getPropertyId(), ownerId);
         User samsar = findSamsar(dto);
 
@@ -79,6 +80,7 @@ public class PropertySamsarService {
         if (dto.getEmail() == null || dto.getPhone() == null) {
             throw new IllegalArgumentException("Email and phone are required");
         }
+        requireSamsarsEnabled(ownerId);
         User samsar = findSamsar(dto);
         // Validated before anything is written, on a throwaway relation
         applyDeal(new PropertySamsar(), requestedIncrease(dto), dto.getCommissionPercent());
@@ -108,6 +110,15 @@ public class PropertySamsarService {
                 .orElseThrow(() -> new RuntimeException("Owner not found"));
         notificationService.sendPropertiesAssignment(samsar.getId(), added, owner);
         return saved;
+    }
+
+    /** An owner working alone (option off in the admin) cannot share his houses. */
+    private void requireSamsarsEnabled(Long ownerId) {
+        userRepository.findById(ownerId)
+                .filter(owner -> !Boolean.TRUE.equals(owner.getSamsarsEnabled()))
+                .ifPresent(owner -> {
+                    throw new AccessDeniedException("Working with samsars is not enabled for this account");
+                });
     }
 
     /** Both email and phone must match the same samsar account, whatever the phone formatting. */

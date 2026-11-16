@@ -44,11 +44,13 @@ import { todayIso } from '../../../shared/calendar-utils';
         <form class="stay-panel" *ngIf="adding" (ngSubmit)="submit()">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>{{ t('amount') }}</mat-label>
+            <mat-icon matPrefix>payments</mat-icon>
             <input matInput type="number" name="paymentAmount" min="0" [max]="remaining" required [(ngModel)]="amount" />
             <span matTextSuffix>TND</span>
           </mat-form-field>
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>{{ t('payment_date') }}</mat-label>
+            <mat-icon matPrefix>event</mat-icon>
             <input matInput type="date" name="paymentDate" [max]="today" [(ngModel)]="paidOn" />
           </mat-form-field>
           <mat-form-field appearance="outline" subscriptSizing="dynamic">

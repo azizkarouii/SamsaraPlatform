@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
-import { User } from '../../models/auth.model';
+import { User, homeOf, worksWithSamsars } from '../../models/auth.model';
 import { Subscription, interval } from 'rxjs';
 import { TRANSLATIONS, AppLanguage } from '../../shared/translations';
 
@@ -32,7 +32,7 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
     <div class="sidebar-backdrop" *ngIf="isMobile && !sidebarHidden" (click)="sidebarHidden = true"></div>
 
     <aside id="sidebar" [class.hide]="sidebarHidden" [class.mobile]="isMobile" (click)="onSidebarClick($event)">
-      <a class="brand" routerLink="/dashboard" [attr.aria-label]="t('app_title') + ' — ' + t('dashboard')">
+      <a class="brand" [routerLink]="home" [attr.aria-label]="t('app_title') + ' — ' + t('dashboard')">
         <img class="brand-mark" src="assets/brand/logo-icon.png" alt="" width="256" height="256" />
         <span class="text auth-brand">{{ t('app_title') }}</span>
       </a>
@@ -78,7 +78,7 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
         </button>
         <div class="nav-spacer"></div>
 
-        <a mat-icon-button class="nav-btn" routerLink="/notifications"
+        <a mat-icon-button class="nav-btn" routerLink="/notifications" *ngIf="!isAdmin"
            [attr.aria-label]="t('notifications') + (unreadCount ? ' (' + unreadCount + ' ' + t('unread') + ')' : '')"
            [matTooltip]="t('notifications')">
           <mat-icon [matBadge]="unreadCount > 99 ? '99+' : unreadCount" [matBadgeHidden]="!unreadCount"
@@ -107,7 +107,7 @@ import { UserAvatarComponent } from '../../shared/user-avatar.component';
           <app-user-avatar [name]="user.name" [photo]="user.photoUrl" aria-hidden="true"></app-user-avatar>
           <span class="identity">
             <span class="username">{{ user.name }}</span>
-            <span class="role-badge">{{ user.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
+            <span class="role-badge">{{ t(user.role === 'SUPERADMIN' ? 'superadmin_role' : user.role === 'PROPRIETAIRE' ? 'owner_role' : 'samsar_role') }}</span>
           </span>
         </a>
       </header>
@@ -235,12 +235,28 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   navItems: { path: string; icon: string; label: string }[] = [];
 
+  get isAdmin(): boolean {
+    return this.user?.role === 'SUPERADMIN';
+  }
+
+  get home(): string {
+    return homeOf(this.user);
+  }
+
   private buildNavItems(): { path: string; icon: string; label: string }[] {
+    if (this.isAdmin) {
+      return [
+        { path: '/admin', icon: 'insights', label: 'admin_overview' },
+        { path: '/admin/accounts', icon: 'manage_accounts', label: 'admin_accounts' },
+      ];
+    }
     const isOwner = this.user?.role === 'PROPRIETAIRE';
+    // An owner working alone (option off in the admin) sees nothing about samsars
+    const samsars = worksWithSamsars(this.user);
     return [
       { path: '/dashboard', icon: 'space_dashboard', label: 'dashboard' },
       ...(isOwner ? [{ path: '/properties', icon: 'home_work', label: 'my_houses' }] : []),
-      { path: '/shared-houses', icon: isOwner ? 'groups' : 'apartment', label: isOwner ? 'my_samsars' : 'shared_houses' },
+      ...(samsars ? [{ path: '/shared-houses', icon: isOwner ? 'groups' : 'apartment', label: isOwner ? 'my_samsars' : 'shared_houses' }] : []),
       { path: '/reservations', icon: 'event_available', label: 'reservations' },
       { path: '/planning', icon: 'view_timeline', label: 'planning' },
       { path: '/availability', icon: 'calendar_month', label: 'availability' },
@@ -277,13 +293,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.navItems = this.buildNavItems();
     this.language = this.uiPreferencesService.getLanguage();
     this.themeMode = this.uiPreferencesService.getTheme();
-    this.loadUnreadCount();
-    // Name or photo changed on the profile page: reflect it in the top bar right away
+    if (!this.isAdmin) this.loadUnreadCount();
+    // Name or photo changed on the profile page, options changed by the superadmin: reflect them right away
     this.subscriptions.push(
-      this.authService.currentUser$.subscribe(user => this.user = user)
+      this.authService.currentUser$.subscribe(user => {
+        this.user = user;
+        this.navItems = this.buildNavItems();
+      })
     );
+    this.authService.refreshProfile();
     this.subscriptions.push(
-      interval(30000).subscribe(() => this.loadUnreadCount())
+      interval(30000).subscribe(() => { if (!this.isAdmin) this.loadUnreadCount(); })
     );
     this.subscriptions.push(
       this.notificationService.unreadCountChange$.subscribe(() => this.loadUnreadCount())

@@ -128,6 +128,8 @@ public class PropertyService {
                 .distanceBeach(dto.getDistanceBeach())
                 .maxCapacity(dto.getMaxCapacity())
                 .address(dto.getAddress())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
                 .ownerContact(dto.getOwnerContact())
                 .airCondition(dto.getAirCondition())
                 .wifi(dto.getWifi())
@@ -164,6 +166,13 @@ public class PropertyService {
         if (dto.getDistanceBeach() != null) property.setDistanceBeach(dto.getDistanceBeach());
         if (dto.getMaxCapacity() != null) property.setMaxCapacity(dto.getMaxCapacity());
         if (dto.getAddress() != null) property.setAddress(dto.getAddress());
+        if (Boolean.TRUE.equals(dto.getClearLocation())) {
+            property.setLatitude(null);
+            property.setLongitude(null);
+        } else if (dto.getLatitude() != null) {
+            property.setLatitude(dto.getLatitude());
+            property.setLongitude(dto.getLongitude());
+        }
         if (dto.getOwnerContact() != null) property.setOwnerContact(dto.getOwnerContact());
         if (dto.getAirCondition() != null) property.setAirCondition(dto.getAirCondition());
         if (dto.getWifi() != null) property.setWifi(dto.getWifi());
@@ -319,6 +328,12 @@ public class PropertyService {
         }
         if (dto.getDistanceBeach() != null && dto.getDistanceBeach() < 0) {
             throw new IllegalArgumentException("Prices and distances cannot be negative");
+        }
+        if (!Boolean.TRUE.equals(dto.getClearLocation()) && (dto.getLatitude() != null || dto.getLongitude() != null)) {
+            if (dto.getLatitude() == null || dto.getLongitude() == null
+                    || Math.abs(dto.getLatitude()) > 90 || Math.abs(dto.getLongitude()) > 180) {
+                throw new IllegalArgumentException("Invalid location on the map");
+            }
         }
         if ((dto.getMaxCapacity() != null && dto.getMaxCapacity() < 0) || (dto.getBathrooms() != null && dto.getBathrooms() < 0)) {
             throw new IllegalArgumentException("Capacity and bathrooms cannot be negative");

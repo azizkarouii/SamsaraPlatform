@@ -29,10 +29,12 @@ import { formatIsoDate, parseIsoDate, todayIso } from '../../../shared/calendar-
       <p>{{ t('end_early_explained') }}</p>
       <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>{{ t('new_end_date') }}</mat-label>
+        <mat-icon matPrefix>event_busy</mat-icon>
         <input matInput type="date" name="earlyEndDate" required [min]="reservation.startDate" [max]="latestEarlyEnd" [(ngModel)]="earlyEndDate" />
       </mat-form-field>
       <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="maxRefund > 0">
         <mat-label>{{ t('money_given_back_optional') }}</mat-label>
+        <mat-icon matPrefix>undo</mat-icon>
         <input matInput type="number" name="earlyRefund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
         <span matTextSuffix>TND</span>
       </mat-form-field>
@@ -46,6 +48,7 @@ import { formatIsoDate, parseIsoDate, todayIso } from '../../../shared/calendar-
       <p>{{ t(refundExplanationKey) }}</p>
       <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>{{ t('money_given_back') }}</mat-label>
+        <mat-icon matPrefix>undo</mat-icon>
         <input matInput type="number" name="refund" min="0" [max]="maxRefund" [(ngModel)]="refundInput" />
         <span matTextSuffix>TND</span>
       </mat-form-field>

@@ -111,10 +111,12 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
             <div class="form-row times">
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>{{ t('checkin_time') }}</mat-label>
+                <mat-icon matPrefix>login</mat-icon>
                 <input matInput type="time" formControlName="checkInTime" />
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">
                 <mat-label>{{ t('checkout_time') }}</mat-label>
+                <mat-icon matPrefix>logout</mat-icon>
                 <input matInput type="time" formControlName="checkOutTime" />
               </mat-form-field>
             </div>
@@ -126,11 +128,13 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
             <div class="form-row">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('client_name_label') }}</mat-label>
+                <mat-icon matPrefix>person</mat-icon>
                 <input matInput formControlName="clientName" autocomplete="off" />
                 <mat-error>{{ t('client_name_required') }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('client_phone_label') }}</mat-label>
+                <mat-icon matPrefix>call</mat-icon>
                 <span matTextPrefix>+216&nbsp;</span>
                 <input matInput formControlName="clientPhone" inputmode="tel" />
                 <mat-error>{{ t('phone_invalid') }}</mat-error>
@@ -151,6 +155,7 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
             </button>
             <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic" *ngIf="showNegotiated">
               <mat-label>{{ t('negotiated_price') }}</mat-label>
+              <mat-icon matPrefix>handshake</mat-icon>
               <input matInput type="number" min="1" formControlName="negotiatedPrice" (input)="applyNegotiatedTotal()" />
               <span matTextSuffix>TND</span>
               <button mat-icon-button matSuffix type="button" (click)="closeNegotiated()"
@@ -163,6 +168,7 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
             <div class="form-row">
               <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
                 <mat-label>{{ t('total_amount_label') }}</mat-label>
+                <mat-icon matPrefix>receipt_long</mat-icon>
                 <input matInput type="number" min="0" formControlName="totalAmount" (input)="totalTouched = true" />
                 <span matTextSuffix>TND</span>
                 <mat-hint *ngIf="suggestedTotal && totalTouched && Number(form.value.totalAmount) !== suggestedTotal">
@@ -172,6 +178,7 @@ import { getMonthLabel, getWeekdayLabels } from '../../../shared/calendar-utils'
               </mat-form-field>
               <mat-form-field appearance="outline" class="field-with-hint" subscriptSizing="dynamic">
                 <mat-label>{{ t('advance_amount_label') }}</mat-label>
+                <mat-icon matPrefix>savings</mat-icon>
                 <input matInput type="number" min="0" formControlName="advanceAmount" />
                 <span matTextSuffix>TND</span>
                 <mat-hint *ngIf="!isEdit || editedStatus === 'pending'">{{ t('advance_confirms_hint') }}</mat-hint>

@@ -98,7 +98,7 @@ jobs:
         working-directory: backend
         run: mvn -B -q package -DskipTests
 
-      - name: Start the backend (email confirmation off, cookie over http)
+      - name: Start the backend (test superadmin, cookie over http)
         working-directory: backend
         env:
           PORT: '3099'
@@ -106,7 +106,8 @@ jobs:
           DB_USERNAME: postgres
           DB_PASSWORD: postgres
           JWT_SECRET: e2e-only-secret-e2e-only-secret-e2e-only-secret-0123456789
-          EMAIL_VERIFICATION: 'false'
+          SUPERADMIN_EMAIL: admin@e2e.tn
+          SUPERADMIN_PASSWORD: admin-e2e-secret
           COOKIE_SECURE: 'false'
           FRONTEND_URL: http://localhost:4399
           STORAGE_LOCAL_DIR: ${{ runner.temp }}/uploads

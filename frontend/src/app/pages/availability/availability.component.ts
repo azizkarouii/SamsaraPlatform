@@ -78,6 +78,7 @@ import { HOUSE_TYPES } from '../../shared/house-types';
 
             <mat-form-field appearance="outline" class="type-filter" subscriptSizing="dynamic">
               <mat-label>{{ t('house_type') }}</mat-label>
+              <mat-icon matPrefix>category</mat-icon>
               <mat-select [(ngModel)]="houseType" (selectionChange)="onHouseTypeChange()">
                 <mat-option value="">{{ t('all_types') }}</mat-option>
                 <mat-option *ngFor="let type of houseTypes" [value]="type">{{ type }}</mat-option>

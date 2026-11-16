@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+    boolean existsBySamsarId(Long samsarId);
 
     /** Reminders: stays arriving or leaving on a given day. */
     List<Reservation> findByStatusAndStartDate(String status, LocalDate startDate);

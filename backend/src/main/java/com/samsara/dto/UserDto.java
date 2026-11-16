@@ -15,5 +15,8 @@ public class UserDto {
     private String phone;
     private String photoUrl;
     private String role;
+    private Boolean active;
+    /** For an owner: whether he works with samsars. */
+    private Boolean samsarsEnabled;
     private LocalDateTime createdAt;
 }

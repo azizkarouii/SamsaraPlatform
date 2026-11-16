@@ -66,7 +66,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         Long userId = claims.get("userId", Long.class);
         Integer version = claims.get("ver", Integer.class);
         boolean current = userId != null && userRepository.findById(userId)
-                .map(user -> Objects.equals(user.getTokenVersion(), version == null ? 0 : version))
+                .map(user -> Boolean.TRUE.equals(user.getActive())
+                        && Objects.equals(user.getTokenVersion(), version == null ? 0 : version))
                 .orElse(false);
         if (current) {
             SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + claims.get("role", String.class));

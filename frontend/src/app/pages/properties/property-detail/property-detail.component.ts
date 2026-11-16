@@ -12,6 +12,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { AuthService } from '../../../services/auth.service';
+import { worksWithSamsars } from '../../../models/auth.model';
 import { PropertyService } from '../../../services/property.service';
 import { PropertySamsarService } from '../../../services/property-samsar.service';
 import { AvailabilityService, ManualAvailabilityStatus } from '../../../services/availability.service';
@@ -36,6 +37,7 @@ import { ShareDialogComponent } from '../property-list/share-dialog.component';
 import { PropertyGalleryComponent } from '../../../shared/property-gallery.component';
 import { SAMSAR_DEALS, SamsarDeal, applyDeal, dealLabel, sameDeal } from '../../../shared/samsar-deal';
 import { toDayMonth } from '../../../shared/pricing';
+import { HouseLocationComponent } from '../../../shared/house-location.component';
 @Component({
   selector: 'app-property-detail',
   standalone: true,
@@ -52,6 +54,7 @@ import { toDayMonth } from '../../../shared/pricing';
     MatProgressSpinnerModule,
     MatMenuModule,
     MatTooltipModule,
+    HouseLocationComponent,
   ],
   template: `
     <div [class.public-shell]="publicView">
@@ -70,7 +73,7 @@ import { toDayMonth } from '../../../shared/pricing';
               <mat-icon>arrow_back</mat-icon> {{ t('back') }}
             </button>
             <ng-container *ngIf="!publicView && isOwner">
-              <button mat-stroked-button (click)="openShareDialog()"><mat-icon>person_add</mat-icon> {{ t('share') }}</button>
+              <button mat-stroked-button *ngIf="samsarsOn" (click)="openShareDialog()"><mat-icon>person_add</mat-icon> {{ t('share') }}</button>
               <a mat-stroked-button [routerLink]="['/properties', p.id, 'edit']"><mat-icon>edit</mat-icon> {{ t('edit') }}</a>
               <button mat-stroked-button color="warn" (click)="deleteProperty()"><mat-icon>delete</mat-icon> {{ t('delete') }}</button>
             </ng-container>
@@ -112,6 +115,11 @@ import { toDayMonth } from '../../../shared/pricing';
                   <span class="pill" *ngFor="let item of equipment"><mat-icon inline>{{ item.icon }}</mat-icon> {{ t(item.key) }}</span>
                 </div>
                 <ng-template #noEquipment><p class="muted">{{ t('no_equipment') }}</p></ng-template>
+
+                <ng-container *ngIf="p.latitude != null && p.longitude != null">
+                  <h3>{{ t('location') }}</h3>
+                  <app-house-location [point]="{ lat: p.latitude!, lng: p.longitude! }"></app-house-location>
+                </ng-container>
               </mat-card-content>
             </mat-card>
 
@@ -207,7 +215,7 @@ import { toDayMonth } from '../../../shared/pricing';
               </mat-card-content>
             </mat-card>
 
-            <mat-card *ngIf="!publicView && isOwner">
+            <mat-card *ngIf="!publicView && isOwner && samsarsOn">
               <mat-card-content>
                 <div class="side-head">
                   <h3 class="no-margin">{{ t('associated_samsars') }}</h3>
@@ -293,6 +301,11 @@ export class PropertyDetailComponent implements OnInit {
   myMargin = 0;
   myCommission = 0;
   samsars: PropertySamsar[] = [];
+
+  /** An owner working alone (option off in the admin) sees nothing about samsars. */
+  get samsarsOn(): boolean {
+    return worksWithSamsars(this.user);
+  }
   months: CalendarMonth[] = [];
   startDate = '';
   endDate = '';
@@ -379,7 +392,7 @@ export class PropertyDetailComponent implements OnInit {
         this.isOwner = !!this.user && property.createdBy === this.user.id;
         this.loading = false;
         this.loadOccupancy();
-        if (!this.publicView && this.isOwner) {
+        if (!this.publicView && this.isOwner && this.samsarsOn) {
           this.loadSamsars();
         } else if (!this.publicView && this.user?.role === 'SAMSAR') {
           this.propertySamsarService.findMine().subscribe(rels => {

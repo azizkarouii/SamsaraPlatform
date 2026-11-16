@@ -109,7 +109,8 @@ interface PhotoTile {
     .tile.add:hover, .tile.add.dragging, .tile.add:focus-within { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
     .tile.add.disabled { pointer-events: none; opacity: 0.7; }
     .tile.add input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-    .tile.add mat-icon { font-size: 32px; width: 32px; height: 32px; }
+    .tile.add mat-icon { font-size: 32px; width: 32px; height: 32px; transition: transform 0.3s ease; }
+    .tile.add:hover mat-icon, .tile.add.dragging mat-icon { transform: translateY(-3px) scale(1.12) rotate(-6deg); }
     .tile.add span { font-size: 0.75rem; }
   `]
 })

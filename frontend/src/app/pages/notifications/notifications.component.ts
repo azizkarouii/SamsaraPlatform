@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -10,6 +10,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NotificationService } from '../../services/notification.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
 import { Notification } from '../../models/notification.model';
+import { AuthService } from '../../services/auth.service';
+import { worksWithSamsars } from '../../models/auth.model';
 import { t } from '../../shared/translations';
 import { getMonthLabel, todayIso } from '../../shared/calendar-utils';
 
@@ -136,12 +138,13 @@ export class NotificationsComponent implements OnInit {
   notifications: Notification[] = [];
 
   /** Kinds of notification, to see only one of them. */
-  readonly kinds: { id: 'all' | 'bookings' | 'reminders' | 'sharing'; label: string; icon: string }[] = [
+  readonly kinds: { id: 'all' | 'bookings' | 'reminders' | 'sharing'; label: string; icon: string }[] = ([
     { id: 'all', label: 'notif_kind_all', icon: 'inbox' },
     { id: 'bookings', label: 'notif_kind_bookings', icon: 'event' },
     { id: 'reminders', label: 'notif_kind_reminders', icon: 'alarm' },
     { id: 'sharing', label: 'notif_kind_sharing', icon: 'home_work' },
-  ];
+  // An owner working alone gets no sharing news: no filter for it
+  ] as { id: 'all' | 'bookings' | 'reminders' | 'sharing'; label: string; icon: string }[]).filter(k => k.id !== 'sharing' || worksWithSamsars(inject(AuthService).getCurrentUser()));
   kind: 'all' | 'bookings' | 'reminders' | 'sharing' = 'all';
 
   private kindOf(notif: Notification): 'bookings' | 'reminders' | 'sharing' {

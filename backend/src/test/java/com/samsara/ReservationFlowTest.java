@@ -135,18 +135,26 @@ class ReservationFlowTest {
         throw new AssertionError("No email with " + marker + " sent to " + email);
     }
 
-    /** Signs up, opens the confirmation link received by email, then signs in. */
+    private String adminToken;
+
+    /** The superadmin (created at startup from the test settings) opens a session once. */
+    private String admin() throws Exception {
+        if (adminToken == null) {
+            Reply login = call("POST", "/auth/login", null, Map.of("email", "admin@test.tn", "password", "admin-secret"));
+            assertThat(login.status()).isEqualTo(200);
+            adminToken = login.body().get("access_token").asText();
+        }
+        return adminToken;
+    }
+
+    /** The superadmin creates the account, then its user signs in. */
     private Account account(String role) throws Exception {
         int n = SEQUENCE.incrementAndGet();
         String email = "user" + n + "@test.tn";
         String phone = String.format("2%07d", n);
-        Reply registered = call("POST", "/auth/register", null, Map.of("name", "User " + n, "email", email,
-                "password", "secret123", "phone", phone, "role", role, "language", "fr"));
-        assertThat(registered.status()).isEqualTo(200);
-        assertThat(registered.body().get("verificationRequired").asBoolean()).isTrue();
-        assertThat(registered.body().has("access_token")).isFalse();
-        String link = lastLinkTo(email, "verify-email");
-        assertThat(call("POST", "/auth/verify-email", null, Map.of("token", link)).status()).isEqualTo(204);
+        Reply created = call("POST", "/admin/users", admin(), Map.of("name", "User " + n, "email", email,
+                "password", "secret123", "phone", phone, "role", role));
+        assertThat(created.status()).as(created.body().toString()).isEqualTo(200);
         Reply login = call("POST", "/auth/login", null, Map.of("email", email, "password", "secret123"));
         assertThat(login.status()).isEqualTo(200);
         return new Account(login.body().get("access_token").asText(), email, phone, "secret123");
@@ -681,21 +689,67 @@ class ReservationFlowTest {
     // ------------------------------------------------------------------------------------------ accounts and sessions
 
     @Test
-    void anUnconfirmedEmailCannotSignIn() throws Exception {
-        Reply registered = call("POST", "/auth/register", null, Map.of("name", "Someone", "email", "notyet@test.tn",
-                "password", "secret123", "phone", "29999999", "role", "SAMSAR"));
-        assertThat(registered.body().path("verificationRequired").asBoolean()).as(registered.status() + " " + registered.body()).isTrue();
-        assertThat(call("POST", "/auth/login", null, Map.of("email", "notyet@test.tn", "password", "wrong-pass")).status()).isEqualTo(401);
-        assertThat(call("POST", "/auth/login", null, Map.of("email", "notyet@test.tn", "password", "secret123")).status()).isEqualTo(403);
+    void onlyTheSuperadminManagesAccounts() throws Exception {
+        assertThat(call("POST", "/auth/register", null, Map.of("name", "Someone", "email", "self@test.tn",
+                "password", "secret123", "role", "PROPRIETAIRE")).status()).as("no more sign-up").isIn(401, 403, 404);
+        assertThat(call("GET", "/admin/users", owner.token(), null).status()).isEqualTo(403);
+        assertThat(call("POST", "/admin/users", owner.token(), Map.of("name", "Someone", "email", "x@test.tn",
+                "password", "secret123", "role", "SAMSAR", "phone", "21111111")).status()).isEqualTo(403);
 
-        String first = lastLinkTo("notyet@test.tn", "verify-email");
-        assertThat(call("POST", "/auth/resend-verification", null, Map.of("email", "notyet@test.tn")).status()).isEqualTo(204);
-        String second = lastLinkTo("notyet@test.tn", "verify-email");
-        assertThat(second).isNotEqualTo(first);
-        assertThat(call("POST", "/auth/verify-email", null, Map.of("token", first)).status()).as("replaced by the new link").isEqualTo(400);
-        assertThat(call("POST", "/auth/verify-email", null, Map.of("token", second)).status()).isEqualTo(204);
-        assertThat(call("POST", "/auth/verify-email", null, Map.of("token", second)).status()).as("used once").isEqualTo(400);
-        assertThat(call("POST", "/auth/login", null, Map.of("email", "notyet@test.tn", "password", "secret123")).status()).isEqualTo(200);
+        long ownerId = call("GET", "/auth/profile", owner.token(), null).body().get("id").asLong();
+        JsonNode listed = call("GET", "/admin/users", admin(), null).body();
+        assertThat(listed.findValuesAsText("role")).doesNotContain("SUPERADMIN");
+        assertThat(call("POST", "/admin/users", admin(), Map.of("name", "Twice", "email", owner.email(),
+                "password", "secret123", "role", "PROPRIETAIRE")).status()).isEqualTo(409);
+
+        // Turned off: the session stops and signing in is refused
+        assertThat(call("PATCH", "/admin/users/" + ownerId + "/active", admin(), Map.of("active", false)).status()).isEqualTo(200);
+        assertThat(call("GET", "/auth/profile", owner.token(), null).status()).isEqualTo(401);
+        assertThat(call("POST", "/auth/login", null, Map.of("email", owner.email(), "password", "secret123")).status()).isEqualTo(403);
+        assertThat(call("PATCH", "/admin/users/" + ownerId + "/active", admin(), Map.of("active", true)).status()).isEqualTo(200);
+        Reply back = call("POST", "/auth/login", null, Map.of("email", owner.email(), "password", "secret123"));
+        assertThat(back.status()).isEqualTo(200);
+        String token = back.body().get("access_token").asText();
+
+        // An account with a house is not deleted, only turned off
+        assertThat(call("DELETE", "/admin/users/" + ownerId, admin(), null).status()).isEqualTo(409);
+        Account spare = account("SAMSAR");
+        long spareId = call("GET", "/auth/profile", spare.token(), null).body().get("id").asLong();
+        assertThat(call("DELETE", "/admin/users/" + spareId, admin(), null).status()).isEqualTo(204);
+
+        JsonNode stats = call("GET", "/admin/stats", admin(), null).body();
+        assertThat(stats.get("owners").asLong()).isGreaterThanOrEqualTo(1);
+        assertThat(stats.get("monthlyRevenue").decimalValue())
+                .isEqualByComparingTo(stats.get("monthlyPrice").decimalValue()
+                        .multiply(java.math.BigDecimal.valueOf(stats.get("activeOwners").asLong() + stats.get("activeSamsars").asLong())));
+        assertThat(stats.get("months")).hasSize(6);
+        assertThat(token).isNotBlank();
+    }
+
+    @Test
+    void anOwnerWorkingAloneCannotShareHisHouses() throws Exception {
+        long ownerId = call("GET", "/auth/profile", owner.token(), null).body().get("id").asLong();
+        assertThat(call("GET", "/property-samsars/property/" + house, owner.token(), null).body()).hasSize(2);
+
+        JsonNode off = call("PATCH", "/admin/users/" + ownerId + "/samsars", admin(), Map.of("enabled", false)).body();
+        assertThat(off.get("samsarsEnabled").asBoolean()).isFalse();
+        assertThat(call("GET", "/auth/profile", owner.token(), null).body().get("samsarsEnabled").asBoolean()).isFalse();
+        assertThat(call("GET", "/property-samsars/property/" + house, owner.token(), null).body()).as("samsars removed").isEmpty();
+
+        Account samsar = account("SAMSAR");
+        Reply refused = call("POST", "/property-samsars", owner.token(), Map.of("propertyId", house, "email", samsar.email(),
+                "phone", samsar.phone(), "priceIncreaseTnd", 10));
+        assertThat(refused.status()).isEqualTo(403);
+    }
+
+    @Test
+    void aHouseKeepsItsPinOnTheMap() throws Exception {
+        assertThat(call("PATCH", "/properties/" + house, owner.token(), Map.of("latitude", 36.4, "longitude", 10.6)).status()).isEqualTo(200);
+        JsonNode read = call("GET", "/properties/" + house, null, null).body();
+        assertThat(read.get("latitude").asDouble()).isEqualTo(36.4);
+        assertThat(call("PATCH", "/properties/" + house, owner.token(), Map.of("latitude", 136.4, "longitude", 10.6)).status()).isEqualTo(400);
+        assertThat(call("PATCH", "/properties/" + house, owner.token(), Map.of("clearLocation", true)).status()).isEqualTo(200);
+        assertThat(call("GET", "/properties/" + house, null, null).body().get("latitude").isNull()).isTrue();
     }
 
     @Test

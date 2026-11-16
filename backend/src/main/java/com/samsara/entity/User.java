@@ -53,6 +53,16 @@ public class User {
     @Builder.Default
     private Integer tokenVersion = 0;
 
+    /** Turned off by the superadmin: the account cannot sign in and its sessions stop working. */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
+    /** For an owner: works with samsars (sharing, invitations). Off, he manages his houses alone. */
+    @Column(name = "samsars_enabled", nullable = false)
+    @Builder.Default
+    private Boolean samsarsEnabled = true;
+
     /** fr, en or ar: the language of the emails sent without a request from the user (reminders). */
     @JsonIgnore
     @Column(nullable = false, length = 5)

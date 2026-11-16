@@ -76,11 +76,24 @@ Par variables d'environnement, ou dans `backend/.env` en local (ignoré par git,
 | `PORT` | Port de l'API (3001 par défaut) |
 | `FRONTEND_URL` | Adresse du site, utilisée dans les liens envoyés par email |
 | `CORS_ALLOWED_ORIGINS` | Origines autorisées à appeler l'API, séparées par des virgules |
-| `spring.mail.*`, `MAIL_FROM` | Serveur d'envoi des emails. Sans serveur, les liens (confirmation, réinitialisation) sont écrits dans les logs du backend |
-| `EMAIL_VERIFICATION` | `true` par défaut : un nouveau compte doit confirmer son adresse avant de se connecter. `false` pour s'en passer en local |
+| `spring.mail.*`, `MAIL_FROM` | Serveur d'envoi des emails. Sans serveur, les liens de réinitialisation du mot de passe sont écrits dans les logs du backend |
+| `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` | Facultatif : superadmin créé au démarrage s'il n'existe pas (sinon, l'insérer en SQL, voir « Comptes ») |
+| `SUBSCRIPTION_PRICE_TND` | `50` par défaut : prix mensuel d'un compte, pour les revenus affichés au superadmin |
 | `APP_TIMEZONE` | `Africa/Tunis` par défaut : le « aujourd'hui » des séjours, des paiements et des rappels, quel que soit le fuseau du serveur |
 | `COOKIE_SECURE` | `true` par défaut : le cookie de session n'est envoyé qu'en HTTPS. Mettre `false` en local sur `http://localhost` |
 | `STORAGE_TYPE`, `S3_*` | Photos dans un stockage compatible S3 (`STORAGE_TYPE=s3`) au lieu du disque |
+
+## Comptes
+
+Pas d'inscription publique : le **superadmin** crée les comptes (propriétaires et samsars) depuis « Comptes », les active ou les désactive, et choisit quels propriétaires travaillent avec des samsars. Chacun change ensuite son mot de passe dans son profil, ou le réinitialise par email (« Mot de passe oublié », une fois le SMTP configuré).
+
+Créer le superadmin dans PostgreSQL (extension `pgcrypto`, mot de passe haché en bcrypt comme le fait l'application) :
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+INSERT INTO users (name, email, password, role, active, samsars_enabled, email_verified, token_version, language, created_at)
+VALUES ('Super Admin', 'admin@samsara.tn', crypt('ChangeMoi123', gen_salt('bf', 10)), 'SUPERADMIN', true, true, true, 0, 'fr', now());
+```
 
 ## Tests
 
@@ -89,7 +102,7 @@ cd backend && mvn test        # règles métier via l'API, sur une base H2 en m�
 cd frontend && npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
-Tests de bout en bout (`e2e/`, Playwright) : le vrai site dans un navigateur, contre un backend lancé avec `EMAIL_VERIFICATION=false` et `COOKIE_SECURE=false` sur le port 3099 et le build du front (`npx ng build`) :
+Tests de bout en bout (`e2e/`, Playwright) : le vrai site dans un navigateur, contre un backend lancé avec `COOKIE_SECURE=false`, `SUPERADMIN_EMAIL=admin@e2e.tn` et `SUPERADMIN_PASSWORD=admin-e2e-secret` sur le port 3099 et le build du front (`npx ng build`) :
 
 ```bash
 cd e2e && npm install && npx playwright test     # en local, Chrome installé est utilisé

@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../services/auth.service';
 import { UiPreferencesService } from '../../services/ui-preferences.service';
@@ -20,7 +21,7 @@ function passwordsMatch(form: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-reset-password',
   standalone: true,
-  imports: [AuthShowcaseComponent, CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSnackBarModule, UiPreferencesControlsComponent],
+  imports: [AuthShowcaseComponent, CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule, MatSnackBarModule, UiPreferencesControlsComponent],
   template: `
     <div class="auth-shell auth-page">
       <app-auth-showcase></app-auth-showcase>
@@ -31,11 +32,13 @@ function passwordsMatch(form: AbstractControl): ValidationErrors | null {
           <form [formGroup]="form" (ngSubmit)="submit()" *ngIf="token; else noToken">
             <mat-form-field appearance="outline">
               <mat-label>{{ t('new_password') }}</mat-label>
+              <mat-icon matPrefix>key</mat-icon>
               <input matInput type="password" autocomplete="new-password" formControlName="password" />
               <mat-error>{{ t('password_min') }}</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline">
               <mat-label>{{ t('confirm_password') }}</mat-label>
+              <mat-icon matPrefix>verified_user</mat-icon>
               <input matInput type="password" autocomplete="new-password" formControlName="confirm" />
             </mat-form-field>
             <p class="error" *ngIf="form.hasError('mismatch') && form.get('confirm')?.touched">{{ t('passwords_dont_match') }}</p>

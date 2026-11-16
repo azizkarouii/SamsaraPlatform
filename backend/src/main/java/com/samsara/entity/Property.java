@@ -52,6 +52,10 @@ public class Property {
 
     private String address;
 
+    /** Position pinned on the map (WGS84). */
+    private Double latitude;
+    private Double longitude;
+
     @Column(name = "owner_contact")
     private String ownerContact;
 

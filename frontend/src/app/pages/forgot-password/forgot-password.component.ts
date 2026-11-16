@@ -29,6 +29,7 @@ import { UiPreferencesControlsComponent } from '../../shared/ui-preferences-cont
             <form [formGroup]="form" (ngSubmit)="submit()">
               <mat-form-field appearance="outline">
                 <mat-label>{{ t('email_label') }}</mat-label>
+                <mat-icon matPrefix>alternate_email</mat-icon>
                 <input matInput type="email" autocomplete="email" formControlName="email" />
                 <mat-error>{{ t('email_invalid') }}</mat-error>
               </mat-form-field>

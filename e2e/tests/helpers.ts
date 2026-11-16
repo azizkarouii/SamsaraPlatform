@@ -31,11 +31,19 @@ export async function api<T = any>(page: Page, method: string, path: string, bod
   }, { method, path, body });
 }
 
-/** Signs up through the API (email verification is off for these tests) and keeps the session in the page. */
-export async function signUp(page: Page, name: string, role: 'PROPRIETAIRE' | 'SAMSAR', phone = '20111111'): Promise<string> {
+/** The superadmin the test backend creates at startup (SUPERADMIN_EMAIL / SUPERADMIN_PASSWORD). */
+export const ADMIN_EMAIL = process.env['SUPERADMIN_EMAIL'] ?? 'admin@e2e.tn';
+export const ADMIN_PASSWORD = process.env['SUPERADMIN_PASSWORD'] ?? 'admin-e2e-secret';
+
+/** The superadmin creates the account through the API, then its user signs in: the page keeps that session. */
+export async function signUp(page: Page, name: string, role: 'PROPRIETAIRE' | 'SAMSAR', phone = '20111111', samsarsEnabled = true): Promise<string> {
   await page.goto('/login');
   const email = uniqueEmail(role === 'SAMSAR' ? 'samsar' : 'owner');
-  const reply = await api(page, 'POST', '/auth/register', { name, email, password: PASSWORD, phone, role, language: 'fr' });
+  const admin = await api(page, 'POST', '/auth/login', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+  expect(admin.status, JSON.stringify(admin.body)).toBe(200);
+  const created = await api(page, 'POST', '/admin/users', { name, email, password: PASSWORD, phone, role, samsarsEnabled, language: 'fr' });
+  expect(created.status, JSON.stringify(created.body)).toBe(200);
+  const reply = await api(page, 'POST', '/auth/login', { email, password: PASSWORD });
   expect(reply.status, JSON.stringify(reply.body)).toBe(200);
   await page.evaluate(user => localStorage.setItem('user', JSON.stringify(user)), reply.body.user);
   return email;

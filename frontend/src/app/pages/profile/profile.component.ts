@@ -70,9 +70,9 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
           <div class="who">
             <strong>{{ user?.name }}</strong>
             <span>{{ user?.email }}</span>
-            <span class="pill primary">{{ user?.role === 'PROPRIETAIRE' ? t('owner_role') : t('samsar_role') }}</span>
+            <span class="pill primary">{{ t(roleKey) }}</span>
           </div>
-          <div class="stats">
+          <div class="stats" *ngIf="user?.role !== 'SUPERADMIN'">
             <a class="stat" [routerLink]="user?.role === 'PROPRIETAIRE' ? '/properties' : '/shared-houses'">
               <strong>{{ propertyCount }}</strong><span>{{ user?.role === 'PROPRIETAIRE' ? t('properties_count') : t('shared_houses') }}</span>
             </a>
@@ -204,6 +204,10 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
 export class ProfileComponent implements OnInit {
   user: User | null = null;
   propertyCount = 0;
+
+  get roleKey(): string {
+    return this.user?.role === 'SUPERADMIN' ? 'superadmin_role' : this.user?.role === 'PROPRIETAIRE' ? 'owner_role' : 'samsar_role';
+  }
   reservationCount = 0;
   totalRevenue = 0;
   saving = false;
@@ -243,7 +247,7 @@ export class ProfileComponent implements OnInit {
   ngOnInit(): void {
     this.user = this.authService.getCurrentUser();
     this.resetProfileForm();
-    this.loadStats();
+    if (this.user?.role !== 'SUPERADMIN') this.loadStats();
   }
 
   t(key: string): string {

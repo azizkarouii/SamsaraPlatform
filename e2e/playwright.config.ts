@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * The site is served from the production build with /api forwarded to a running backend
- * (BACKEND_PORT, 3099 by default) started with EMAIL_VERIFICATION=false and COOKIE_SECURE=false.
+ * (BACKEND_PORT, 3099 by default) started with COOKIE_SECURE=false and the test superadmin
+ * (SUPERADMIN_EMAIL=admin@e2e.tn, SUPERADMIN_PASSWORD=admin-e2e-secret), who creates the test accounts.
  * Locally the installed Chrome is used; in the CI, the Chromium of Playwright.
  */
 const port = Number(process.env.SITE_PORT ?? 4399);

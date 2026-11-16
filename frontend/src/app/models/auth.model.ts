@@ -3,22 +3,10 @@ export interface LoginDto {
   password: string;
 }
 
-export type UserRole = 'PROPRIETAIRE' | 'SAMSAR';
-
-export interface RegisterDto {
-  name: string;
-  email: string;
-  password: string;
-  phone?: string;
-  role: UserRole;
-  /** Language of the confirmation email. */
-  language?: string;
-}
+export type UserRole = 'SUPERADMIN' | 'PROPRIETAIRE' | 'SAMSAR';
 
 export interface AuthResponse {
   user?: User;
-  /** True after sign-up: the account must be confirmed through the emailed link before signing in. */
-  verificationRequired?: boolean;
 }
 
 export interface User {
@@ -29,4 +17,17 @@ export interface User {
   photoUrl?: string;
   role: UserRole;
   createdAt: string;
+  active?: boolean;
+  /** For an owner: works with samsars (set by the superadmin). */
+  samsarsEnabled?: boolean;
+}
+
+/** Whether this user sees anything about samsars: a samsar always, an owner when the option is on. */
+export function worksWithSamsars(user: User | null | undefined): boolean {
+  return !!user && (user.role === 'SAMSAR' || (user.role === 'PROPRIETAIRE' && user.samsarsEnabled !== false));
+}
+
+/** First page after signing in. */
+export function homeOf(user: User | null | undefined): string {
+  return user?.role === 'SUPERADMIN' ? '/admin' : '/dashboard';
 }

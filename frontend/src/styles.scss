@@ -831,3 +831,18 @@ html.dark-theme .segmented button.active { color: #0B1215; }
   main { padding: 0 !important; max-width: none !important; }
   body { background: #fff !important; color: #000 !important; }
 }
+
+/* ---------- Maps (Leaflet): the house pin and the map dialog ---------- */
+.house-pin-icon { background: none; border: 0; }
+.house-pin {
+  width: 40px; height: 40px; display: grid; place-items: center;
+  border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: var(--primary); border: 3px solid #fff; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+  animation: pin-drop 0.35s cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+.house-pin .material-icons { transform: rotate(45deg); color: #fff; font-size: 20px; }
+@keyframes pin-drop { from { transform: translateY(-18px) rotate(-45deg); opacity: 0; } }
+.leaflet-container { font: inherit; background: var(--bg-main); }
+.leaflet-control-attribution { font-size: 10px; }
+html.dark-theme .leaflet-tile-pane { filter: brightness(0.75) contrast(1.1) saturate(0.85); }
+.location-dialog .mat-mdc-dialog-surface { border-radius: 20px !important; }

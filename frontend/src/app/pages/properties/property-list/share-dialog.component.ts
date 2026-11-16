@@ -34,17 +34,20 @@ import { SAMSAR_DEALS, SamsarDeal, dealLabel } from '../../../shared/samsar-deal
       <form [formGroup]="form">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>{{ t('samsar_email') }}</mat-label>
+          <mat-icon matPrefix>alternate_email</mat-icon>
           <input matInput type="email" formControlName="email" />
           <mat-error>{{ t('email_invalid') }}</mat-error>
         </mat-form-field>
-        <mat-form-field appearance="outline" class="full-width phone-field">
+        <mat-form-field appearance="outline" class="full-width phone-field" floatLabel="always">
           <mat-label>{{ t('samsar_phone') }}</mat-label>
+          <mat-icon matPrefix>call</mat-icon>
           <span matTextPrefix>+216&nbsp;</span>
           <input matInput formControlName="phone" placeholder="12345678" inputmode="tel" />
           <mat-error>{{ t('phone_invalid') }}</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline" class="field-with-hint full-width" subscriptSizing="dynamic">
           <mat-label>{{ t('allowed_increase') }}</mat-label>
+          <mat-icon matPrefix>trending_up</mat-icon>
           <mat-select formControlName="deal">
             <mat-option *ngFor="let deal of deals" [value]="deal">{{ dealOption(deal) }}</mat-option>
           </mat-select>

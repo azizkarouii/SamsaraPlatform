@@ -2,7 +2,6 @@ package com.samsara.controller;
 
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
-import com.samsara.service.EmailVerificationService;
 import com.samsara.config.AuthCookies;
 import com.samsara.dto.ForgotPasswordDto;
 import com.samsara.dto.ResetPasswordDto;
@@ -13,7 +12,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.samsara.dto.AuthResponse;
 import com.samsara.dto.ChangePasswordDto;
 import com.samsara.dto.LoginDto;
-import com.samsara.dto.RegisterDto;
 import com.samsara.dto.UpdateProfileDto;
 import com.samsara.dto.UserDto;
 import com.samsara.service.AuthService;
@@ -30,13 +28,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
-    private final EmailVerificationService emailVerificationService;
     private final AuthCookies authCookies;
-
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterDto dto) {
-        return withSession(authService.register(dto));
-    }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
@@ -60,20 +52,6 @@ public class AuthController {
     public ResponseEntity<Void> logoutEverywhere(Authentication authentication) {
         authService.signOutEverywhere((Long) authentication.getPrincipal());
         return logout();
-    }
-
-    @PostMapping("/verify-email")
-    public ResponseEntity<Void> verifyEmail(@RequestBody Map<String, String> body) {
-        emailVerificationService.verify(body.get("token"));
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/resend-verification")
-    public ResponseEntity<Void> resendVerification(@RequestBody Map<String, String> body) {
-        if (body.get("email") != null) {
-            emailVerificationService.resend(body.get("email"), body.get("language"));
-        }
-        return ResponseEntity.noContent().build();
     }
 
     /** A response carrying a session also sets the HttpOnly cookie the browser will send with each call. */

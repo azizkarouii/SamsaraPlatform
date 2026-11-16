@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
@@ -28,7 +28,9 @@ import { SearchBarComponent } from '../../../shared/search-bar.component';
 import { DatePillComponent } from '../../../shared/date-pill.component';
 import { HouseToday, OccupancyDay, houseToday, occupancyOf, occupancyRate, stripRange } from '../../../shared/house-occupancy';
 import { formatIsoDate, parseIsoDate } from '../../../shared/calendar-utils';
-import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subscription, debounceTime, distinctUntilChanged, of } from 'rxjs';
+import { AuthService } from '../../../services/auth.service';
+import { worksWithSamsars } from '../../../models/auth.model';
 
 const VIEW_KEY = 'samsara-houses-view';
 
@@ -145,12 +147,12 @@ interface HouseState { days: OccupancyDay[]; today: HouseToday; rate: number; sa
             </ng-container>
 
             <div class="foot" (click)="$event.stopPropagation()">
-              <a class="samsars" routerLink="/shared-houses" [matTooltip]="t('my_samsars')">
+              <a class="samsars" *ngIf="samsarsOn" routerLink="/shared-houses" [matTooltip]="t('my_samsars')">
                 <mat-icon>groups</mat-icon> {{ state(prop)?.samsars ?? 0 }}
               </a>
               <span class="spacer"></span>
               <a mat-icon-button [routerLink]="['/reservations/add']" [queryParams]="{ propertyId: prop.id }" [matTooltip]="t('book')"><mat-icon>event_available</mat-icon></a>
-              <button mat-icon-button (click)="openShareDialog(prop)" [matTooltip]="t('share')"><mat-icon>person_add</mat-icon></button>
+              <button mat-icon-button *ngIf="samsarsOn" (click)="openShareDialog(prop)" [matTooltip]="t('share')"><mat-icon>person_add</mat-icon></button>
               <a mat-icon-button [routerLink]="['/properties', prop.id, 'edit']" [matTooltip]="t('edit')"><mat-icon>edit</mat-icon></a>
             </div>
           </div>
@@ -192,7 +194,7 @@ interface HouseState { days: OccupancyDay[]; today: HouseToday; rate: number; sa
                 <th mat-header-cell *matHeaderCellDef>{{ t('actions_col') }}</th>
                 <td mat-cell *matCellDef="let prop" class="nowrap">
                   <a mat-icon-button [routerLink]="['/properties', prop.id, 'edit']" (click)="$event.stopPropagation()" [matTooltip]="t('edit')"><mat-icon>edit</mat-icon></a>
-                  <button mat-icon-button color="primary" (click)="openShareDialog(prop); $event.stopPropagation()" [matTooltip]="t('share')"><mat-icon>person_add</mat-icon></button>
+                  <button mat-icon-button color="primary" *ngIf="samsarsOn" (click)="openShareDialog(prop); $event.stopPropagation()" [matTooltip]="t('share')"><mat-icon>person_add</mat-icon></button>
                 </td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
@@ -254,6 +256,9 @@ export class PropertyListComponent implements OnInit, OnDestroy {
   planning?: Planning;
   private states = new Map<number, HouseState>();
   private samsarCounts = new Map<number, number>();
+
+  /** An owner working alone (option off in the admin) sees nothing about samsars. */
+  readonly samsarsOn = worksWithSamsars(inject(AuthService).getCurrentUser());
   private readonly subscriptions = new Subscription();
   private request?: Subscription;
 
@@ -441,7 +446,7 @@ export class PropertyListComponent implements OnInit, OnDestroy {
   }
 
   private loadSamsarCounts(): void {
-    this.propertySamsarService.findByOwner().subscribe(relations => {
+    (this.samsarsOn ? this.propertySamsarService.findByOwner() : of([])).subscribe(relations => {
       this.samsarCounts.clear();
       for (const rel of relations) this.samsarCounts.set(rel.propertyId, (this.samsarCounts.get(rel.propertyId) ?? 0) + 1);
       this.rebuildStates();

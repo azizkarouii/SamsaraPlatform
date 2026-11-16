@@ -17,6 +17,9 @@ spring:
     host: mail.test.invalid
 
 application:
+  superadmin:
+    email: admin@test.tn
+    password: admin-secret
   jwt:
     secret: test-only-secret-test-only-secret-test-only-secret-0123456789
   storage:

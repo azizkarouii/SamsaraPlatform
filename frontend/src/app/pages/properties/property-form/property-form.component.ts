@@ -60,6 +60,8 @@ function seasonsNeedMainPrice(form: AbstractControl): ValidationErrors | null {
 import { MatSelectModule } from '@angular/material/select';
 import { HOUSE_TYPES } from '../../../shared/house-types';
 import { PropertyThumbComponent } from '../../../shared/property-thumb.component';
+import { HouseLocationComponent } from '../../../shared/house-location.component';
+import { LatLng, beachDistance } from '../../../shared/geo';
 @Component({
   selector: 'app-property-form',
   standalone: true,
@@ -80,6 +82,7 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
     MatProgressSpinnerModule,
     MatDividerModule,
     MatSelectModule,
+    HouseLocationComponent,
   ],
   template: `
     <div class="page">
@@ -101,12 +104,14 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-2">
                 <mat-label>{{ t('title_col') }}</mat-label>
+                <mat-icon matPrefix>title</mat-icon>
                 <input matInput formControlName="title" placeholder="{{ t('title_col') }}" />
                 <mat-error *ngIf="propertyForm.get('title')?.hasError('required')">{{ t('property_title_required') }}</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('configuration') }}</mat-label>
+                <mat-icon matPrefix>bed</mat-icon>
                 <mat-select formControlName="configuration">
                   <mat-option value="">{{ t('not_specified') }}</mat-option>
                   <mat-option *ngFor="let type of houseTypes" [value]="type">{{ type }}</mat-option>
@@ -122,11 +127,13 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('address_col') }}</mat-label>
+                <mat-icon matPrefix>home_pin</mat-icon>
                 <input matInput formControlName="address" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('owner_contact') }}</mat-label>
+                <mat-icon matPrefix>call</mat-icon>
                 <span matTextPrefix>+216&nbsp;</span>
                 <input matInput formControlName="ownerContact" type="tel" inputmode="tel" autocomplete="tel-national" />
                 <button mat-icon-button matSuffix type="button" (click)="fillOwnerContact()"
@@ -137,6 +144,11 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
               </mat-form-field>
             </div>
 
+            <div class="location-block">
+              <p class="field-title"><mat-icon inline>pin_drop</mat-icon> {{ t('location') }}</p>
+              <app-house-location [point]="location" [editable]="true" (pointChange)="onLocationChange($event)"></app-house-location>
+            </div>
+
             </section>
 
             <section class="step-card">
@@ -145,18 +157,21 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('price_per_day') }}</mat-label>
+                <mat-icon matPrefix>payments</mat-icon>
                 <input matInput type="number" min="0" formControlName="pricePerDay" />
                 <span matTextSuffix>TND</span>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('price_per_week') }}</mat-label>
+                <mat-icon matPrefix>date_range</mat-icon>
                 <input matInput type="number" min="0" formControlName="pricePerWeek" />
                 <span matTextSuffix>TND</span>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('price_per_month') }}</mat-label>
+                <mat-icon matPrefix>calendar_month</mat-icon>
                 <input matInput type="number" min="0" formControlName="pricePerMonth" />
                 <span matTextSuffix>TND</span>
               </mat-form-field>
@@ -168,18 +183,21 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
               <div class="season-row" *ngFor="let row of seasonalRows.controls; let i = index" [formGroupName]="i">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('from') }}</mat-label>
+                  <mat-icon matPrefix>event</mat-icon>
                   <input matInput formControlName="startDate" inputmode="numeric" maxlength="5" [placeholder]="t('day_month_placeholder')"
                          (input)="formatDayMonth(row, 'startDate')" />
                   <mat-error>{{ t('day_month_invalid') }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('to') }}</mat-label>
+                  <mat-icon matPrefix>event</mat-icon>
                   <input matInput formControlName="endDate" inputmode="numeric" maxlength="5" [placeholder]="t('day_month_placeholder')"
                          (input)="formatDayMonth(row, 'endDate')" />
                   <mat-error>{{ t('day_month_invalid') }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('price_per_night') }}</mat-label>
+                  <mat-icon matPrefix>sell</mat-icon>
                   <input matInput type="number" min="1" formControlName="pricePerDay" />
                   <span matTextSuffix>TND</span>
                   <mat-error>{{ t('season_price_required') }}</mat-error>
@@ -204,17 +222,25 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
             <div class="form-row">
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('capacity_col') }}</mat-label>
+                <mat-icon matPrefix>groups</mat-icon>
                 <input matInput type="number" formControlName="maxCapacity" />
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="flex-1">
                 <mat-label>{{ t('bathrooms') }}</mat-label>
+                <mat-icon matPrefix>bathtub</mat-icon>
                 <input matInput type="number" formControlName="bathrooms" />
               </mat-form-field>
 
-              <mat-form-field appearance="outline" class="flex-1">
+              <mat-form-field appearance="outline" class="flex-1" subscriptSizing="dynamic">
                 <mat-label>{{ t('distance_beach') }} (m)</mat-label>
-                <input matInput type="number" formControlName="distanceBeach" />
+                <mat-icon matPrefix>beach_access</mat-icon>
+                <input matInput type="number" formControlName="distanceBeach" (input)="beachState = 'manual'" />
+                <button mat-icon-button matSuffix type="button" *ngIf="location" (click)="computeBeach()" [disabled]="beachState === 'computing'"
+                        [matTooltip]="t('beach_compute')" [attr.aria-label]="t('beach_compute')">
+                  <mat-icon [class.spin]="beachState === 'computing'">{{ beachState === 'computing' ? 'autorenew' : 'auto_mode' }}</mat-icon>
+                </button>
+                <mat-hint *ngIf="beachState !== 'idle' && beachState !== 'manual'" [class.auto]="beachState === 'auto'">{{ t('beach_' + beachState) }}</mat-hint>
               </mat-form-field>
             </div>
 
@@ -241,6 +267,7 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
               <div class="link-row" *ngFor="let link of linkRows.controls; let i = index">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>{{ t('link_address') }}</mat-label>
+                  <mat-icon matPrefix>link</mat-icon>
                   <input matInput type="url" [formControlName]="i" placeholder="https://www.tiktok.com/..." (blur)="completeLink(i)" />
                   <mat-error>{{ t('link_invalid') }}</mat-error>
                 </mat-form-field>
@@ -291,6 +318,11 @@ import { PropertyThumbComponent } from '../../../shared/property-thumb.component
     </div>
   `,
   styles: [`
+    .location-block { margin-top: 0.25rem; }
+    .location-block .field-title { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.45rem; font-weight: 600; font-size: 0.88rem; }
+    .spin { animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    mat-hint.auto { color: var(--primary); font-weight: 600; }
     .form-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.25rem; align-items: start; }
     .steps { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
     .toggles { display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -503,6 +535,7 @@ export class PropertyFormComponent implements OnInit {
         if (property.configuration && !this.houseTypes.includes(property.configuration)) {
           this.houseTypes = [...this.houseTypes, property.configuration];
         }
+        this.location = property.latitude != null && property.longitude != null ? { lat: property.latitude, lng: property.longitude } : null;
         this.coverImage = property.coverImage ?? property.images?.find(image => image.isMain)?.imagePath ?? property.images?.[0]?.imagePath;
         property.seasonalPrices?.forEach(price => this.addSeasonalRow(price));
         property.links?.forEach(link => this.addLinkRow(link.url));
@@ -536,12 +569,52 @@ export class PropertyFormComponent implements OnInit {
     });
   }
 
+  /** Where the house is; null until pinned on the map. */
+  location: LatLng | null = null;
+  /** idle, computing, auto (filled from the map), none (no sea within 15 km), error, manual (typed). */
+  beachState: 'idle' | 'computing' | 'auto' | 'none' | 'error' | 'manual' = 'idle';
+  private beachAbort?: AbortController;
+
+  /** A new pin also measures the beach, unless the owner typed the distance himself. */
+  onLocationChange(point: LatLng | null): void {
+    this.location = point;
+    this.propertyForm.markAsDirty();
+    if (point && this.beachState !== 'manual') {
+      this.computeBeach();
+    } else if (!point) {
+      this.beachAbort?.abort();
+      this.beachState = 'idle';
+    }
+  }
+
+  async computeBeach(): Promise<void> {
+    if (!this.location) return;
+    this.beachAbort?.abort();
+    this.beachAbort = new AbortController();
+    this.beachState = 'computing';
+    try {
+      const meters = await beachDistance(this.location, this.beachAbort.signal);
+      if (meters == null) {
+        this.beachState = 'none';
+      } else {
+        this.propertyForm.patchValue({ distanceBeach: meters });
+        this.propertyForm.get('distanceBeach')?.markAsDirty();
+        this.beachState = 'auto';
+      }
+    } catch (error) {
+      if ((error as Error)?.name !== 'AbortError') this.beachState = 'error';
+    }
+  }
+
   onSubmit(): void {
     if (this.propertyForm.invalid) return;
 
     this.loading = true;
     const dto = {
       ...this.propertyForm.value,
+      latitude: this.location?.lat ?? null,
+      longitude: this.location?.lng ?? null,
+      clearLocation: this.isEdit && !this.location,
       links: this.linkRows.getRawValue().map(url => (url ?? '').trim()),
       seasonalPrices: this.seasonalRows.getRawValue().map(row => ({
         startDate: toMonthDay(row['startDate']),

@@ -10,6 +10,8 @@ export interface Property {
   distanceBeach?: number;
   maxCapacity?: number;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   ownerContact?: string;
   airCondition: boolean;
   wifi: boolean;
@@ -57,6 +59,10 @@ export interface CreatePropertyDto {
   distanceBeach?: number;
   maxCapacity?: number;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  /** True removes the pin of the house. */
+  clearLocation?: boolean;
   ownerContact?: string;
   airCondition?: boolean;
   wifi?: boolean;

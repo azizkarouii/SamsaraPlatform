@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, catchError, distinctUntilChanged, of, skip, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { LoginDto, RegisterDto, AuthResponse, User } from '../models/auth.model';
+import { LoginDto, AuthResponse, User } from '../models/auth.model';
 import { UiPreferencesService } from './ui-preferences.service';
 
 @Injectable({
@@ -35,25 +35,14 @@ export class AuthService {
     );
   }
 
-  /** With email verification, there is no session yet: the response only says a link was sent. */
-  register(dto: RegisterDto): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, dto).pipe(
-      tap(res => {
-        if (res.user) this.storeUser(res.user);
-      })
-    );
-  }
-
-  verifyEmail(token: string): Observable<void> {
-    return this.http.post<void>(`${this.apiUrl}/verify-email`, { token });
-  }
-
-  resendVerification(email: string, language: string): Observable<void> {
-    return this.http.post<void>(`${this.apiUrl}/resend-verification`, { email, language });
-  }
-
   getProfile(): Observable<User> {
     return this.http.get<User>(`${this.apiUrl}/profile`);
+  }
+
+  /** Options set by the superadmin (samsars on or off) reach an open session at the next page load. */
+  refreshProfile(): void {
+    if (!this.isLoggedIn()) return;
+    this.getProfile().subscribe({ next: user => this.storeUser(user), error: () => undefined });
   }
 
   updateProfile(dto: { name: string; phone?: string }): Observable<User> {

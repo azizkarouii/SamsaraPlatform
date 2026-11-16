@@ -3,7 +3,6 @@ package com.samsara.service;
 import com.samsara.dto.AuthResponse;
 import com.samsara.dto.ChangePasswordDto;
 import com.samsara.dto.LoginDto;
-import com.samsara.dto.RegisterDto;
 import com.samsara.dto.UpdateProfileDto;
 import com.samsara.dto.UserDto;
 import com.samsara.entity.User;
@@ -26,39 +25,11 @@ public class AuthService {
 
     private final JwtService jwtService;
     private final AttemptLimiter attemptLimiter;
-    private final EmailVerificationService emailVerificationService;
     private final ImageStorage imageStorage;
     private final ImageFileValidator imageFileValidator;
 
-    public AuthResponse register(RegisterDto dto) {
-        String email = dto.getEmail().trim().toLowerCase();
-        if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
-        }
-        String phone = validatePhone(dto.getPhone(), dto.getRole());
-
-        User user = User.builder()
-                .name(dto.getName().trim())
-                .email(email)
-                .password(passwordEncoder.encode(dto.getPassword()))
-                .phone(phone)
-                .role(dto.getRole())
-                .language(supportedLanguage(dto.getLanguage(), "fr"))
-                .build();
-
-        if (!emailVerificationService.isEnabled()) {
-            user.setEmailVerified(true);
-        }
-        user = userRepository.save(user);
-        if (emailVerificationService.isEnabled()) {
-            emailVerificationService.sendLink(user, dto.getLanguage());
-            return AuthResponse.builder().verificationRequired(true).build();
-        }
-        return toAuthResponse(user);
-    }
-
     /** fr, en or ar from a language code or an Accept-Language header ("ar", "fr-FR,fr;q=0.9"); otherwise the fallback. */
-    static String supportedLanguage(String value, String fallback) {
+    public static String supportedLanguage(String value, String fallback) {
         if (value == null || value.length() < 2) {
             return fallback;
         }
@@ -94,8 +65,8 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         attemptLimiter.reset(limitKey);
-        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please confirm your email address first");
+        if (!Boolean.TRUE.equals(user.getActive())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is disabled");
         }
         String chosen = supportedLanguage(language, user.getLanguage());
         if (!chosen.equals(user.getLanguage())) {
@@ -165,7 +136,7 @@ public class AuthService {
     }
 
     /** A samsar is found by email + phone when an owner shares a house, so his phone is mandatory. */
-    private String validatePhone(String rawPhone, UserRole role) {
+    static String validatePhone(String rawPhone, UserRole role) {
         String phone = PhoneUtils.normalize(rawPhone);
         if (phone == null) {
             if (role == UserRole.SAMSAR) {
@@ -192,7 +163,7 @@ public class AuthService {
                 .build();
     }
 
-    private UserDto toUserDto(User user) {
+    static UserDto toUserDto(User user) {
         return UserDto.builder()
                 .id(user.getId())
                 .name(user.getName())
@@ -200,6 +171,8 @@ public class AuthService {
                 .phone(user.getPhone())
                 .photoUrl(user.getPhotoUrl())
                 .role(user.getRole().name())
+                .active(user.getActive())
+                .samsarsEnabled(user.getSamsarsEnabled())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

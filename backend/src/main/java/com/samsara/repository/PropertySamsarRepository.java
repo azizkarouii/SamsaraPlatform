@@ -20,6 +20,8 @@ public interface PropertySamsarRepository extends JpaRepository<PropertySamsar, 
 
     long countBySamsarId(Long samsarId);
 
+    long countByPropertyCreatedBy(Long ownerId);
+
     @Query("SELECT ps.samsarId FROM PropertySamsar ps WHERE ps.propertyId = :propertyId")
     List<Long> findSamsarIdsByPropertyId(@Param("propertyId") Long propertyId);
 
@@ -32,6 +34,15 @@ public interface PropertySamsarRepository extends JpaRepository<PropertySamsar, 
     @Modifying
     @Query("DELETE FROM PropertySamsar ps WHERE ps.samsarId = :samsarId AND ps.propertyId IN (SELECT p.id FROM Property p WHERE p.createdBy = :ownerId)")
     void deleteBySamsarIdAndPropertyCreatedBy(@Param("samsarId") Long samsarId, @Param("ownerId") Long ownerId);
+
+    /** Every samsar loses access to the houses of this owner (he now works alone). */
+    @Modifying
+    @Query("DELETE FROM PropertySamsar ps WHERE ps.propertyId IN (SELECT p.id FROM Property p WHERE p.createdBy = :ownerId)")
+    void deleteByPropertyCreatedBy(@Param("ownerId") Long ownerId);
+
+    @Modifying
+    @Query("DELETE FROM PropertySamsar ps WHERE ps.samsarId = :samsarId")
+    void deleteBySamsarId(@Param("samsarId") Long samsarId);
 
     @Modifying
     @Query("DELETE FROM PropertySamsar ps WHERE ps.propertyId = :propertyId")

@@ -3,12 +3,12 @@ package com.samsara.dto;
 import com.samsara.entity.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/** An account created or edited by the superadmin. On an edit, a blank password keeps the current one. */
 @Data
-public class RegisterDto {
+public class AdminUserRequest {
     @NotBlank
     @Size(min = 3)
     private String name;
@@ -17,15 +17,18 @@ public class RegisterDto {
     @NotBlank
     private String email;
 
-    @NotBlank
-    @Size(min = 6)
-    private String password;
-
     private String phone;
 
-    @NotNull
+    /** PROPRIETAIRE or SAMSAR; set at creation only. */
     private UserRole role;
 
-    /** Language of the confirmation email: fr, en or ar. */
+    private String password;
+
+    private Boolean active;
+
+    /** For an owner: works with samsars. */
+    private Boolean samsarsEnabled;
+
+    /** fr, en or ar: the language of the emails sent to the account. */
     private String language;
 }

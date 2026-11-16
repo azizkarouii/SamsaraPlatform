@@ -21,6 +21,10 @@ public class PropertyDto {
     private Double distanceBeach;
     private Integer maxCapacity;
     private String address;
+    private Double latitude;
+    private Double longitude;
+    /** True removes the pin (null latitude and longitude otherwise leave it untouched). */
+    private Boolean clearLocation;
     private String ownerContact;
     private Boolean airCondition;
     private Boolean wifi;
